@@ -1,26 +1,143 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* ---------- palette ---------- */
+  --color-paper: #fbf8f2; /* warm evening paper */
+  --color-card: #ffffff;
+  --color-ink: #223b33; /* deep pine — steady, reassuring */
+  --color-ink-soft: #5c7168;
+  --color-line: #e7e0d2;
+  --color-line-soft: #efe9dc;
+
+  --color-honey: #e9a83e; /* lamplight — warmth & encouragement */
+  --color-honey-deep: #b77e1f;
+  --color-honey-tint: #fbefd8;
+  --color-honey-line: #f0dcb4;
+
+  --color-green: #2e9e63; /* "done / live" — accomplishment */
+  --color-green-deep: #1e7a49;
+  --color-green-tint: #e4f4ea;
+  --color-green-line: #c2e5d0;
+
+  --color-sage-tint: #ecf2ec;
+  --color-sage-line: #dce8dd;
+  --color-clay-tint: #f6ede2;
+
+  /* ---------- fonts ---------- */
+  --font-sans: var(--font-nunito), system-ui, sans-serif;
+  --font-serif: var(--font-young-serif), serif;
+
+  /* ---------- shape ---------- */
+  --radius-card: 24px;
+  --shadow-soft: 0 10px 30px rgba(34, 59, 51, 0.08);
+  --shadow-lift: 0 24px 60px rgba(34, 59, 51, 0.12);
+
+  /* ---------- motion ---------- */
+  --animate-pop: pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-fall: fall 1.7s ease-out forwards;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@keyframes pop {
+  0% {
+    transform: scale(0.94);
+  }
+  60% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes fall {
+  0% {
+    opacity: 0.95;
+    transform: translateY(0) rotate(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(330px) rotate(300deg);
+  }
+}
+
+@utility wrap {
+  max-width: 1080px;
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-paper);
+    color: var(--color-ink);
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    line-height: 1.18;
+  }
+
+  ::selection {
+    background: var(--color-honey-tint);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-honey);
+    outline-offset: 3px;
+    border-radius: 12px;
+  }
+}
+
+@layer components {
+  /* Body copy blocks — needs descendant selectors, so it stays a class. */
+  .prose-block {
+    max-width: 640px;
+    margin-inline: auto;
+    color: var(--color-ink-soft);
+    font-size: 1.08rem;
+  }
+  .prose-block p + p {
+    margin-top: 1em;
+  }
+  .prose-block strong {
+    color: var(--color-ink);
+  }
+
+  /* Scroll reveal. The hidden state applies only once JS is confirmed (the
+     `js` class is set by a blocking script in <head>), so a visitor without
+     JavaScript sees every section instead of a blank page. */
+  [data-reveal] {
+    transition:
+      opacity 0.6s ease,
+      transform 0.6s ease;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .js [data-reveal="hidden"] {
+      opacity: 0;
+      transform: translateY(22px);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
 }
