@@ -127,7 +127,7 @@ export function LaunchConsole() {
   const status = MESSAGES[live ? 6 : Math.min(doneCount, MESSAGES.length - 2)];
 
   return (
-    <div className="relative mx-auto max-w-[720px]">
+    <div className="@container relative mx-auto w-full max-w-[720px]">
       <div
         ref={ref}
         aria-label="Demo: Allr generating a project"
@@ -187,7 +187,7 @@ export function LaunchConsole() {
 
         {/* the assets being built */}
         <div className="px-[26px] pt-[26px] pb-2">
-          <div className="grid grid-cols-2 gap-3 min-[641px]:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 @[34rem]:grid-cols-3">
             {ASSETS.map((asset, i) => (
               <AssetPill
                 key={asset.label}
