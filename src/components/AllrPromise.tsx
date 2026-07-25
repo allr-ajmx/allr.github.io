@@ -1,4 +1,5 @@
 import { Reveal } from "@/components/Reveal";
+import { Logo } from "@/components/ui/Logo";
 
 export function AllrPromise() {
   return (
@@ -12,12 +13,7 @@ export function AllrPromise() {
             &rdquo;
           </blockquote>
           <span className="mt-[18px] inline-flex items-center gap-[.5em] text-[.95rem] font-extrabold text-ink-soft">
-            <span
-              aria-hidden="true"
-              className="inline-flex size-[22px] items-center justify-center rounded-full bg-[radial-gradient(circle_at_32%_30%,#F6C56B,var(--color-honey)_55%,var(--color-honey-deep))] text-[.7rem] text-white"
-            >
-              ✦
-            </span>
+            <Logo size={22} />
             The Allr promise
           </span>
         </Reveal>

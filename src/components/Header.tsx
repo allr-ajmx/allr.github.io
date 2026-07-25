@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/Button";
+import { Logo } from "@/components/ui/Logo";
 
 const NAV_LINKS = [
   { href: "#makes", label: "What it makes" },
@@ -15,12 +16,7 @@ export function Header() {
           href="#top"
           className="inline-flex items-center gap-2 font-serif text-[1.55rem] no-underline"
         >
-          <span
-            className="inline-flex size-9 items-center justify-center rounded-full bg-[radial-gradient(circle_at_32%_30%,#F6C56B,var(--color-honey)_55%,var(--color-honey-deep))] text-[1.05rem] text-white shadow-[0_6px_16px_rgba(233,168,62,.4)]"
-            aria-hidden="true"
-          >
-            ✦
-          </span>
+          <Logo size={36} priority />
           allr
         </a>
 
