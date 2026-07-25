@@ -1,0 +1,64 @@
+import { Reveal } from "@/components/Reveal";
+import { SectionHead } from "@/components/ui/SectionHead";
+
+const HANDLED = [
+  "Hosting",
+  "Formatting",
+  "Design systems",
+  "Working formulas",
+  "Video rendering",
+  "Deployment",
+  "File formats",
+  "Share links",
+];
+
+export function Solution() {
+  return (
+    <section id="solution" className="pt-5 pb-22">
+      <div className="wrap">
+        <SectionHead
+          eyebrow="The solution"
+          tone="green"
+          title="One workspace. Every kind of work. Actually finished."
+        />
+
+        <Reveal className="prose-block">
+          <p>
+            Allr — as in <strong>all</strong> — puts everything under one roof.
+            You describe what you want in plain language. Allr picks the right
+            tools, generates the asset, and keeps everything in one project.
+          </p>
+          <p>
+            No juggling subscriptions. No passing context between apps. No
+            half-finished exports sitting in a downloads folder.
+          </p>
+        </Reveal>
+
+        {/* The mentor's job: quietly removing the technical stuff */}
+        <Reveal className="mx-auto mt-13 max-w-[860px] rounded-[30px] border-[1.5px] border-line bg-card px-[30px] py-10 text-center shadow-soft">
+          <h3 className="mb-2 text-[1.35rem]">
+            The technical stuff? Already handled.
+          </h3>
+          <p className="mb-6 text-[1.02rem] text-ink-soft">
+            All the things that usually stand between you and
+            &ldquo;it&rsquo;s done&rdquo; — Allr takes care of them quietly, in
+            the background.
+          </p>
+          <div className="flex flex-wrap justify-center gap-2.5">
+            {HANDLED.map((chip) => (
+              <span
+                key={chip}
+                className="inline-flex items-center gap-[.5em] rounded-full border-[1.5px] border-sage-line bg-sage-tint px-[1.15em] py-[.45em] text-[.9rem] font-extrabold text-ink after:font-black after:text-green-deep after:content-['✓']"
+              >
+                {chip}
+              </span>
+            ))}
+          </div>
+          <p className="mt-[22px] font-serif text-[1.05rem] text-honey-deep">
+            You focus on the work. Allr handles the rest.
+          </p>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
