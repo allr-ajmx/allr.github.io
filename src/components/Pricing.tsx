@@ -1,5 +1,4 @@
 import { Reveal } from "@/components/Reveal";
-import { Button } from "@/components/ui/Button";
 import { JunkPill, OnePill } from "@/components/ui/JunkPill";
 import { SectionHead } from "@/components/ui/SectionHead";
 
@@ -44,12 +43,6 @@ export function Pricing() {
           </span>
 
           <OnePill>allr · one plan</OnePill>
-        </Reveal>
-
-        <Reveal className="mt-9 text-center">
-          <Button href="#final" variant="ghost" size="lg">
-            See pricing →
-          </Button>
         </Reveal>
       </div>
     </section>
