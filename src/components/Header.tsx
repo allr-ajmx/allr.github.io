@@ -35,9 +35,7 @@ export function Header() {
           ))}
         </nav>
 
-        <Button href="#final" size="sm">
-          Start creating free
-        </Button>
+        <Button size="sm">Coming soon</Button>
       </div>
     </header>
   );

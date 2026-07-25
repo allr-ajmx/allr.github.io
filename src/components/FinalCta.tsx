@@ -21,8 +21,8 @@ export function FinalCta() {
           <p className="relative z-10 mb-8 text-[1.15rem] opacity-95">
             Describe what you want. Get finished work. Share it with the world.
           </p>
-          <Button href="#top" variant="white" size="lg" className="relative z-10">
-            Start creating free
+          <Button variant="white" size="lg" className="relative z-10">
+            Coming soon
           </Button>
           <p className="relative z-10 mt-4 text-[.95rem] opacity-85">
             No credit card required. Your first project is on us.
