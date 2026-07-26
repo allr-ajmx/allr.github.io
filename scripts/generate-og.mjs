@@ -1,6 +1,11 @@
 /**
- * Build public/og.png (1200×630) with the real Allr mark for Slack/Discord/OG.
- * Run: node scripts/generate-og.mjs
+ * Build social + favicon assets from logo_base.svg.
+ * Run: node scripts/generate-og.mjs  (also: pnpm generate-og)
+ *
+ * Produces:
+ *  - public/og.png (1200×630 Open Graph)
+ *  - public/apple-touch-icon.png
+ *  - public/favicon.ico + PNG sizes (for Google s2/favicons etc.)
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -15,8 +20,53 @@ const logoMark = join(root, "public", "logo-mark.png");
 
 const W = 1200;
 const H = 630;
+const paper = { r: 251, g: 248, b: 242, alpha: 255 };
 
-// Rasterize logo mark (transparent) for compositing
+async function markPng(size, bg = paper) {
+  const logo = await sharp(logoSvg)
+    .resize(Math.round(size * 0.78), Math.round(size * 0.78), {
+      fit: "contain",
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
+    .png()
+    .toBuffer();
+  const base = await sharp({
+    create: { width: size, height: size, channels: 4, background: bg },
+  })
+    .png()
+    .toBuffer();
+  const inset = Math.round(size * 0.11);
+  return sharp(base)
+    .composite([{ input: logo, top: inset, left: inset }])
+    .png()
+    .toBuffer();
+}
+
+function pngToIco(pngBuffers) {
+  const count = pngBuffers.length;
+  let offset = 6 + count * 16;
+  const entries = [];
+  for (const png of pngBuffers) {
+    const w = png.readUInt32BE(16);
+    const h = png.readUInt32BE(20);
+    const entry = Buffer.alloc(16);
+    entry[0] = w >= 256 ? 0 : w;
+    entry[1] = h >= 256 ? 0 : h;
+    entry.writeUInt16LE(1, 4);
+    entry.writeUInt16LE(32, 6);
+    entry.writeUInt32LE(png.length, 8);
+    entry.writeUInt32LE(offset, 12);
+    entries.push(entry);
+    offset += png.length;
+  }
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(count, 4);
+  return Buffer.concat([header, ...entries, ...pngBuffers]);
+}
+
+// Rasterize logo mark (transparent) for OG compositing
 await sharp(logoSvg)
   .resize(512, 512, {
     fit: "contain",
@@ -24,6 +74,19 @@ await sharp(logoSvg)
   })
   .png()
   .toFile(logoMark);
+
+// Favicon set — Google s2 requires /favicon.ico (SVG-only sites often return null)
+const fav16 = await markPng(16);
+const fav32 = await markPng(32);
+const fav48 = await markPng(48);
+writeFileSync(join(root, "public", "favicon-16x16.png"), fav16);
+writeFileSync(join(root, "public", "favicon-32x32.png"), fav32);
+writeFileSync(join(root, "public", "favicon.ico"), pngToIco([fav16, fav32, fav48]));
+writeFileSync(join(root, "public", "icon-192.png"), await markPng(192));
+writeFileSync(join(root, "public", "icon-256.png"), await markPng(256));
+writeFileSync(join(root, "public", "icon-512.png"), await markPng(512));
+writeFileSync(join(root, "public", "icon.png"), await markPng(256));
+console.log("wrote favicon.ico + PNG icon sizes");
 
 const logoB64 = readFileSync(logoMark).toString("base64");
 

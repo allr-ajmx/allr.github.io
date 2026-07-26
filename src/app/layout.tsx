@@ -63,10 +63,19 @@ export const metadata: Metadata = {
     canonical: "/",
   },
   icons: {
-    icon: [{ url: "/icon.svg", type: "image/svg+xml", sizes: "any" }],
+    // Google s2/favicons + most crawlers want /favicon.ico + PNGs (SVG alone is ignored).
+    icon: [
+      { url: "/favicon.ico", sizes: "48x48" },
+      { url: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
+      { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icon-512.png", type: "image/png", sizes: "512x512" },
+      { url: "/icon.svg", type: "image/svg+xml", sizes: "any" },
+    ],
     apple: [
       { url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" },
     ],
+    shortcut: ["/favicon.ico"],
   },
   openGraph: {
     type: "website",
