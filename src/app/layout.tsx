@@ -78,7 +78,8 @@ export const metadata: Metadata = {
     images: [
       {
         // Committed static asset in /public — works on Vercel + GH Pages.
-        url: "/og.png",
+        // Bump ?v= when the asset changes so Slack/Discord re-fetch (they cache hard).
+        url: "/og.png?v=3",
         width: 1200,
         height: 630,
         alt: `${SITE_NAME} — ${SITE_TAGLINE}`,
@@ -90,7 +91,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
-    images: ["/og.png"],
+    images: ["/og.png?v=3"],
   },
   robots: {
     index: true,
