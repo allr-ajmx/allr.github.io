@@ -5,10 +5,17 @@ export function PublishingBand() {
   return (
     <section id="publish" className="pt-0 pb-22">
       <div className="wrap">
-        <Reveal className="relative overflow-hidden rounded-[34px] border-[1.5px] border-[#F0DEB8] bg-[linear-gradient(150deg,#FDF3DF,var(--color-honey-tint)_55%,#F3ECDC)] px-[30px] py-16 text-center">
+        <Reveal
+          className="relative overflow-hidden rounded-[34px] border-[1.5px] border-[#F0DEB8] bg-[linear-gradient(150deg,#FDF3DF,var(--color-honey-tint)_55%,#F3ECDC)] px-[30px] py-16 text-center shadow-soft"
+          variant="scale"
+        >
           <div
             aria-hidden="true"
-            className="absolute -top-[120px] -right-[120px] size-[340px] rounded-full bg-[radial-gradient(closest-side,rgba(233,168,62,.25),transparent_70%)]"
+            className="band-blob absolute -top-[120px] -right-[120px] size-[340px] rounded-full bg-[radial-gradient(closest-side,rgba(233,168,62,.28),transparent_70%)]"
+          />
+          <div
+            aria-hidden="true"
+            className="band-blob band-blob--slow absolute -bottom-[140px] -left-[100px] size-[280px] rounded-full bg-[radial-gradient(closest-side,rgba(46,158,99,.12),transparent_70%)]"
           />
 
           <Pill tone="green" className="relative mb-[18px]">
@@ -32,8 +39,8 @@ export function PublishingBand() {
             </p>
           </div>
 
-          <span className="relative inline-flex items-center gap-[.7em] rounded-full border-[1.5px] border-green-line bg-card px-[1.4em] py-[.6em] font-extrabold text-ink shadow-soft">
-            <span className="size-[.6em] rounded-full bg-green" />
+          <span className="relative inline-flex items-center gap-[.7em] rounded-full border-[1.5px] border-green-line bg-card px-[1.4em] py-[.6em] font-extrabold text-ink shadow-soft transition-transform duration-300 hover:-translate-y-0.5">
+            <span className="live-pulse size-[.6em] rounded-full bg-green" />
             allr.app/your-launch
             <span className="rounded-full bg-green-tint px-[.8em] py-[.2em] text-[.78rem] font-extrabold text-green-deep">
               Copy link

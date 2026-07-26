@@ -5,14 +5,21 @@ export function FinalCta() {
   return (
     <section id="final" className="pt-5 pb-22">
       <div className="wrap">
-        <Reveal className="relative overflow-hidden rounded-[34px] bg-[linear-gradient(160deg,var(--color-green),var(--color-green-deep))] px-[30px] py-[74px] text-center text-white shadow-[0_28px_70px_rgba(30,122,73,.32)]">
+        <Reveal
+          className="relative overflow-hidden rounded-[34px] bg-[linear-gradient(160deg,var(--color-green),var(--color-green-deep))] px-[30px] py-[74px] text-center text-white shadow-[0_28px_70px_rgba(30,122,73,.32)]"
+          variant="scale"
+        >
           <span
             aria-hidden="true"
-            className="absolute -top-[140px] -left-[100px] size-[300px] rounded-full bg-white/10"
+            className="band-blob absolute -top-[140px] -left-[100px] size-[300px] rounded-full bg-white/10"
           />
           <span
             aria-hidden="true"
-            className="absolute -right-[150px] -bottom-[220px] size-[400px] rounded-full bg-white/10"
+            className="band-blob band-blob--slow absolute -right-[150px] -bottom-[220px] size-[400px] rounded-full bg-white/10"
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-1/2 size-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,rgba(255,255,255,.12),transparent_65%)]"
           />
 
           <h2 className="relative z-10 mb-4 text-[clamp(2rem,4.2vw,2.9rem)]">

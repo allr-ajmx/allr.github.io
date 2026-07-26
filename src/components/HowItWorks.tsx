@@ -50,7 +50,7 @@ const STEPS = [
 
 export function HowItWorks() {
   return (
-    <section id="how" className="py-22">
+    <section id="how" className="relative py-22">
       <div className="wrap">
         <SectionHead eyebrow="How it works" title="Three steps. No stitching." />
 
@@ -58,7 +58,8 @@ export function HowItWorks() {
           {STEPS.map((step, i) => (
             <Reveal
               key={step.title}
-              className="rounded-card border-[1.5px] border-line bg-card px-7 py-8 shadow-soft"
+              delay={i * 110}
+              className="surface-lift rounded-card border-[1.5px] border-line bg-card/95 px-7 py-8 shadow-soft backdrop-blur-[2px]"
             >
               <span
                 className={`mb-4 inline-flex size-[46px] items-center justify-center rounded-full font-serif text-[1.15rem] ${NUM_TINTS[i]}`}

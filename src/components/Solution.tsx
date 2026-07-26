@@ -14,7 +14,7 @@ const HANDLED = [
 
 export function Solution() {
   return (
-    <section id="solution" className="pt-5 pb-22">
+    <section id="solution" className="relative pt-5 pb-22">
       <div className="wrap">
         <SectionHead
           eyebrow="The solution"
@@ -22,7 +22,7 @@ export function Solution() {
           title="One workspace. Every kind of work. Actually finished."
         />
 
-        <Reveal className="prose-block">
+        <Reveal className="prose-block" delay={60}>
           <p>
             Allr — as in <strong>all</strong> — puts everything under one roof.
             You describe what you want in plain language. Allr picks the right
@@ -35,7 +35,11 @@ export function Solution() {
         </Reveal>
 
         {/* The mentor's job: quietly removing the technical stuff */}
-        <Reveal className="mx-auto mt-13 max-w-[860px] rounded-[30px] border-[1.5px] border-line bg-card px-[30px] py-10 text-center shadow-soft">
+        <Reveal
+          className="surface-lift mx-auto mt-13 max-w-[860px] rounded-[30px] border-[1.5px] border-line bg-card/95 px-[30px] py-10 text-center shadow-soft backdrop-blur-[2px]"
+          delay={120}
+          variant="scale"
+        >
           <h3 className="mb-2 text-[1.35rem]">
             The technical stuff? Already handled.
           </h3>
@@ -45,10 +49,11 @@ export function Solution() {
             the background.
           </p>
           <div className="flex flex-wrap justify-center gap-2.5">
-            {HANDLED.map((chip) => (
+            {HANDLED.map((chip, i) => (
               <span
                 key={chip}
-                className="inline-flex items-center gap-[.5em] rounded-full border-[1.5px] border-sage-line bg-sage-tint px-[1.15em] py-[.45em] text-[.9rem] font-extrabold text-ink after:font-black after:text-green-deep after:content-['✓']"
+                className="stagger-child inline-flex items-center gap-[.5em] rounded-full border-[1.5px] border-sage-line bg-sage-tint px-[1.15em] py-[.45em] text-[.9rem] font-extrabold text-ink after:font-black after:text-green-deep after:content-['✓']"
+                style={{ ["--i" as string]: i, ["--stagger-base" as string]: "45ms" }}
               >
                 {chip}
               </span>

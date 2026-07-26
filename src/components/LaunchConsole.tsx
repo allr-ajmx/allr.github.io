@@ -128,6 +128,11 @@ export function LaunchConsole() {
 
   return (
     <div className="@container relative mx-auto w-full max-w-[720px]">
+      {/* soft pedestal shadow under the console */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-[8%] -bottom-3 h-10 rounded-[50%] bg-[radial-gradient(closest-side,rgba(34,59,51,.14),transparent_70%)] blur-[2px]"
+      />
       <div
         ref={ref}
         aria-label="Demo: Allr generating a project"
@@ -178,7 +183,7 @@ export function LaunchConsole() {
           <span
             className={cx(
               "shrink-0 rounded-full bg-green px-4 py-[.32em] text-[.85rem] font-extrabold text-white transition-[opacity,transform] duration-300 ease-[cubic-bezier(.34,1.56,.64,1)]",
-              live ? "scale-100 opacity-100" : "scale-[.6] opacity-0",
+              live ? "live-pulse scale-100 opacity-100" : "scale-[.6] opacity-0",
             )}
           >
             ● Live

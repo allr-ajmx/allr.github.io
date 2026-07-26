@@ -12,14 +12,14 @@ const STACK = [
 
 export function Problem() {
   return (
-    <section id="problem" className="pt-[60px] pb-22">
-      <div className="wrap">
+    <section id="problem" className="section-wash relative pt-[60px] pb-22">
+      <div className="wrap relative">
         <SectionHead
           eyebrow="The problem"
           title="Getting real work out of AI shouldn't take ten subscriptions."
         />
 
-        <Reveal className="prose-block">
+        <Reveal className="prose-block" delay={80}>
           <p>
             Today, there&rsquo;s an AI tool for slides. Another for documents.
             Another for video, another for websites, another for spreadsheets.
@@ -42,16 +42,33 @@ export function Problem() {
         <Reveal
           className="mx-auto mt-[46px] flex max-w-[840px] flex-wrap items-center justify-center gap-[30px]"
           aria-hidden="true"
+          delay={120}
         >
           <div className="flex flex-col items-center gap-2.5">
             {STACK.map((name, i) => (
-              <JunkPill key={name} dot tilt={i % 2 === 0 ? "left" : "right"}>
-                <s className="opacity-70">{name}</s>
-              </JunkPill>
+              <span
+                key={name}
+                className="stagger-child"
+                style={{ ["--i" as string]: i }}
+              >
+                <JunkPill dot tilt={i % 2 === 0 ? "left" : "right"}>
+                  <s className="opacity-70">{name}</s>
+                </JunkPill>
+              </span>
             ))}
           </div>
-          <span className="font-serif text-[1.9rem] text-honey-deep">→</span>
-          <OnePill>allr · everything ✓</OnePill>
+          <span
+            className="stagger-child font-serif text-[1.9rem] text-honey-deep"
+            style={{ ["--i" as string]: STACK.length }}
+          >
+            →
+          </span>
+          <span
+            className="stagger-child"
+            style={{ ["--i" as string]: STACK.length + 1 }}
+          >
+            <OnePill>allr · everything ✓</OnePill>
+          </span>
         </Reveal>
       </div>
     </section>

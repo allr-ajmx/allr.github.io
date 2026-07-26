@@ -16,6 +16,7 @@ export function Card({
   title,
   children,
   ready,
+  delay = 0,
 }: {
   sticker: string;
   tint: Tint;
@@ -23,12 +24,17 @@ export function Card({
   children: React.ReactNode;
   /** Optional status pill that turns green once the card is revealed. */
   ready?: string;
+  /** Stagger delay in ms for grid entrances. */
+  delay?: number;
 }) {
   return (
-    <Reveal className="flex flex-col gap-3 rounded-card border-[1.5px] border-line bg-card p-7 shadow-soft transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-lift">
+    <Reveal
+      delay={delay}
+      className="surface-lift flex flex-col gap-3 rounded-card border-[1.5px] border-line bg-card/95 p-7 shadow-soft backdrop-blur-[2px]"
+    >
       <div
         className={cx(
-          "flex size-[52px] items-center justify-center rounded-2xl text-[1.45rem]",
+          "flex size-[52px] items-center justify-center rounded-2xl text-[1.45rem] transition-transform duration-300 group-data-[reveal=shown]:scale-100",
           TINTS[tint],
         )}
         aria-hidden="true"
@@ -46,7 +52,7 @@ function ReadyPill({ children }: { children: React.ReactNode }) {
   return (
     <span
       className={cx(
-        "inline-flex items-center gap-[.5em] self-start rounded-full border-[1.5px] px-[.95em] py-[.3em] text-[.8rem] font-extrabold",
+        "ready-shimmer relative inline-flex items-center gap-[.5em] self-start overflow-hidden rounded-full border-[1.5px] px-[.95em] py-[.3em] text-[.8rem] font-extrabold",
         "border-line bg-paper text-ink-soft transition-[background-color,border-color,color] duration-500",
         "group-data-[reveal=shown]:border-green-line group-data-[reveal=shown]:bg-green-tint group-data-[reveal=shown]:text-green-deep",
         "before:size-[.55em] before:rounded-full before:bg-honey before:transition-colors before:duration-500 before:content-['']",

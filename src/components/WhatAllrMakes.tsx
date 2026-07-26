@@ -55,8 +55,8 @@ const MAKES: {
 
 export function WhatAllrMakes() {
   return (
-    <section id="makes" className="pt-5 pb-22">
-      <div className="wrap">
+    <section id="makes" className="section-wash relative pt-5 pb-22">
+      <div className="wrap relative">
         <SectionHead
           eyebrow="What Allr makes"
           tone="honey"
@@ -64,20 +64,24 @@ export function WhatAllrMakes() {
         />
 
         <div className="grid grid-cols-1 gap-5 min-[561px]:grid-cols-2 min-[861px]:grid-cols-3">
-          {MAKES.map((item) => (
+          {MAKES.map((item, i) => (
             <Card
               key={item.title}
               sticker={item.sticker}
               tint={item.tint}
               title={item.title}
               ready={item.ready}
+              delay={i * 70}
             >
               {item.body}
             </Card>
           ))}
         </div>
 
-        <Reveal className="mx-auto mt-[42px] max-w-[700px] rounded-card border-[1.5px] border-dashed border-[#E3D6BC] bg-card px-8 py-6 text-center text-[1.05rem] text-ink-soft">
+        <Reveal
+          className="mx-auto mt-[42px] max-w-[700px] rounded-card border-[1.5px] border-dashed border-[#E3D6BC] bg-card/90 px-8 py-6 text-center text-[1.05rem] text-ink-soft shadow-soft backdrop-blur-[2px]"
+          delay={100}
+        >
           Every asset lives in your project, next to everything else
           you&rsquo;ve made. Your deck can reference your spreadsheet. Your
           website can embed your video.{" "}

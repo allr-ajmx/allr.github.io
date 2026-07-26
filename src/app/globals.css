@@ -33,10 +33,16 @@
   --shadow-lift: 0 24px 60px rgba(34, 59, 51, 0.12);
 
   /* ---------- motion ---------- */
-  --animate-pop: pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-pop: pop 0.45s var(--ease-spring);
   --animate-fall: fall 1.7s ease-out forwards;
+  --animate-spin-slow: spin 1s linear infinite;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-pulse-glow: pulse-glow 4.5s ease-in-out infinite;
 }
 
+/* ---------- keyframes ---------- */
 @keyframes pop {
   0% {
     transform: scale(0.94);
@@ -60,6 +66,184 @@
   }
 }
 
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -14px, 0) scale(1.03);
+  }
+}
+
+@keyframes drift-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(4%, 6%, 0);
+  }
+}
+
+@keyframes drift-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-5%, -4%, 0);
+  }
+}
+
+@keyframes drift-c {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(3%, -7%, 0);
+  }
+}
+
+@keyframes drift-d {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-6%, 5%, 0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 22px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes hero-rise-soft {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes swash-in {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes soft-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(46, 158, 99, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(46, 158, 99, 0);
+  }
+}
+
+@keyframes blob-breathe {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(12px, -18px, 0) scale(1.12);
+  }
+}
+
+@keyframes beam-breathe {
+  0%,
+  100% {
+    opacity: 0.72;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+@keyframes ring-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes mote-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.15;
+  }
+  25% {
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate3d(12px, -28px, 0) scale(1.25);
+    opacity: 0.35;
+  }
+  75% {
+    opacity: 0.5;
+  }
+}
+
 @utility wrap {
   max-width: 1080px;
   margin-inline: auto;
@@ -73,10 +257,13 @@
 
   body {
     font-family: var(--font-sans);
-    background: var(--color-paper);
+    /* AmbientBackground paints the full atmosphere; warm fallback underneath. */
+    background: #f7f1e6;
     color: var(--color-ink);
     line-height: 1.7;
     overflow-x: hidden;
+    isolation: isolate;
+    min-height: 100svh;
   }
 
   h1,
@@ -114,19 +301,363 @@
     color: var(--color-ink);
   }
 
-  /* Scroll reveal. The hidden state applies only once JS is confirmed (the
-     `js` class is set by a blocking script in <head>), so a visitor without
-     JavaScript sees every section instead of a blank page. */
+  /* ---------- ambient background ---------- */
+  .ambient-mesh {
+    background:
+      radial-gradient(ellipse 90% 70% at 50% -5%, rgba(255, 236, 198, 0.85), transparent 58%),
+      radial-gradient(ellipse 55% 45% at 12% 30%, rgba(233, 168, 62, 0.22), transparent 62%),
+      radial-gradient(ellipse 50% 40% at 88% 22%, rgba(46, 158, 99, 0.16), transparent 60%),
+      radial-gradient(ellipse 60% 50% at 78% 78%, rgba(30, 122, 73, 0.12), transparent 65%),
+      radial-gradient(ellipse 70% 55% at 18% 88%, rgba(246, 197, 107, 0.2), transparent 60%),
+      radial-gradient(ellipse 40% 35% at 48% 48%, rgba(255, 250, 240, 0.7), transparent 70%),
+      linear-gradient(
+        165deg,
+        #fdf8ef 0%,
+        #f7f0e3 28%,
+        #f3ebe0 52%,
+        #eef5ef 78%,
+        #f6efe4 100%
+      );
+  }
+
+  .ambient-ribbons {
+    background:
+      linear-gradient(
+        118deg,
+        transparent 0%,
+        transparent 38%,
+        rgba(233, 168, 62, 0.07) 46%,
+        rgba(255, 248, 230, 0.35) 50%,
+        rgba(46, 158, 99, 0.05) 54%,
+        transparent 62%,
+        transparent 100%
+      ),
+      linear-gradient(
+        152deg,
+        transparent 0%,
+        transparent 55%,
+        rgba(46, 158, 99, 0.06) 62%,
+        rgba(233, 168, 62, 0.05) 68%,
+        transparent 76%,
+        transparent 100%
+      );
+    mix-blend-mode: multiply;
+  }
+
+  .ambient-beams {
+    background:
+      conic-gradient(
+        from 210deg at 72% 8%,
+        transparent 0deg,
+        rgba(255, 236, 198, 0.22) 8deg,
+        transparent 16deg,
+        transparent 28deg,
+        rgba(233, 168, 62, 0.12) 34deg,
+        transparent 42deg,
+        transparent 55deg,
+        rgba(255, 248, 230, 0.18) 62deg,
+        transparent 72deg,
+        transparent 360deg
+      ),
+      conic-gradient(
+        from 190deg at 18% 0%,
+        transparent 0deg,
+        rgba(246, 197, 107, 0.1) 10deg,
+        transparent 20deg,
+        transparent 360deg
+      );
+    mask-image: linear-gradient(to bottom, #000 0%, #000 35%, transparent 78%);
+    opacity: 0.85;
+  }
+
+  .ambient-grain--fine {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+    background-size: 160px 160px;
+    mix-blend-mode: multiply;
+  }
+
+  .ambient-grain--fiber {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.045' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.85 0 0 0 0 0.65 0 0 0 0 0.35 0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+    background-size: 420px 420px;
+    mix-blend-mode: soft-light;
+  }
+
+  .ambient-vignette {
+    background:
+      radial-gradient(ellipse 85% 75% at 50% 40%, transparent 40%, rgba(34, 59, 51, 0.06) 100%),
+      linear-gradient(to bottom, rgba(251, 248, 242, 0) 0%, rgba(34, 59, 51, 0.03) 100%);
+  }
+
+  .ambient-mote {
+    filter: blur(0.3px);
+    box-shadow: 0 0 8px currentColor;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .ambient-orb--a {
+      animation: drift-a 22s ease-in-out infinite;
+    }
+    .ambient-orb--b {
+      animation: drift-b 28s ease-in-out infinite;
+    }
+    .ambient-orb--c {
+      animation: drift-c 24s ease-in-out infinite;
+    }
+    .ambient-orb--d {
+      animation: drift-d 30s ease-in-out infinite;
+    }
+    .ambient-orb--e {
+      animation: drift-a 18s ease-in-out infinite reverse;
+    }
+    .ambient-beams {
+      animation: beam-breathe 10s ease-in-out infinite;
+    }
+    .ambient-rings {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: ring-rotate 120s linear infinite;
+    }
+    .ambient-mote {
+      animation-name: mote-float;
+      animation-timing-function: ease-in-out;
+      animation-iteration-count: infinite;
+    }
+  }
+
+  /* ---------- scroll reveal ---------- */
+  /* Hidden state applies only once JS is confirmed (the `js` class is set by a
+     blocking script in <head>), so a visitor without JavaScript sees every
+     section instead of a blank page. */
   [data-reveal] {
     transition:
-      opacity 0.6s ease,
-      transform 0.6s ease;
+      opacity 0.55s var(--ease-out-soft),
+      transform 0.55s var(--ease-out-soft),
+      filter 0.55s var(--ease-out-soft);
+    transition-delay: var(--reveal-delay, 0ms);
   }
+
   @media (prefers-reduced-motion: no-preference) {
     .js [data-reveal="hidden"] {
       opacity: 0;
-      transform: translateY(22px);
     }
+
+    .js [data-reveal="hidden"][data-reveal-variant="up"] {
+      transform: translate3d(0, 18px, 0);
+    }
+
+    .js [data-reveal="hidden"][data-reveal-variant="fade"] {
+      transform: none;
+    }
+
+    .js [data-reveal="hidden"][data-reveal-variant="scale"] {
+      transform: scale(0.97);
+    }
+
+    .js [data-reveal="hidden"][data-reveal-variant="left"] {
+      transform: translate3d(-14px, 0, 0);
+    }
+
+    .js [data-reveal="hidden"][data-reveal-variant="right"] {
+      transform: translate3d(14px, 0, 0);
+    }
+
+    /* Stagger children once the parent is revealed */
+    .js [data-reveal="shown"] .stagger-child {
+      animation: rise-in 0.45s var(--ease-out-soft) both;
+      animation-delay: calc(var(--stagger-base, 45ms) * var(--i, 0));
+    }
+  }
+
+  [data-reveal="shown"] {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+
+  /* ---------- hero logo engraving ---------- */
+  /*
+   * Oversized right-side letterpress stamp — the hero is one sheet of
+   * stamped paper. Full strength on the right (overflowing the edge),
+   * dissolving leftward into the center so copy stays clean.
+   *
+   * 3-layer stack:
+   *  - shadow: dark bite, offset SE
+   *  - ink: brand-colored impression, multiply into paper
+   *  - highlight: light rim, offset NW
+   */
+  .hero-engrave-mark {
+    rotate: -12deg;
+  }
+
+  .hero-engrave-shadow {
+    display: block;
+    transform: translate(5px, 6px);
+    opacity: 0.2;
+    filter: brightness(0) blur(0.5px);
+    mix-blend-mode: multiply;
+  }
+
+  .hero-engrave-ink {
+    opacity: 0.32;
+    filter: saturate(0.9) brightness(0.97) contrast(1.04);
+    mix-blend-mode: multiply;
+  }
+
+  .hero-engrave-highlight {
+    transform: translate(-2px, -2px);
+    opacity: 0.26;
+    filter: brightness(2.4) contrast(0.55) blur(0.35px);
+    mix-blend-mode: soft-light;
+  }
+
+  /*
+   * Fade into center: full strength on the right edge, dissolves leftward
+   * so copy stays clean and the stamp feels like paper texture under the UI.
+   */
+  .hero-engrave-place {
+    -webkit-mask-image: linear-gradient(
+      100deg,
+      transparent 0%,
+      transparent 8%,
+      rgba(0, 0, 0, 0.15) 22%,
+      rgba(0, 0, 0, 0.45) 38%,
+      rgba(0, 0, 0, 0.8) 55%,
+      #000 72%,
+      #000 100%
+    );
+    mask-image: linear-gradient(
+      100deg,
+      transparent 0%,
+      transparent 8%,
+      rgba(0, 0, 0, 0.15) 22%,
+      rgba(0, 0, 0, 0.45) 38%,
+      rgba(0, 0, 0, 0.8) 55%,
+      #000 72%,
+      #000 100%
+    );
+  }
+
+  /* ---------- hero entrance ---------- */
+  @media (prefers-reduced-motion: no-preference) {
+    .hero-enter {
+      opacity: 0;
+      animation: hero-rise 0.9s var(--ease-out-soft) both;
+    }
+
+    .hero-enter-console {
+      opacity: 0;
+      animation: hero-rise-soft 1s var(--ease-out-soft) both;
+    }
+
+    .hero-swash::before {
+      transform-origin: left center;
+      animation: swash-in 0.7s var(--ease-out-soft) 0.55s both;
+    }
+
+    .hero-glow {
+      animation: pulse-glow 5s ease-in-out infinite;
+    }
+
+    .hero-engrave-mark {
+      animation: engrave-settle 1.25s var(--ease-out-soft) 0.1s both;
+    }
+  }
+
+  @keyframes engrave-settle {
+    from {
+      opacity: 0;
+      transform: scale(1.05);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* ---------- nav link underline ---------- */
+  .nav-link {
+    position: relative;
+  }
+  .nav-link::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -4px;
+    height: 2px;
+    border-radius: 999px;
+    background: var(--color-honey);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 0.25s var(--ease-out-soft);
+  }
+  .nav-link:hover::after,
+  .nav-link:focus-visible::after {
+    transform: scaleX(1);
+  }
+
+  /* ---------- elevated cards / surfaces ---------- */
+  .surface-lift {
+    transition:
+      transform 0.35s var(--ease-out-soft),
+      box-shadow 0.35s var(--ease-out-soft),
+      border-color 0.35s ease;
+  }
+  .surface-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lift);
+    border-color: color-mix(in srgb, var(--color-line) 55%, var(--color-honey-line));
+  }
+
+  /* Ready-pill shimmer once revealed */
+  @media (prefers-reduced-motion: no-preference) {
+    .group[data-reveal="shown"] .ready-shimmer {
+      background-image: linear-gradient(
+        110deg,
+        transparent 0%,
+        transparent 40%,
+        rgba(255, 255, 255, 0.55) 50%,
+        transparent 60%,
+        transparent 100%
+      );
+      background-size: 200% 100%;
+      animation: shimmer 1.6s var(--ease-out-soft) 0.35s both;
+    }
+  }
+
+  /* Live status soft pulse on finished console */
+  @media (prefers-reduced-motion: no-preference) {
+    .live-pulse {
+      animation: soft-pulse 2.4s ease-out infinite;
+    }
+  }
+
+  /* Floating decorative blobs inside bands */
+  @media (prefers-reduced-motion: no-preference) {
+    .band-blob {
+      animation: blob-breathe 10s ease-in-out infinite;
+    }
+    .band-blob--slow {
+      animation-duration: 14s;
+      animation-delay: -3s;
+    }
+  }
+
+  /* Section soft separators — subtle depth between chapters */
+  .section-wash {
+    position: relative;
+  }
+  .section-wash::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(
+      70% 60% at 50% 0%,
+      rgba(255, 255, 255, 0.55),
+      transparent 70%
+    );
+    opacity: 0.7;
   }
 }
 
@@ -139,5 +670,10 @@
   }
   html {
     scroll-behavior: auto;
+  }
+  .js [data-reveal="hidden"] {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
   }
 }
