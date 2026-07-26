@@ -79,7 +79,7 @@ export function WhatAllrMakes() {
         </div>
 
         <Reveal
-          className="mx-auto mt-[42px] max-w-[700px] rounded-card border-[1.5px] border-dashed border-[#E3D6BC] bg-card/90 px-8 py-6 text-center text-[1.05rem] text-ink-soft shadow-soft backdrop-blur-[2px]"
+          className="mx-auto mt-[42px] max-w-[700px] rounded-card border border-dashed border-[#E3D6BC] bg-card/90 px-7 py-5 text-center text-[1.02rem] text-ink-soft shadow-soft backdrop-blur-[2px]"
           delay={100}
         >
           Every asset lives in your project, next to everything else

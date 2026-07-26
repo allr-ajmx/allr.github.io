@@ -63,7 +63,7 @@ export function Hero() {
         {/* copy — left */}
         <div className="text-left">
           <p
-            className="hero-enter mb-5 inline-flex items-center gap-2 rounded-full border-[1.5px] border-honey-line bg-honey-tint/80 px-3.5 py-1.5 text-[.82rem] font-extrabold tracking-[0.02em] text-honey-deep"
+            className="hero-enter mb-5 inline-flex items-center gap-2 rounded-chip border border-honey-line bg-honey-tint/80 px-3 py-1.5 text-[.78rem] font-bold tracking-[0.04em] text-honey-deep uppercase"
             style={{ animationDelay: "0.05s" }}
           >
             <span className="size-1.5 rounded-full bg-honey" aria-hidden="true" />
@@ -99,13 +99,13 @@ export function Hero() {
           >
             <a
               href="#final"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-green px-[1.8em] py-[.85em] text-base font-extrabold text-white no-underline shadow-[0_10px_24px_rgba(46,158,99,.30)] transition-[transform,box-shadow,background-color] duration-200 hover:-translate-y-0.5 hover:bg-green-deep hover:shadow-[0_14px_32px_rgba(46,158,99,.36)] active:translate-y-0"
+              className="inline-flex items-center justify-center gap-2 rounded-control bg-green px-5 py-2.5 text-[.98rem] font-bold text-white no-underline shadow-[0_8px_20px_rgba(46,158,99,.28)] transition-[transform,box-shadow,background-color] duration-200 hover:-translate-y-0.5 hover:bg-green-deep hover:shadow-[0_12px_28px_rgba(46,158,99,.34)] active:translate-y-0"
             >
               Get early access
             </a>
             <a
               href="#how"
-              className="inline-flex items-center justify-center gap-2 rounded-full border-[1.5px] border-line bg-card/80 px-[1.5em] py-[.85em] text-base font-extrabold text-ink no-underline backdrop-blur-sm transition-[transform,border-color,background-color] duration-200 hover:-translate-y-0.5 hover:border-[#D8CFBB] hover:bg-card active:translate-y-0"
+              className="inline-flex items-center justify-center gap-2 rounded-control border border-line bg-card/80 px-5 py-2.5 text-[.98rem] font-bold text-ink no-underline backdrop-blur-sm transition-[transform,border-color,background-color] duration-200 hover:-translate-y-0.5 hover:border-[#D8CFBB] hover:bg-card active:translate-y-0"
             >
               See how it works
             </a>

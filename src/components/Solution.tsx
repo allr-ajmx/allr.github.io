@@ -36,11 +36,11 @@ export function Solution() {
 
         {/* The mentor's job: quietly removing the technical stuff */}
         <Reveal
-          className="surface-lift mx-auto mt-13 max-w-[860px] rounded-[30px] border-[1.5px] border-line bg-card/95 px-[30px] py-10 text-center shadow-soft backdrop-blur-[2px]"
+          className="surface-lift mx-auto mt-13 max-w-[860px] rounded-panel border border-line bg-card/95 px-7 py-10 text-center shadow-soft backdrop-blur-[2px] sm:px-8"
           delay={120}
           variant="scale"
         >
-          <h3 className="mb-2 text-[1.35rem]">
+          <h3 className="mb-2 text-[1.3rem] tracking-[-0.01em]">
             The technical stuff? Already handled.
           </h3>
           <p className="mb-6 text-[1.02rem] text-ink-soft">
@@ -48,11 +48,11 @@ export function Solution() {
             &ldquo;it&rsquo;s done&rdquo; — Allr takes care of them quietly, in
             the background.
           </p>
-          <div className="flex flex-wrap justify-center gap-2.5">
+          <div className="flex flex-wrap justify-center gap-2">
             {HANDLED.map((chip, i) => (
               <span
                 key={chip}
-                className="stagger-child inline-flex items-center gap-[.5em] rounded-full border-[1.5px] border-sage-line bg-sage-tint px-[1.15em] py-[.45em] text-[.9rem] font-extrabold text-ink after:font-black after:text-green-deep after:content-['✓']"
+                className="stagger-child inline-flex items-center gap-1.5 rounded-chip border border-sage-line bg-sage-tint px-3 py-1.5 text-[.85rem] font-semibold text-ink after:text-green-deep after:content-['✓']"
                 style={{ ["--i" as string]: i, ["--stagger-base" as string]: "45ms" }}
               >
                 {chip}

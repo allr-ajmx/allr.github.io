@@ -43,7 +43,7 @@ export function Pricing() {
               </span>
             ))}
             <span
-              className="stagger-child rounded-full border-[1.5px] border-[#EFCFC4] bg-[#F9E9E4] px-[1.3em] py-[.5em] font-serif text-[1.1rem] text-[#A6543C]"
+              className="stagger-child rounded-control border border-[#EFCFC4] bg-[#F9E9E4] px-3.5 py-2 font-serif text-[1.05rem] text-[#A6543C]"
               style={{ ["--i" as string]: LINE_ITEMS.length * 2 }}
             >
               $104+/mo

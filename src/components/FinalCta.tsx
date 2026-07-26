@@ -6,7 +6,7 @@ export function FinalCta() {
     <section id="final" className="pt-5 pb-22">
       <div className="wrap">
         <Reveal
-          className="relative overflow-hidden rounded-[34px] bg-[linear-gradient(160deg,var(--color-green),var(--color-green-deep))] px-[30px] py-[74px] text-center text-white shadow-[0_28px_70px_rgba(30,122,73,.32)]"
+          className="relative overflow-hidden rounded-panel bg-[linear-gradient(160deg,var(--color-green),var(--color-green-deep))] px-7 py-16 text-center text-white shadow-[0_24px_60px_rgba(30,122,73,.3)] sm:px-8 sm:py-[70px]"
           variant="scale"
         >
           <span

@@ -79,7 +79,7 @@ export function LaunchConsole() {
           }
         }
       },
-      { threshold: 0.4 },
+      { threshold: 0.25, rootMargin: "0px 0px 15% 0px" },
     );
 
     io.observe(el);
@@ -131,15 +131,15 @@ export function LaunchConsole() {
       {/* soft pedestal shadow under the console */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-[8%] -bottom-3 h-10 rounded-[50%] bg-[radial-gradient(closest-side,rgba(34,59,51,.14),transparent_70%)] blur-[2px]"
+        className="pointer-events-none absolute inset-x-[10%] -bottom-2 h-8 rounded-[50%] bg-[radial-gradient(closest-side,rgba(34,59,51,.12),transparent_70%)] blur-[2px]"
       />
       <div
         ref={ref}
         aria-label="Demo: Allr generating a project"
         className={cx(
-          "relative overflow-hidden rounded-card border-[1.5px] bg-card text-left transition-[border-color,box-shadow] duration-[600ms]",
+          "relative overflow-hidden rounded-card border bg-card text-left transition-[border-color,box-shadow] duration-[600ms]",
           live
-            ? "border-green-line shadow-[0_24px_60px_rgba(46,158,99,.16),0_0_0_6px_rgba(46,158,99,.07)]"
+            ? "border-green-line shadow-[0_20px_50px_rgba(46,158,99,.14),0_0_0_4px_rgba(46,158,99,.06)]"
             : "border-line shadow-lift",
         )}
       >
@@ -152,7 +152,7 @@ export function LaunchConsole() {
             {CONFETTI.map((piece, i) => (
               <i
                 key={i}
-                className="absolute -top-[14px] h-[13px] w-[9px] animate-fall rounded-[3px] opacity-0"
+                className="absolute -top-[14px] h-[11px] w-[7px] animate-fall rounded-[2px] opacity-0"
                 style={{
                   left: `${piece.left}%`,
                   background: piece.color,
@@ -165,36 +165,38 @@ export function LaunchConsole() {
         ) : null}
 
         {/* browser chrome */}
-        <div className="flex items-center gap-3 border-b-[1.5px] border-line-soft px-[18px] py-3.5">
+        <div className="flex items-center gap-3 border-b border-line-soft bg-paper/50 px-4 py-3">
           <div className="flex shrink-0 gap-1.5" aria-hidden="true">
             <span className="size-2.5 rounded-full bg-[#EFC1A9]" />
             <span className="size-2.5 rounded-full bg-[#F2D49A]" />
             <span className="size-2.5 rounded-full bg-[#BFDCC7]" />
           </div>
-          <div className="flex min-w-0 flex-1 items-center gap-[.55em] rounded-full border-[1.5px] border-line-soft bg-paper px-4 py-[.38em] text-[.88rem] font-extrabold text-ink-soft">
+          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-control border border-line-soft bg-card px-3 py-1.5 text-[.85rem] font-semibold text-ink-soft">
             <span
               className={cx(
-                "size-[.6em] shrink-0 rounded-full transition-colors duration-[350ms]",
+                "size-1.5 shrink-0 rounded-full transition-colors duration-[350ms]",
                 live ? "bg-green" : "bg-honey",
               )}
             />
-            <span className="truncate">allr.app/your-launch</span>
+            <span className="truncate font-mono text-[.82rem] tracking-tight">
+              allr.app/your-launch
+            </span>
           </div>
           <span
             className={cx(
-              "shrink-0 rounded-full bg-green px-4 py-[.32em] text-[.85rem] font-extrabold text-white transition-[opacity,transform] duration-300 ease-[cubic-bezier(.34,1.56,.64,1)]",
-              live ? "live-pulse scale-100 opacity-100" : "scale-[.6] opacity-0",
+              "shrink-0 rounded-chip bg-green px-2.5 py-1 text-[.75rem] font-bold tracking-[0.04em] text-white uppercase transition-[opacity,transform] duration-300 ease-[cubic-bezier(.34,1.56,.64,1)]",
+              live ? "live-pulse scale-100 opacity-100" : "scale-[.9] opacity-0",
             )}
           >
-            ● Live
+            Live
           </span>
         </div>
 
-        {/* the assets being built */}
-        <div className="px-[26px] pt-[26px] pb-2">
-          <div className="grid grid-cols-2 gap-3 @[34rem]:grid-cols-3">
+        {/* the assets being built — modern tiles, not bubble pills */}
+        <div className="px-4 pt-4 pb-1 sm:px-5 sm:pt-5">
+          <div className="grid grid-cols-2 gap-2 @[34rem]:grid-cols-3">
             {ASSETS.map((asset, i) => (
-              <AssetPill
+              <AssetTile
                 key={asset.label}
                 emoji={asset.emoji}
                 label={asset.label}
@@ -210,25 +212,25 @@ export function LaunchConsole() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3.5 px-[26px] pt-[18px] pb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-4 pb-5 sm:px-5">
           <span
             className={cx(
-              "flex min-h-[34px] items-center gap-[.65em] font-extrabold",
+              "flex min-h-[32px] items-center gap-2.5 text-[.92rem] font-semibold",
               live ? "text-green-deep" : "text-ink-soft",
             )}
           >
-            <span className="rounded-full border-[1.5px] border-line-soft bg-paper px-[.85em] py-[.12em] text-[.85rem]">
-              {doneCount} / {ASSETS.length}
+            <span className="rounded-chip border border-line-soft bg-paper px-2 py-0.5 font-mono text-[.78rem] tabular-nums">
+              {doneCount}/{ASSETS.length}
             </span>
             <span>{status}</span>
           </span>
 
-          <div className="flex items-center gap-3.5">
+          <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={replay}
               className={cx(
-                "cursor-pointer p-1 font-extrabold text-honey-deep underline underline-offset-[3px] transition-opacity duration-300",
+                "cursor-pointer p-1 text-[.9rem] font-semibold text-honey-deep underline underline-offset-[3px] transition-opacity duration-300",
                 live ? "opacity-100" : "pointer-events-none opacity-0",
               )}
             >
@@ -237,11 +239,11 @@ export function LaunchConsole() {
             <a
               href="#final"
               className={cx(
-                "inline-flex items-center justify-center gap-2 rounded-full bg-green px-[1.8em] py-[.85em] font-extrabold text-white no-underline shadow-[0_10px_24px_rgba(46,158,99,.30)]",
-                "transition-[opacity,transform] duration-[400ms] ease-[cubic-bezier(.34,1.56,.64,1)] hover:bg-green-deep",
+                "inline-flex items-center justify-center gap-2 rounded-control bg-green px-4 py-2.5 text-[.92rem] font-bold text-white no-underline shadow-[0_8px_20px_rgba(46,158,99,.28)]",
+                "transition-[opacity,transform,background-color] duration-[350ms] ease-[cubic-bezier(.22,1,0.36,1)] hover:bg-green-deep",
                 live
                   ? "translate-y-0 opacity-100"
-                  : "pointer-events-none translate-y-2 opacity-0",
+                  : "pointer-events-none translate-y-1.5 opacity-0",
               )}
             >
               Visit your project →
@@ -250,15 +252,15 @@ export function LaunchConsole() {
         </div>
       </div>
 
-      <p className="mt-[18px] text-center text-[.95rem] font-bold text-ink-soft">
-        Watch a project come to life — when every pill turns green, you&rsquo;re
+      <p className="mt-4 text-center text-[.9rem] font-medium text-ink-soft">
+        Watch a project come to life — when every tile turns green, you&rsquo;re
         live.
       </p>
     </div>
   );
 }
 
-function AssetPill({
+function AssetTile({
   emoji,
   label,
   state,
@@ -270,24 +272,34 @@ function AssetPill({
   return (
     <div
       className={cx(
-        "flex items-center gap-2.5 rounded-full border-[1.5px] px-4 py-2.5 font-extrabold transition-[background-color,border-color,color] duration-[450ms]",
+        "flex items-center gap-2.5 rounded-control border px-3 py-2.5 transition-[background-color,border-color,color,box-shadow] duration-[400ms]",
         state === "done" &&
-          "animate-pop border-green-line bg-green-tint text-green-deep",
+          "animate-pop border-green-line bg-green-tint text-green-deep shadow-[0_0_0_1px_rgba(46,158,99,.06)]",
         state === "working" &&
           "border-honey-line bg-honey-tint text-honey-deep",
-        state === "idle" && "border-line bg-paper text-ink-soft",
+        state === "idle" && "border-line-soft bg-paper/80 text-ink-soft",
       )}
     >
-      <span className="shrink-0 text-[1.1rem]" aria-hidden="true">
+      <span
+        className={cx(
+          "flex size-8 shrink-0 items-center justify-center rounded-chip text-[1rem]",
+          state === "done" && "bg-card/70",
+          state === "working" && "bg-card/60",
+          state === "idle" && "bg-card",
+        )}
+        aria-hidden="true"
+      >
         {emoji}
       </span>
-      <span className="min-w-0 flex-1 text-[.95rem]">{label}</span>
-      <span className="flex size-[22px] shrink-0 items-center justify-center">
+      <span className="min-w-0 flex-1 text-[.9rem] font-semibold tracking-[-0.01em]">
+        {label}
+      </span>
+      <span className="flex size-5 shrink-0 items-center justify-center">
         {state === "working" ? (
-          <span className="size-[15px] animate-spin rounded-full border-[3px] border-line border-t-honey" />
+          <span className="size-3.5 animate-spin rounded-full border-2 border-line border-t-honey" />
         ) : null}
         {state === "done" ? (
-          <span className="flex size-[22px] items-center justify-center rounded-full bg-green text-[.72rem] font-black text-white">
+          <span className="flex size-5 items-center justify-center rounded-chip bg-green text-[.65rem] font-bold text-white">
             ✓
           </span>
         ) : null}

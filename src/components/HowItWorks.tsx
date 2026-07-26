@@ -59,10 +59,10 @@ export function HowItWorks() {
             <Reveal
               key={step.title}
               delay={i * 110}
-              className="surface-lift rounded-card border-[1.5px] border-line bg-card/95 px-7 py-8 shadow-soft backdrop-blur-[2px]"
+              className="surface-lift rounded-card border border-line bg-card/95 px-6 py-7 shadow-soft backdrop-blur-[2px]"
             >
               <span
-                className={`mb-4 inline-flex size-[46px] items-center justify-center rounded-full font-serif text-[1.15rem] ${NUM_TINTS[i]}`}
+                className={`mb-4 inline-flex size-10 items-center justify-center rounded-control font-serif text-[1.1rem] ${NUM_TINTS[i]}`}
               >
                 {i + 1}
               </span>

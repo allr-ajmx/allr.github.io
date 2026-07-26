@@ -14,7 +14,7 @@ const TONES: Record<Tone, { pill: string; dot: string }> = {
   },
 };
 
-/** The small label pill used as a section eyebrow. */
+/** The small label chip used as a section eyebrow. */
 export function Pill({
   tone = "neutral",
   className,
@@ -28,13 +28,13 @@ export function Pill({
   return (
     <span
       className={cx(
-        "inline-flex items-center gap-[.55em] rounded-full border-[1.5px] px-[1.1em] py-[.4em] text-[.85rem] font-extrabold tracking-[.02em]",
+        "inline-flex items-center gap-2 rounded-chip border px-3 py-1.5 text-[.8rem] font-bold tracking-[0.04em] uppercase",
         pill,
         className,
       )}
     >
       <span
-        className={cx("size-[.55em] shrink-0 rounded-full", dot)}
+        className={cx("size-1.5 shrink-0 rounded-full", dot)}
         aria-hidden="true"
       />
       {children}

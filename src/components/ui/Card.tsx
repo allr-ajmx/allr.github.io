@@ -22,7 +22,7 @@ export function Card({
   tint: Tint;
   title: string;
   children: React.ReactNode;
-  /** Optional status pill that turns green once the card is revealed. */
+  /** Optional status chip that turns green once the card is revealed. */
   ready?: string;
   /** Stagger delay in ms for grid entrances. */
   delay?: number;
@@ -30,19 +30,21 @@ export function Card({
   return (
     <Reveal
       delay={delay}
-      className="surface-lift flex flex-col gap-3 rounded-card border-[1.5px] border-line bg-card/95 p-7 shadow-soft backdrop-blur-[2px]"
+      className="surface-lift flex flex-col gap-3.5 rounded-card border border-line bg-card/95 p-6 shadow-soft backdrop-blur-[2px]"
     >
       <div
         className={cx(
-          "flex size-[52px] items-center justify-center rounded-2xl text-[1.45rem] transition-transform duration-300 group-data-[reveal=shown]:scale-100",
+          "flex size-11 items-center justify-center rounded-control text-[1.35rem]",
           TINTS[tint],
         )}
         aria-hidden="true"
       >
         {sticker}
       </div>
-      <h3 className="text-[1.22rem]">{title}</h3>
-      <p className="flex-1 text-ink-soft">{children}</p>
+      <h3 className="text-[1.18rem] tracking-[-0.01em]">{title}</h3>
+      <p className="flex-1 text-[.98rem] leading-relaxed text-ink-soft">
+        {children}
+      </p>
       {ready ? <ReadyPill>{ready}</ReadyPill> : null}
     </Reveal>
   );
@@ -52,10 +54,10 @@ function ReadyPill({ children }: { children: React.ReactNode }) {
   return (
     <span
       className={cx(
-        "ready-shimmer relative inline-flex items-center gap-[.5em] self-start overflow-hidden rounded-full border-[1.5px] px-[.95em] py-[.3em] text-[.8rem] font-extrabold",
+        "ready-shimmer relative inline-flex items-center gap-1.5 self-start overflow-hidden rounded-chip border px-2.5 py-1 text-[.75rem] font-bold tracking-[0.03em] uppercase",
         "border-line bg-paper text-ink-soft transition-[background-color,border-color,color] duration-500",
         "group-data-[reveal=shown]:border-green-line group-data-[reveal=shown]:bg-green-tint group-data-[reveal=shown]:text-green-deep",
-        "before:size-[.55em] before:rounded-full before:bg-honey before:transition-colors before:duration-500 before:content-['']",
+        "before:size-1.5 before:rounded-full before:bg-honey before:transition-colors before:duration-500 before:content-['']",
         "group-data-[reveal=shown]:before:bg-green",
       )}
     >

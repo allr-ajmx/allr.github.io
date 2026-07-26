@@ -6,7 +6,7 @@ export function PublishingBand() {
     <section id="publish" className="pt-0 pb-22">
       <div className="wrap">
         <Reveal
-          className="relative overflow-hidden rounded-[34px] border-[1.5px] border-[#F0DEB8] bg-[linear-gradient(150deg,#FDF3DF,var(--color-honey-tint)_55%,#F3ECDC)] px-[30px] py-16 text-center shadow-soft"
+          className="relative overflow-hidden rounded-panel border border-[#F0DEB8] bg-[linear-gradient(150deg,#FDF3DF,var(--color-honey-tint)_55%,#F3ECDC)] px-7 py-14 text-center shadow-soft sm:px-8 sm:py-16"
           variant="scale"
         >
           <div
@@ -39,10 +39,12 @@ export function PublishingBand() {
             </p>
           </div>
 
-          <span className="relative inline-flex items-center gap-[.7em] rounded-full border-[1.5px] border-green-line bg-card px-[1.4em] py-[.6em] font-extrabold text-ink shadow-soft transition-transform duration-300 hover:-translate-y-0.5">
-            <span className="live-pulse size-[.6em] rounded-full bg-green" />
-            allr.app/your-launch
-            <span className="rounded-full bg-green-tint px-[.8em] py-[.2em] text-[.78rem] font-extrabold text-green-deep">
+          <span className="relative inline-flex items-center gap-2.5 rounded-control border border-green-line bg-card px-4 py-2 font-semibold text-ink shadow-soft transition-transform duration-300 hover:-translate-y-0.5">
+            <span className="live-pulse size-1.5 rounded-full bg-green" />
+            <span className="font-mono text-[.9rem] tracking-tight">
+              allr.app/your-launch
+            </span>
+            <span className="rounded-chip bg-green-tint px-2.5 py-1 text-[.72rem] font-bold tracking-[0.03em] text-green-deep uppercase">
               Copy link
             </span>
           </span>
