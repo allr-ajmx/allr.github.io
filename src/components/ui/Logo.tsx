@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { asset } from "@/lib/asset";
 
 /**
  * The Allr mark. Renders the SVG from /public as-is rather than inlining it, so
@@ -17,7 +18,7 @@ export function Logo({
 }) {
   return (
     <Image
-      src="/logo_base.svg"
+      src={asset("/logo_base.svg")}
       alt=""
       width={size}
       height={size}

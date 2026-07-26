@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { LaunchConsole } from "@/components/LaunchConsole";
+import { asset } from "@/lib/asset";
 
 export function Hero() {
   return (
@@ -28,7 +29,7 @@ export function Hero() {
           <div className="hero-engrave-mark relative">
             {/* dark bite layer — sits slightly SE for carved depth */}
             <Image
-              src="/logo_base.svg"
+              src={asset("/logo_base.svg")}
               alt=""
               width={900}
               height={900}
@@ -38,7 +39,7 @@ export function Hero() {
             />
             {/* main ink impression */}
             <Image
-              src="/logo_base.svg"
+              src={asset("/logo_base.svg")}
               alt=""
               width={900}
               height={900}
@@ -48,7 +49,7 @@ export function Hero() {
             />
             {/* light rim — slight NW offset for paper catch-light */}
             <Image
-              src="/logo_base.svg"
+              src={asset("/logo_base.svg")}
               alt=""
               width={900}
               height={900}
