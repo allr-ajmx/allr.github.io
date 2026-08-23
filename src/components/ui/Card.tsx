@@ -1,5 +1,7 @@
 import { Reveal } from "@/components/Reveal";
+import { ArtifactStill } from "@/components/visuals/ArtifactStill";
 import { cx } from "@/lib/cx";
+import type { ArtifactId } from "@/lib/visuals";
 
 export type Tint = "green" | "honey" | "sage" | "clay";
 
@@ -17,6 +19,7 @@ export function Card({
   children,
   ready,
   delay = 0,
+  visual,
 }: {
   sticker: string;
   tint: Tint;
@@ -26,21 +29,30 @@ export function Card({
   ready?: string;
   /** Stagger delay in ms for grid entrances. */
   delay?: number;
+  visual?: ArtifactId;
 }) {
   return (
     <Reveal
       delay={delay}
       className="surface-lift flex flex-col gap-3.5 rounded-card border border-line bg-card/95 p-6 shadow-soft backdrop-blur-[2px]"
     >
-      <div
-        className={cx(
-          "flex size-11 items-center justify-center rounded-control text-[1.35rem]",
-          TINTS[tint],
-        )}
-        aria-hidden="true"
-      >
-        {sticker}
-      </div>
+      {visual ? (
+        <ArtifactStill
+          id={visual}
+          className="artifact-still--on-reveal mb-0.5"
+          sizes="(max-width: 560px) 90vw, (max-width: 860px) 45vw, 320px"
+        />
+      ) : (
+        <div
+          className={cx(
+            "flex size-11 items-center justify-center rounded-control text-[1.35rem]",
+            TINTS[tint],
+          )}
+          aria-hidden="true"
+        >
+          {sticker}
+        </div>
+      )}
       <h3 className="text-[1.18rem] tracking-[-0.01em]">{title}</h3>
       <p className="flex-1 text-[.98rem] leading-relaxed text-ink-soft">
         {children}

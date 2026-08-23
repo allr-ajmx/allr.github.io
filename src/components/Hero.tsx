@@ -1,6 +1,8 @@
 import Image from "next/image";
 import { LaunchConsole } from "@/components/LaunchConsole";
+import { WaitlistForm } from "@/components/WaitlistForm";
 import { asset } from "@/lib/asset";
+import { CTA, EYEBROW_HERO, HERO_SUB } from "@/lib/brand";
 
 export function Hero() {
   return (
@@ -68,7 +70,7 @@ export function Hero() {
             style={{ animationDelay: "0.05s" }}
           >
             <span className="size-1.5 rounded-full bg-honey" aria-hidden="true" />
-            One workspace. Finished work.
+            {EYEBROW_HERO}
           </p>
 
           <h1
@@ -90,25 +92,19 @@ export function Hero() {
             className="hero-enter max-w-[48ch] text-[1.02rem] text-ink-soft"
             style={{ animationDelay: "0.28s" }}
           >
-            One AI workspace that makes finished work — decks, docs, videos,
-            websites, apps, and games.
+            {HERO_SUB}
           </p>
 
           <div
-            className="hero-enter mt-8 flex flex-wrap items-center gap-3"
+            className="hero-enter mt-8 flex flex-col items-start gap-3"
             style={{ animationDelay: "0.4s" }}
           >
-            <a
-              href="#final"
-              className="inline-flex items-center justify-center gap-2 rounded-control bg-green px-5 py-2.5 text-[.98rem] font-bold text-white no-underline shadow-[0_8px_20px_rgba(46,158,99,.28)] transition-[transform,box-shadow,background-color] duration-200 hover:-translate-y-0.5 hover:bg-green-deep hover:shadow-[0_12px_28px_rgba(46,158,99,.34)] active:translate-y-0"
-            >
-              Get early access
-            </a>
+            <WaitlistForm variant="inline" id="hero-waitlist" />
             <a
               href="#how"
-              className="inline-flex items-center justify-center gap-2 rounded-control border border-line bg-card/80 px-5 py-2.5 text-[.98rem] font-bold text-ink no-underline backdrop-blur-sm transition-[transform,border-color,background-color] duration-200 hover:-translate-y-0.5 hover:border-[#D8CFBB] hover:bg-card active:translate-y-0"
+              className="text-[.92rem] font-bold text-honey-deep no-underline underline-offset-[3px] hover:underline"
             >
-              See how it works
+              {CTA.secondary}
             </a>
           </div>
         </div>

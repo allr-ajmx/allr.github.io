@@ -34,13 +34,9 @@ export function getSiteUrl(): string {
   return "https://allr-all.vercel.app";
 }
 
-export const SITE_NAME = "Allr";
-
-export const SITE_TITLE =
-  "Allr — the one subscription that replaces all of them";
-
-/** ~120 chars — fits Google (~160), OG (~125), and X without truncation. */
-export const SITE_DESCRIPTION =
-  "One AI workspace for finished decks, docs, videos, websites, apps, and games. Describe what you want — Allr makes and ships it.";
-
-export const SITE_TAGLINE = "the one subscription that replaces all of them";
+export {
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_TAGLINE,
+  SITE_TITLE,
+} from "@/lib/brand";

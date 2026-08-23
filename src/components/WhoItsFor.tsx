@@ -1,33 +1,6 @@
-import { Card, type Tint } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
 import { SectionHead } from "@/components/ui/SectionHead";
-
-const AUDIENCES: { sticker: string; tint: Tint; title: string; body: string }[] =
-  [
-    {
-      sticker: "🎸",
-      tint: "honey",
-      title: "Creators",
-      body: "Musicians, writers, artists. Build your site, your promo videos, your press kit — and put them in front of your audience.",
-    },
-    {
-      sticker: "🚀",
-      tint: "green",
-      title: "Founders & solopreneurs",
-      body: "Your pitch deck, your financial model, your landing page, your product demo. One subscription instead of a stack.",
-    },
-    {
-      sticker: "🎓",
-      tint: "sage",
-      title: "Students & educators",
-      body: "Presentations, papers, interactive projects. Finished work, not formatting battles.",
-    },
-    {
-      sticker: "🤝",
-      tint: "clay",
-      title: "Small teams",
-      body: "Everything your team makes, in one place, shareable in one click.",
-    },
-  ];
+import { AUDIENCES } from "@/lib/brand";
 
 export function WhoItsFor() {
   return (

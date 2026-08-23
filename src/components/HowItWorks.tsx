@@ -1,5 +1,6 @@
 import { Reveal } from "@/components/Reveal";
 import { SectionHead } from "@/components/ui/SectionHead";
+import { ArtifactStill } from "@/components/visuals/ArtifactStill";
 
 const NUM_TINTS = [
   "bg-honey-tint text-honey-deep",
@@ -68,6 +69,29 @@ export function HowItWorks() {
               </span>
               <h3 className="mb-2.5 text-[1.28rem]">{step.title}</h3>
               <p className="text-ink-soft">{step.body}</p>
+              {i === 1 ? (
+                <div className="mt-4 grid grid-cols-3 gap-1.5">
+                  {(["decks", "docs", "websites"] as const).map((id, n) => (
+                    <div
+                      key={id}
+                      className="stagger-child"
+                      style={{ ["--i" as string]: n }}
+                    >
+                      <ArtifactStill
+                        id={id}
+                        className="artifact-still--on-reveal"
+                        sizes="120px"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {i === 2 ? (
+                <span className="mt-4 inline-flex items-center gap-2 rounded-control border border-green-line bg-card px-3 py-1.5 text-[.82rem] font-semibold text-ink shadow-soft">
+                  <span className="live-pulse size-1.5 rounded-full bg-green" />
+                  <span className="font-mono tracking-tight">allr.app/your-launch</span>
+                </span>
+              ) : null}
               <p className="mt-3.5 text-[.92rem] font-bold text-honey-deep">
                 {step.aside}
               </p>

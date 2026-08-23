@@ -1,5 +1,6 @@
 import { AmbientBackground } from "@/components/AmbientBackground";
 import { AllrPromise } from "@/components/AllrPromise";
+import { Faq } from "@/components/Faq";
 import { FinalCta } from "@/components/FinalCta";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
@@ -27,6 +28,7 @@ export default function Home() {
         <AllrPromise />
         <WhoItsFor />
         <Pricing />
+        <Faq />
         <FinalCta />
       </main>
       <Footer />

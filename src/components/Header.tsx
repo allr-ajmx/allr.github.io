@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Logo } from "@/components/ui/Logo";
+import { CTA, WORDMARK } from "@/lib/brand";
 import { cx } from "@/lib/cx";
 
 const NAV_LINKS = [
@@ -36,7 +37,7 @@ export function Header() {
           className="inline-flex items-center gap-2 font-serif text-[1.55rem] no-underline transition-opacity duration-200 hover:opacity-80"
         >
           <Logo size={36} priority />
-          allr
+          {WORDMARK}
         </a>
 
         <nav
@@ -54,7 +55,9 @@ export function Header() {
           ))}
         </nav>
 
-        <Button size="sm">Coming soon</Button>
+        <Button href="#early-access" size="sm">
+          {CTA.primary}
+        </Button>
       </div>
     </header>
   );
