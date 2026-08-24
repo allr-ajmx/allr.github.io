@@ -107,7 +107,7 @@ export function BloomJourney() {
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-20">
           {/* the gear */}
           <div className="hidden lg:block">
-            <div className="sticky top-[calc(50vh-11.25rem)] flex flex-col items-center gap-7">
+            <div className="sticky top-[calc(50vh-11.25rem)] flex flex-col items-center gap-7 lg:-translate-x-10 xl:-translate-x-16">
               <div className="relative">
                 <span
                   aria-hidden="true"
