@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { MockFor } from "@/components/mocks/Mocks";
 import { Reveal } from "@/components/Reveal";
-import { Stamp } from "@/components/ui/Stamp";
 import { SectionHead } from "@/components/ui/SectionHead";
 import { STORY } from "@/lib/brand";
 import { cx } from "@/lib/cx";
@@ -86,13 +85,12 @@ function Stage({ step }: { step: number }) {
         </div>
       </div>
       <div className="relative aspect-[16/10] w-full">
-        <div className={cx("absolute inset-0 overflow-hidden rounded-card border border-line bg-card shadow-lift transition-[opacity,transform] duration-700", step >= 1 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3")}>
+        <div className={cx("absolute inset-0 overflow-hidden rounded-card border bg-card shadow-lift transition-[opacity,transform,border-color] duration-700", step >= 1 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3", step >= 2 ? "live-glow border-green" : "border-line")}>
           <MockFor id="websites" />
         </div>
         <div className={cx("absolute inset-0 rounded-card border border-dashed border-honey-line bg-honey-tint/30 transition-opacity duration-500", step === 0 ? "opacity-100" : "opacity-0")}>
           <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[.9rem] font-semibold text-honey-deep">Waiting for your ask…</span>
         </div>
-        <Stamp down={step >= 2} size="md" className="absolute -right-2 -bottom-3 z-10">Live</Stamp>
       </div>
       <div className={cx("mt-4 inline-flex items-center gap-2 rounded-control border bg-card px-3 py-1.5 text-[.85rem] font-semibold shadow-soft transition-colors duration-500", step >= 2 ? "border-green-line text-ink" : "border-line-soft text-ink-soft")}>
         <span className={cx("size-1.5 rounded-full", step >= 2 ? "live-ring bg-green" : "bg-honey")} />

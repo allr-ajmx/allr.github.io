@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Stamp } from "@/components/ui/Stamp";
 import { CTA, WAITLIST_DONE } from "@/lib/brand";
 import { cx } from "@/lib/cx";
 
@@ -100,10 +99,10 @@ export function WaitlistForm({
     return (
       <div
         className={cx(
-          "ticket relative w-full max-w-[520px] rounded-card border border-dashed px-6 py-5 text-left",
+          "ticket relative w-full max-w-[520px] rounded-card border px-6 py-5 text-left",
           onGreen
-            ? "mx-auto border-white/50 bg-white/10 text-white"
-            : "border-line bg-card text-ink shadow-soft",
+            ? "live-glow--on-green mx-auto border-white/70 bg-white/10 text-white"
+            : "live-glow border-green bg-card text-ink shadow-soft",
         )}
         role="status"
       >
@@ -134,14 +133,6 @@ export function WaitlistForm({
         >
           {shared ? WAITLIST_DONE.copied : WAITLIST_DONE.share}
         </button>
-        <Stamp
-          down
-          size="sm"
-          tone={onGreen ? "honey" : "green"}
-          className="absolute -top-4 right-4"
-        >
-          {WAITLIST_DONE.stamp}
-        </Stamp>
       </div>
     );
   }

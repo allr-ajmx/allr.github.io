@@ -21,7 +21,7 @@ Four verbs. Nothing else.
 | **Settle** | It arrived on the desk | Slow, heavy, paper dropping into place |
 | **Ink** | It is being made | Honey lamplight, a held breath, no spinner-as-toy |
 | **Live** | Someone else can see it | Green, a small lift, a pulse that dies down |
-| **Stamp** | It is finished, and that is final | The seal comes down once: scale 1.7→1, ink multiplied into paper, an indent that spreads and holds |
+| **Glow** | It is live | The live thing itself gets a green border and a soft halo that swells once and settles |
 
 Professional display bar: these motions must read on a **27" monitor, a phone, and a conference projector**. No 4px fidgets. No emoji-as-the-picture. No “AI particles.”
 
@@ -130,9 +130,9 @@ The signature. One Allr window: the ask on the left, the thing it made on the ri
 |---|------|
 | 0 | Ask bubble present. Step 1 ticks. Artifact pane is dashed honey with a 3px ink bar travelling 0→100% (1150ms). Status: *Making your deck…* |
 | 1150ms | Artifact **Settles** in (10px rise + fade). Steps 2–3 tick. |
-| 1470ms | **Stamp**. Border `green-line`. The deploy line along the top edge (honey while making) completes and turns green, then fades. The URL dot goes green and emits two rings. *It's live.* with a checkmark that draws itself. |
+| 1470ms | **Glow**. The artifact's border turns green with a halo that breathes in once. Window border `green-line`. The deploy line along the top edge (honey while making) completes and turns green, then fades. The URL dot goes green and emits two rings. *It's live.* with a checkmark that draws itself. |
 
-**Reduced motion:** artifact visible, seal down, no line, no rings.
+**Reduced motion:** artifact visible with the resting glow, no line, no rings.
 
 ### 5.1b The mark (`M-BLOOM`)
 
@@ -147,7 +147,7 @@ Two scroll behaviours, both transform-only and both off under reduced motion:
 
 ### 5.1d How it works — scrollytelling (`M-STORY`)
 
-On large screens the three steps scroll on the left while one stage stays sticky on the right. A band across the middle of the viewport decides the active step; the stage moves through the same three beats as the hero: ask → the site settles in → seal + live URL with `v1 · Live`. Inactive steps sit at 45% opacity. Below `lg` each step carries its own inline stage.
+On large screens the three steps scroll on the left while one stage stays sticky on the right. A band across the middle of the viewport decides the active step; the stage moves through the same three beats as the hero: ask → the site settles in → the site glows green + live URL with `v1 · Live`. Inactive steps sit at 45% opacity. Below `lg` each step carries its own inline stage.
 
 ### 5.1e On your phone (`M-PHONE`)
 
@@ -224,7 +224,6 @@ Keep. Do not add a second ambient system.
 | Phones | `src/components/OnYourPhone.tsx` |
 | Artifact mocks | `src/components/mocks/Mocks.tsx` |
 | The mark (bloom) | `src/components/ui/AllrMark.tsx` |
-| The seal | `src/components/ui/Stamp.tsx` |
 | Make cards | `src/components/WhatAllrMakes.tsx`, `src/components/ui/Card.tsx` |
 | How-it-works miniatures | `src/components/HowItWorks.tsx` |
 | Desk ensemble | `src/components/PublishingBand.tsx` |
@@ -246,8 +245,7 @@ Keep. Do not add a second ambient system.
 ## 8. QA
 
 - [ ] Desk plays once on first view; a scenario chip or Watch again replays
-- [ ] Seal never covers a label chip (labels sit top-left, seal bottom-right)
-- [ ] Waitlist success shows the stamped ticket; Share copies the page URL
+- [ ] Waitlist success shows the glowing ticket; Share copies the page URL
 - [ ] Six stills share lamp direction (upper-left honey)
 - [ ] No generated text is legible as a word
 - [ ] URL and Live are always HTML

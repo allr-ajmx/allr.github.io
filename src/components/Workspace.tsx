@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { MockFor } from "@/components/mocks/Mocks";
 import { AllrMark } from "@/components/ui/AllrMark";
-import { Stamp } from "@/components/ui/Stamp";
 import { SHOWCASE, WORKSPACE } from "@/lib/brand";
 import { cx } from "@/lib/cx";
 
@@ -148,7 +147,7 @@ export function Workspace() {
           {/* the thing */}
           <div className="relative bg-[linear-gradient(160deg,#fbf8f2,#f3ecdd)] p-4 sm:p-6">
             <div className="relative aspect-[16/10] w-full">
-              <div key={`mock-${run}`} className={cx("ws-artifact absolute inset-0 overflow-hidden rounded-card border border-line bg-card shadow-lift", made && "ws-artifact--in")}>
+              <div key={`mock-${run}`} className={cx("ws-artifact absolute inset-0 overflow-hidden rounded-card border bg-card shadow-lift", made && "ws-artifact--in", live ? "live-glow border-green" : "border-line")}>
                 <MockFor id={item.id} />
               </div>
               {p === "making" ? (
@@ -156,7 +155,6 @@ export function Workspace() {
                   <span className="ws-inkbar absolute inset-x-0 top-0 h-[3px] origin-left rounded-full bg-honey" />
                 </div>
               ) : null}
-              <Stamp down={live} size="md" className="absolute -right-2 -bottom-3 z-10">Live</Stamp>
             </div>
           </div>
         </div>
