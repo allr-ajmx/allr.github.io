@@ -7,19 +7,19 @@ import { CTA, EYEBROW_HERO, HERO_SUB, WORDMARK } from "@/lib/brand";
 export function Hero() {
   return (
     <section className="relative">
-      <div className="wrap relative z-10 flex flex-col items-center pt-16 pb-6 text-center sm:pt-24">
-        <p className="hero-enter mb-6 inline-flex items-center gap-2 rounded-chip border border-honey-line bg-honey-tint/80 px-3 py-1.5 text-[.78rem] font-bold tracking-[0.04em] text-honey-deep uppercase" style={{ animationDelay: "0s" }}>
+      <div className="wrap relative z-10 flex flex-col items-center pt-6 pb-3 text-center sm:pt-8">
+        <p className="hero-enter mb-3 inline-flex items-center gap-2 rounded-chip border border-honey-line bg-honey-tint/80 px-3 py-1.5 text-[.78rem] font-bold tracking-[0.04em] text-honey-deep uppercase" style={{ animationDelay: "0s" }}>
           <span className="size-1.5 rounded-full bg-honey" aria-hidden="true" />
           {EYEBROW_HERO}
         </p>
 
         {/* the name: the mark blooms, the wordmark sits beside it */}
-        <div className="hero-enter mb-5 inline-flex items-center gap-3" style={{ animationDelay: "0.08s" }}>
-          <AllrMark size={60} bloom className="shrink-0" />
-          <span className="font-serif text-[clamp(2.6rem,5vw,3.6rem)] leading-none tracking-tight">{WORDMARK}</span>
+        <div className="hero-enter mb-2 inline-flex items-center gap-2.5" style={{ animationDelay: "0.08s" }}>
+          <AllrMark size={52} bloom className="shrink-0" />
+          <span className="font-serif text-[clamp(2.2rem,4vw,3rem)] leading-none tracking-tight">{WORDMARK}</span>
         </div>
 
-        <h1 className="hero-enter mb-6 max-w-[22ch] text-[clamp(2.2rem,5.2vw,4.1rem)] leading-[1.05] tracking-[-0.015em]" style={{ animationDelay: "0.16s" }}>
+        <h1 className="hero-enter mb-3 max-w-[22ch] text-[clamp(2.1rem,4.8vw,3.7rem)] leading-[1.05] tracking-[-0.015em]" style={{ animationDelay: "0.16s" }}>
           the one <span className="whitespace-nowrap">subscription that</span>{" "}
           <span className="hero-swash relative whitespace-nowrap text-green-deep before:absolute before:-inset-x-[2%] before:bottom-[.05em] before:-z-10 before:h-[.34em] before:rounded-full before:bg-green-tint before:content-['']">
             replaces all of them.
@@ -28,7 +28,7 @@ export function Hero() {
         <p className="hero-enter max-w-[40ch] text-[clamp(1.05rem,1.5vw,1.25rem)] leading-snug text-ink-soft" style={{ animationDelay: "0.26s" }}>
           {HERO_SUB}
         </p>
-        <div className="hero-enter mt-9 flex flex-col items-center gap-3" style={{ animationDelay: "0.34s" }}>
+        <div className="hero-enter mt-5 flex flex-col items-center gap-2" style={{ animationDelay: "0.34s" }}>
           <Button href="#early-access" size="lg" className="!rounded-full !bg-ink px-7 hover:!bg-[#1a2e28]">
             {CTA.primary}
           </Button>
@@ -36,7 +36,7 @@ export function Hero() {
         </div>
       </div>
 
-      <div className="hero-enter-console wrap relative z-10 mt-12 max-w-[1100px] sm:mt-16" style={{ animationDelay: "0.4s" }}>
+      <div className="hero-enter-console wrap relative z-10 mt-5 max-w-[1100px] sm:mt-6" style={{ animationDelay: "0.4s" }}>
         <Parallax speed={-0.05}><Workspace /></Parallax>
       </div>
     </section>
