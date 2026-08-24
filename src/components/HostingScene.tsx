@@ -15,8 +15,8 @@ const H = 720;
 const G = { x: 430, y: 360 }; // globe centre — its left half sits under the copy
 const GLOBE_R = 300;
 /** Left of this x the web fades out under the text; fully visible right of FADE_IN. */
-const FADE_OUT = 150;
-const FADE_IN = 600;
+const FADE_OUT = 120;
+const FADE_IN = 660;
 
 type Device = { kind: "phone" | "laptop" | "tablet" | "desktop"; y: number; who: string; petal: number };
 const DEVICES: Device[] = [
@@ -81,7 +81,8 @@ export function HostingScene() {
           {/* the web fades out under the copy on the left and back in on the right */}
           <linearGradient id="fade-lr" gradientUnits="userSpaceOnUse" x1={FADE_OUT} y1="0" x2={FADE_IN} y2="0">
             <stop offset="0" stopColor="#fff" stopOpacity="0" />
-            <stop offset="0.4" stopColor="#fff" stopOpacity="0.08" />
+            <stop offset="0.5" stopColor="#fff" stopOpacity="0.03" />
+            <stop offset="0.78" stopColor="#fff" stopOpacity="0.3" />
             <stop offset="1" stopColor="#fff" stopOpacity="1" />
           </linearGradient>
           <mask id="fade-mask" maskUnits="userSpaceOnUse" x="0" y="0" width={W} height={H}>
