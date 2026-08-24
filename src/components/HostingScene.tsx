@@ -10,23 +10,26 @@ import { PETALS, PETAL_PATH } from "@/lib/petals";
  * slowly; under reduced motion nothing flies and every screen is lit.
  */
 
-const W = 640;
-const H = 680;
-const G = { x: 190, y: 350 }; // globe centre
-const GLOBE_R = 138;
-const SERVER_R = 84; // petal servers sit inside the globe
-const PW = 50; // petal server size (local frame, pointing up)
-const PH = 34;
+const W = 1100;
+const H = 720;
+const G = { x: 430, y: 360 }; // globe centre — its left half sits under the copy
+const GLOBE_R = 300;
+const SERVER_R = 176; // petal servers sit inside the globe
+const PW = 72; // petal server size (local frame, pointing up)
+const PH = 49;
+/** Left of this x the web fades out under the text; fully visible right of FADE_IN. */
+const FADE_OUT = 150;
+const FADE_IN = 600;
 
 type Device = { kind: "phone" | "laptop" | "tablet" | "desktop"; y: number; who: string; petal: number };
 const DEVICES: Device[] = [
-  { kind: "phone", y: 92, who: "Mia · on the bus", petal: 1 },
-  { kind: "laptop", y: 262, who: "An investor", petal: 2 },
-  { kind: "tablet", y: 420, who: "A journalist", petal: 3 },
-  { kind: "desktop", y: 586, who: "The studio", petal: 4 },
+  { kind: "phone", y: 100, who: "Mia · on the bus", petal: 1 },
+  { kind: "laptop", y: 275, who: "An investor", petal: 2 },
+  { kind: "tablet", y: 445, who: "A journalist", petal: 3 },
+  { kind: "desktop", y: 620, who: "The studio", petal: 4 },
 ];
-const DEVICE_X = 560;
-const DEPLOY = { x: 190, y: 56 };
+const DEVICE_X = 1010;
+const DEPLOY = { x: 700, y: 46 };
 
 /**
  * The web glyph — outer circle, a meridian, the equator, two parallels —
@@ -38,15 +41,15 @@ function ellipsePath(cx: number, cy: number, rx: number, ry: number) {
 }
 const R = GLOBE_R;
 const GLYPH = [
-  { d: ellipsePath(G.x, G.y, R, R), n: 120, s: 5, dur: 90, alpha: 0.9 },
-  { d: ellipsePath(G.x, G.y, R * 0.42, R), n: 84, s: 4.6, dur: 70, alpha: 0.85 },
-  { d: ellipsePath(G.x, G.y, R * 0.8, R), n: 72, s: 4.4, dur: 76, alpha: 0.7 },
-  { d: ellipsePath(G.x, G.y, R * 0.12, R), n: 60, s: 4.2, dur: 66, alpha: 0.6 },
-  { d: ellipsePath(G.x, G.y, R, R * 0.05), n: 76, s: 4.6, dur: 60, alpha: 0.85 },
-  { d: ellipsePath(G.x, G.y - R * 0.55, R * 0.83, R * 0.05), n: 60, s: 4.4, dur: 52, alpha: 0.75 },
-  { d: ellipsePath(G.x, G.y + R * 0.55, R * 0.83, R * 0.05), n: 60, s: 4.4, dur: 52, alpha: 0.75 },
-  { d: ellipsePath(G.x, G.y - R * 0.85, R * 0.52, R * 0.04), n: 36, s: 4, dur: 44, alpha: 0.65 },
-  { d: ellipsePath(G.x, G.y + R * 0.85, R * 0.52, R * 0.04), n: 36, s: 4, dur: 44, alpha: 0.65 },
+  { d: ellipsePath(G.x, G.y, R, R), n: 150, s: 8, dur: 110, alpha: 0.9 },
+  { d: ellipsePath(G.x, G.y, R * 0.42, R), n: 100, s: 7, dur: 84, alpha: 0.85 },
+  { d: ellipsePath(G.x, G.y, R * 0.8, R), n: 90, s: 6.5, dur: 92, alpha: 0.7 },
+  { d: ellipsePath(G.x, G.y, R * 0.12, R), n: 76, s: 6, dur: 78, alpha: 0.6 },
+  { d: ellipsePath(G.x, G.y, R, R * 0.04), n: 96, s: 7, dur: 72, alpha: 0.85 },
+  { d: ellipsePath(G.x, G.y - R * 0.55, R * 0.83, R * 0.04), n: 76, s: 6.5, dur: 62, alpha: 0.75 },
+  { d: ellipsePath(G.x, G.y + R * 0.55, R * 0.83, R * 0.04), n: 76, s: 6.5, dur: 62, alpha: 0.75 },
+  { d: ellipsePath(G.x, G.y - R * 0.85, R * 0.52, R * 0.03), n: 46, s: 6, dur: 52, alpha: 0.65 },
+  { d: ellipsePath(G.x, G.y + R * 0.85, R * 0.52, R * 0.03), n: 46, s: 6, dur: 52, alpha: 0.65 },
 ] as const;
 
 const toXY = (deg: number, r: number) => ({
@@ -64,22 +67,33 @@ const pct = (v: number, of: number) => `${(v / of) * 100}%`;
 export function HostingScene() {
   const links = DEVICES.map((d, i) => {
     const p = PETALS[d.petal];
-    const from = toXY(p.angle, SERVER_R + 26);
+    const from = toXY(p.angle, SERVER_R + 40);
     const exit = toXY(p.angle, GLOBE_R);
-    return { d, p, i, path: `M${from.x},${from.y} L${exit.x},${exit.y} ` + wire(exit, { x: DEVICE_X - 70, y: d.y }).slice(1) };
+    return { d, p, i, path: `M${from.x},${from.y} L${exit.x},${exit.y} ` + wire(exit, { x: DEVICE_X - 80, y: d.y }).slice(1) };
   });
-  const inbound = `M${DEPLOY.x},${DEPLOY.y + 22} L${G.x},${G.y - GLOBE_R + 4}`;
+  const top = toXY(-62, GLOBE_R);
+  const inbound = `M${DEPLOY.x},${DEPLOY.y + 22} L${top.x},${top.y}`;
 
   return (
-    <div className="hosting relative mx-auto w-full max-w-[600px]" style={{ aspectRatio: `${W} / ${H}` }}>
+    <div className="hosting relative mx-auto w-full" style={{ aspectRatio: `${W} / ${H}` }}>
       <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
         <defs>
           <radialGradient id="globe-fill" cx="40%" cy="35%" r="70%">
-            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="#e4f4ea" stopOpacity="0.5" />
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.7" />
+            <stop offset="100%" stopColor="#e4f4ea" stopOpacity="0.3" />
           </radialGradient>
+          {/* the web fades out under the copy on the left and back in on the right */}
+          <linearGradient id="fade-lr" gradientUnits="userSpaceOnUse" x1={FADE_OUT} y1="0" x2={FADE_IN} y2="0">
+            <stop offset="0" stopColor="#fff" stopOpacity="0" />
+            <stop offset="0.4" stopColor="#fff" stopOpacity="0.08" />
+            <stop offset="1" stopColor="#fff" stopOpacity="1" />
+          </linearGradient>
+          <mask id="fade-mask" maskUnits="userSpaceOnUse" x="0" y="0" width={W} height={H}>
+            <rect x="0" y="0" width={W} height={H} fill="url(#fade-lr)" />
+          </mask>
         </defs>
 
+        <g className="hosting__fade">
         {/* the internet — the web glyph, every line a stream of tiny petals */}
         <circle cx={G.x} cy={G.y} r={GLOBE_R} fill="url(#globe-fill)" opacity="0.6" />
         {GLYPH.map((g, ri) => (
@@ -111,7 +125,6 @@ export function HostingScene() {
             })}
           </g>
         ))}
-        <text x={G.x} y={G.y + GLOBE_R + 26} textAnchor="middle" className="hosting__label">{HOSTED.center} · the internet</text>
 
         {/* wires */}
         <path d={inbound} className="hosting__line hosting__line--in" />
@@ -134,6 +147,9 @@ export function HostingScene() {
             </g>
           );
         })}
+
+        </g>
+        <text x={G.x + 40} y={G.y + GLOBE_R + 26} textAnchor="middle" className="hosting__label">{HOSTED.center} · the internet</text>
 
         {/* petals in flight — one per wire, landing on its device */}
         {links.map((l) => (

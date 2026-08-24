@@ -970,6 +970,12 @@
   .hosting__server {
     filter: drop-shadow(0 6px 12px rgba(34, 59, 51, 0.22));
   }
+  @media (min-width: 64rem) {
+    .hosting__fade {
+      mask: url(#fade-mask);
+      -webkit-mask: url(#fade-mask);
+    }
+  }
   .hosting__flyer {
     filter: drop-shadow(0 2px 4px rgba(34, 59, 51, 0.25));
   }
