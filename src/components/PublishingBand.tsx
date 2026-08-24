@@ -9,7 +9,7 @@ import { HOSTED } from "@/lib/brand";
  */
 export function PublishingBand() {
   return (
-    <section id="publish" className="relative pt-10 pb-22">
+    <section id="publish" className="relative pt-28 pb-22 sm:pt-40">
       <div className="wrap relative">
         {/* the scene, full width; below lg it drops under the copy */}
         <Reveal variant="fade" className="overflow-x-auto lg:absolute lg:inset-0 lg:overflow-visible">
