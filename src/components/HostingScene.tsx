@@ -48,15 +48,15 @@ function ellipsePath(cx: number, cy: number, rx: number, ry: number) {
 }
 const R = GLOBE_R;
 const GLYPH = [
-  { d: ellipsePath(G.x, G.y, R, R), n: 150, s: 13.6, dur: 110, alpha: 0.9 },
-  { d: ellipsePath(G.x, G.y, R * 0.42, R), n: 100, s: 11.9, dur: 84, alpha: 0.85 },
-  { d: ellipsePath(G.x, G.y, R * 0.8, R), n: 90, s: 11.0, dur: 92, alpha: 0.7 },
-  { d: ellipsePath(G.x, G.y, R * 0.12, R), n: 76, s: 10.2, dur: 78, alpha: 0.6 },
-  { d: ellipsePath(G.x, G.y, R, R * 0.04), n: 96, s: 11.9, dur: 72, alpha: 0.85 },
-  { d: ellipsePath(G.x, G.y - R * 0.55, R * 0.83, R * 0.04), n: 76, s: 11.0, dur: 62, alpha: 0.75 },
-  { d: ellipsePath(G.x, G.y + R * 0.55, R * 0.83, R * 0.04), n: 76, s: 11.0, dur: 62, alpha: 0.75 },
-  { d: ellipsePath(G.x, G.y - R * 0.85, R * 0.52, R * 0.03), n: 46, s: 10.2, dur: 52, alpha: 0.65 },
-  { d: ellipsePath(G.x, G.y + R * 0.85, R * 0.52, R * 0.03), n: 46, s: 10.2, dur: 52, alpha: 0.65 },
+  { d: ellipsePath(G.x, G.y, R, R), n: 120, s: 13.6, dur: 110, alpha: 0.9 },
+  { d: ellipsePath(G.x, G.y, R * 0.42, R), n: 80, s: 11.9, dur: 84, alpha: 0.85 },
+  { d: ellipsePath(G.x, G.y, R * 0.8, R), n: 72, s: 11.0, dur: 92, alpha: 0.7 },
+  { d: ellipsePath(G.x, G.y, R * 0.12, R), n: 61, s: 10.2, dur: 78, alpha: 0.6 },
+  { d: ellipsePath(G.x, G.y, R, R * 0.04), n: 77, s: 11.9, dur: 72, alpha: 0.85 },
+  { d: ellipsePath(G.x, G.y - R * 0.55, R * 0.83, R * 0.04), n: 61, s: 11.0, dur: 62, alpha: 0.75 },
+  { d: ellipsePath(G.x, G.y + R * 0.55, R * 0.83, R * 0.04), n: 61, s: 11.0, dur: 62, alpha: 0.75 },
+  { d: ellipsePath(G.x, G.y - R * 0.85, R * 0.52, R * 0.03), n: 37, s: 10.2, dur: 52, alpha: 0.65 },
+  { d: ellipsePath(G.x, G.y + R * 0.85, R * 0.52, R * 0.03), n: 37, s: 10.2, dur: 52, alpha: 0.65 },
 ] as const;
 
 const toXY = (deg: number, r: number) => ({
