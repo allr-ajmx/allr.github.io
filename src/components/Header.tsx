@@ -27,9 +27,11 @@ export function Header() {
   return (
     <header
       className={cx(
-        "sticky top-0 z-50 border-b-[1.5px] border-line-soft bg-paper/80 backdrop-blur-[14px] transition-[box-shadow,background-color,border-color] duration-300",
-        elevated &&
-          "border-line/80 bg-paper/92 shadow-[0_10px_30px_rgba(34,59,51,0.06)]",
+        // Transparent at the top so it belongs to the hero; solid once you scroll.
+        "sticky top-0 z-50 border-b-[1.5px] transition-[box-shadow,background-color,border-color] duration-300",
+        elevated
+          ? "border-line/80 bg-paper/92 shadow-[0_10px_30px_rgba(34,59,51,0.06)] backdrop-blur-[14px]"
+          : "border-transparent",
       )}
     >
       <div className="wrap flex h-[74px] items-center justify-between">
