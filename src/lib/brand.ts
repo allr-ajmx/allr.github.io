@@ -307,3 +307,10 @@ export const STORY = [
     aside: "That feeling when it's out in the world? That's the point.",
   },
 ] as const;
+
+export const BLOOM = {
+  eyebrow: "What Allr makes",
+  title: "Six petals. Six kinds of finished work.",
+  sub: "Every petal in the mark is one kind of thing Allr makes — and publishes. Scroll, and the mark turns to each one.",
+  progress: (n: number) => `Petal ${n} of 6`,
+} as const;

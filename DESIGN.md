@@ -37,6 +37,21 @@ We do **not** lead with developers, self-hosters, or “autonomous agents.” Th
 
 ---
 
+## 2b. The Bloom — the mark is the product map
+
+The mark has six petals; Allr makes six things. Each petal owns one, and its colour is that thing's colour everywhere on the site:
+
+| Petal | Colour | Thing |
+|---|---|---|
+| 0 | `#74926b` sage | Sites |
+| 1 | `#f7c14c` honey | Decks |
+| 2 | `#e6981a` amber | Sheets |
+| 3 | `#f8dc8d` pale gold | Docs |
+| 4 | `#34905e` deep green | Video |
+| 5 | `#9bb289` light sage | Apps |
+
+Rules: a petal shape (`PetalShape`) is the only decorative form we own — use it for bullets, numerals, backdrops and progress. Never add a seventh colour. When a surface is "about" one thing, it takes that petal's colour and the mark lights that petal (`AllrMark highlight`). Registry: `src/lib/petals.ts`.
+
 ## 3. Voice
 
 **Mentor, not vendor.** Warm, not cute. Finished, not generating.

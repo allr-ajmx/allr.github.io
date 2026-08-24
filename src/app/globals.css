@@ -24,6 +24,14 @@
   --color-green-tint: #e4f4ea;
   --color-green-line: #c2e5d0;
 
+  /* the six petals of the mark — the product map */
+  --color-petal-0: #74926b; /* Sites */
+  --color-petal-1: #f7c14c; /* Decks */
+  --color-petal-2: #e6981a; /* Sheets */
+  --color-petal-3: #f8dc8d; /* Docs */
+  --color-petal-4: #34905e; /* Video */
+  --color-petal-5: #9bb289; /* Apps */
+
   --color-sage-tint: #ecf2ec;
   --color-sage-line: #dce8dd;
   --color-clay-tint: #f6ede2;
@@ -890,6 +898,11 @@
     transform-box: fill-box;
     transform-origin: center;
   }
+  /* The disc keeps a hairline so the mark holds its edge on light paper. */
+  .mark__disc {
+    stroke: rgba(183, 126, 31, 0.4);
+    stroke-width: 1.2;
+  }
   @media (prefers-reduced-motion: no-preference) {
     .mark--spin .mark__petals {
       animation: mark-turn 40s linear infinite;
@@ -898,6 +911,42 @@
   @keyframes mark-turn {
     to { transform: rotate(360deg); }
   }
+  /* Turning the petal group to point at something */
+  .mark__petals--eased {
+    transition: transform 0.9s var(--ease-out-soft);
+  }
+  /* Lighting one petal: the other five recede */
+  .mark--focus .mark__petal {
+    transition: opacity 0.45s var(--ease-out-soft);
+  }
+  .mark--focus .mark__petal:not([data-petal="0"]):not([data-petal="1"]):not([data-petal="2"]):not([data-petal="3"]):not([data-petal="4"]):not([data-petal="5"]) {
+    opacity: 1;
+  }
+  .mark--focus[style*="--focus: 0"] .mark__petal:not([data-petal="0"]),
+  .mark--focus[style*="--focus: 1"] .mark__petal:not([data-petal="1"]),
+  .mark--focus[style*="--focus: 2"] .mark__petal:not([data-petal="2"]),
+  .mark--focus[style*="--focus: 3"] .mark__petal:not([data-petal="3"]),
+  .mark--focus[style*="--focus: 4"] .mark__petal:not([data-petal="4"]),
+  .mark--focus[style*="--focus: 5"] .mark__petal:not([data-petal="5"]) {
+    opacity: 0.22;
+  }
+
+  /* ---------- the Bloom (BloomJourney.tsx) ---------- */
+  .bloom-wash {
+    background:
+      radial-gradient(60% 50% at 0% 40%, color-mix(in srgb, var(--petal, #f7c14c) 26%, transparent), transparent 70%),
+      radial-gradient(50% 40% at 100% 70%, color-mix(in srgb, var(--petal, #f7c14c) 14%, transparent), transparent 70%);
+    transition: background 0.8s var(--ease-out-soft);
+  }
+  .bloom-halo {
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--petal, #f7c14c) 34%, transparent), transparent 72%);
+    transition: background 0.8s var(--ease-out-soft);
+  }
+  .petal {
+    overflow: visible;
+    transform-origin: 50% 60%;
+  }
+
   /* The mark as a letter: sits on the baseline like an "o", and gets the
      letter's own stroke around the disc so it reads as an "o", not an icon. */
   .mark--letter {

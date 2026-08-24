@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { MockFor } from "@/components/mocks/Mocks";
 import { AllrMark } from "@/components/ui/AllrMark";
+import { PetalShape } from "@/components/ui/PetalShape";
 import { SHOWCASE, WORKSPACE } from "@/lib/brand";
 import { cx } from "@/lib/cx";
+import { PETAL_BY_ID, rotationToPoint } from "@/lib/petals";
 
 const MAKING_MS = 1150;
 const STAMP_MS = 320;
@@ -36,6 +38,7 @@ export function Workspace() {
   // second timer the moment the first one fired.
   const [run, setRun] = useState(0);
   const item = SHOWCASE[active];
+  const petal = PETAL_BY_ID[item.id];
 
   const play = useCallback((i: number) => {
     setActive(i);
@@ -70,21 +73,27 @@ export function Workspace() {
       {/* tabs + caption — one row, like a caption under a photograph */}
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap gap-1 rounded-control border border-line bg-card/80 p-1 shadow-soft backdrop-blur-[2px]" role="tablist" aria-label="What Allr makes">
-          {SHOWCASE.map((s, i) => (
-            <button
-              key={s.id}
-              type="button"
-              role="tab"
-              aria-selected={i === active}
-              onClick={() => play(i)}
-              className={cx(
-                "cursor-pointer rounded-chip px-3.5 py-1.5 text-[.9rem] font-bold transition-[background-color,color] duration-200",
-                i === active ? "bg-green-deep text-white" : "text-ink-soft hover:bg-paper hover:text-ink",
-              )}
-            >
-              {s.tab}
-            </button>
-          ))}
+          {SHOWCASE.map((s, i) => {
+            const pt = PETAL_BY_ID[s.id];
+            const on = i === active;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                onClick={() => play(i)}
+                className={cx(
+                  "inline-flex cursor-pointer items-center gap-1.5 rounded-chip px-3.5 py-1.5 text-[.9rem] font-bold transition-[background-color,color] duration-200",
+                  on ? (pt.on === "ink" ? "text-ink" : "text-paper") : "text-ink-soft hover:bg-paper hover:text-ink",
+                )}
+                style={on ? { background: pt.color } : undefined}
+              >
+                <PetalShape color={on ? "currentColor" : pt.color} className="h-[10px] w-[14px]" />
+                {s.tab}
+              </button>
+            );
+          })}
         </div>
         <p key={item.id} className="ws-caption text-[.95rem] text-ink-soft md:max-w-[34rem] md:text-right">{item.caption}</p>
       </div>
@@ -113,7 +122,7 @@ export function Workspace() {
           <span className="flex gap-1.5" aria-hidden="true">
             <span className="size-2.5 rounded-full bg-[#EFC1A9]" /><span className="size-2.5 rounded-full bg-[#F2D49A]" /><span className="size-2.5 rounded-full bg-[#BFDCC7]" />
           </span>
-          <span className="ml-2 inline-flex items-center gap-1.5 text-[.85rem] font-bold"><AllrMark size={16} /> allr</span>
+          <span className="ml-2 inline-flex items-center gap-1.5 text-[.85rem] font-bold"><AllrMark size={16} highlight={petal.i} rotate={rotationToPoint(petal.i, -90)} /> allr</span>
           <span className="min-w-0 truncate text-[.85rem] text-ink-soft">/ {item.slug}</span>
           <span className="ml-auto hidden items-center gap-2 rounded-control sm:inline-flex border border-line-soft bg-card px-2.5 py-1 font-mono text-[.78rem] tracking-tight text-ink">
             <span key={`dot-${run}`} className={cx("relative size-1.5 rounded-full transition-colors duration-300", live ? "live-ring bg-green" : p === "making" ? "dot-making" : "bg-line")} />
@@ -146,7 +155,7 @@ export function Workspace() {
           </div>
 
           {/* the thing */}
-          <div className="relative bg-[linear-gradient(160deg,#fbf8f2,#f3ecdd)] p-4 sm:p-6">
+          <div className="relative p-4 transition-[background-color] duration-700 sm:p-6" style={{ background: `color-mix(in srgb, ${petal.color} 14%, var(--color-paper))` }}>
             <div className="relative aspect-[16/10] w-full">
               <div key={`mock-${run}`} className={cx("ws-artifact absolute inset-0 overflow-hidden rounded-card border bg-card shadow-lift", made && "ws-artifact--in", live ? "live-glow" : "border-line")}>
                 <MockFor id={item.id} />

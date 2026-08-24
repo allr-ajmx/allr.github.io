@@ -153,7 +153,15 @@ On large screens the three steps scroll on the left while one stage stays sticky
 
 Three drawn phones. Front: the Allr chat with an ask, the reply, the artifact card with its live link, Share/Open. Left, tilted −6°, further away: the lock screen with an Allr notification. Right, tilted +6°: the Projects list, every project with its live dot. No third-party messaging surfaces are shown. Nothing loops.
 
-### 5.2 What Allr makes (`M-CARDS`)
+### 5.2 What Allr makes — the Bloom (`M-BLOOM`)
+
+The identity system. The mark has six petals and Allr makes six things; each petal owns one (`src/lib/petals.ts`): Sites · Decks · Sheets · Docs · Video · Apps, in petal order, 60° apart. Every accent colour on the page is a petal colour.
+
+**Stage** — a large mark pinned on the left; six panels on the right, one per petal, each with its title, body and the artifact mock sitting on a big petal shape in its colour.
+
+**Motion** — scroll-driven, not timed. The gear's rotation is interpolated from how far the middle of the screen is through the panels, so it turns exactly as far as you scroll and settles with the active petal pointing at its panel. The active petal is lit (the other five recede to 22%), its colour washes the section edges and the halo behind the gear, and the active artifact carries the live glow. The header mark and the workspace title-bar mark turn and light the same way. Reduced motion: the gear snaps petal to petal. Below `lg` each panel carries its own small mark.
+
+### 5.2b Legacy cards (`M-CARDS`, retired)
 
 Six cards. Each has the matching **mock** (`MockFrame`) at 16:10 on top, then title + body + ready/live pill.
 
@@ -219,6 +227,9 @@ Keep. Do not add a second ambient system.
 | Still registry | `src/lib/visuals.ts` |
 | Still + states | `src/components/visuals/ArtifactStill.tsx` |
 | Workspace | `src/components/Workspace.tsx` |
+| The Bloom | `src/components/BloomJourney.tsx` |
+| Petal registry | `src/lib/petals.ts` |
+| Petal shape | `src/components/ui/PetalShape.tsx` |
 | Parallax | `src/components/motion/Parallax.tsx` |
 | Story stage | `src/components/HowItWorks.tsx` |
 | Phones | `src/components/OnYourPhone.tsx` |

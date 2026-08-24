@@ -10,7 +10,7 @@ import { OnYourPhone } from "@/components/OnYourPhone";
 import { Pricing } from "@/components/Pricing";
 import { PublishingBand } from "@/components/PublishingBand";
 import { Solution } from "@/components/Solution";
-import { WhatAllrMakes } from "@/components/WhatAllrMakes";
+import { BloomJourney } from "@/components/BloomJourney";
 
 export default function Home() {
   return (
@@ -21,7 +21,7 @@ export default function Home() {
         <Hero />
         <PublishingBand />
         <HowItWorks />
-        <WhatAllrMakes />
+        <BloomJourney />
         <Solution />
         <OnYourPhone />
         <AllrPromise />

@@ -6,12 +6,11 @@ import { Reveal } from "@/components/Reveal";
 import { SectionHead } from "@/components/ui/SectionHead";
 import { STORY } from "@/lib/brand";
 import { cx } from "@/lib/cx";
+import { PETALS } from "@/lib/petals";
+import { PetalShape } from "@/components/ui/PetalShape";
 
-const NUM_TINTS = [
-  "bg-honey-tint text-honey-deep",
-  "bg-sage-tint text-ink",
-  "bg-green-tint text-green-deep",
-];
+/** Step numerals sit on petals: honey (ask), sage (make), deep green (live). */
+const NUM_PETALS = [PETALS[1], PETALS[0], PETALS[4]];
 
 /**
  * Three steps on the left; one sticky stage on the right that advances as the
@@ -54,7 +53,10 @@ export function HowItWorks() {
                   active === i ? "border-honey-line opacity-100 lg:-translate-x-1" : "border-line lg:opacity-45",
                 )}
               >
-                <span className={`mb-4 inline-flex size-10 items-center justify-center rounded-control font-serif text-[1.1rem] ${NUM_TINTS[i]}`}>{i + 1}</span>
+                <span className={cx("relative mb-4 inline-flex size-11 items-center justify-center font-serif text-[1.1rem]", NUM_PETALS[i].on === "ink" ? "text-ink" : "text-paper")}>
+                  <PetalShape color={NUM_PETALS[i].color} className="absolute inset-0 -z-10 h-full w-full" rotate={-10} />
+                  {i + 1}
+                </span>
                 <h3 className="mb-2.5 text-[1.28rem]">{step.title}</h3>
                 <p className="text-ink-soft">{step.body}</p>
                 <p className="mt-3.5 text-[.92rem] font-bold text-honey-deep">{step.aside}</p>
