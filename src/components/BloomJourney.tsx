@@ -43,18 +43,26 @@ export function BloomJourney() {
       frame = 0;
       const vh = window.innerHeight;
       const line = vh * 0.5;
-      // Which panel is under the middle of the screen, and how far through it.
-      let value = 0;
-      panels.current.forEach((p, i) => {
-        if (!p) return;
+      // Progress is measured between panel *centres*: the gear settles on a
+      // petal exactly when that panel sits in the middle of the screen, and
+      // turns smoothly between one centred panel and the next.
+      const centres = panels.current.map((p) => {
+        if (!p) return Infinity;
         const r = p.getBoundingClientRect();
-        if (r.top <= line) {
-          const inside = Math.min(1, Math.max(0, (line - r.top) / r.height));
-          value = i + inside;
-        }
+        return r.top + r.height / 2;
       });
-      const capped = Math.min(STEPS.length - 1, value);
-      setT(reduced ? Math.round(capped) : capped);
+      let value = 0;
+      if (line <= centres[0]) value = 0;
+      else if (line >= centres[centres.length - 1]) value = centres.length - 1;
+      else {
+        for (let i = 0; i < centres.length - 1; i++) {
+          if (line >= centres[i] && line < centres[i + 1]) {
+            value = i + (line - centres[i]) / (centres[i + 1] - centres[i]);
+            break;
+          }
+        }
+      }
+      setT(reduced ? Math.round(value) : value);
     };
     const onScroll = () => {
       if (frame) return;
@@ -99,7 +107,7 @@ export function BloomJourney() {
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-20">
           {/* the gear */}
           <div className="hidden lg:block">
-            <div className="sticky top-[calc(50vh-13rem)] flex flex-col items-center gap-7">
+            <div className="sticky top-[calc(50vh-11.25rem)] flex flex-col items-center gap-7">
               <div className="relative">
                 <span
                   aria-hidden="true"
