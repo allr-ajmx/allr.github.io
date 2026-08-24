@@ -139,8 +139,9 @@ export function Workspace() {
                 );
               })}
             </div>
-            <p className={cx("mt-auto text-[.85rem] font-semibold transition-colors duration-300", live ? "text-green-deep" : "text-ink-soft")} role="status">
-              {p === "making" ? WORKSPACE.making(item.noun) : live ? WORKSPACE.live : " "}
+            <p className={cx("mt-auto inline-flex items-center gap-1.5 text-[.85rem] font-semibold transition-colors duration-300", live ? "text-green-deep" : "text-ink-soft")} role="status">
+              {live ? <LiveCheck key={`check-${run}`} /> : null}
+              {p === "making" ? WORKSPACE.making(item.noun) : live ? WORKSPACE.live : "\u00a0"}
             </p>
           </div>
 
