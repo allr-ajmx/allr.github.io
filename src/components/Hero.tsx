@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/Button";
+import { HeroCtas } from "@/components/HeroCtas";
 import { AllrMark } from "@/components/ui/AllrMark";
 import { Parallax } from "@/components/motion/Parallax";
 import { Workspace } from "@/components/Workspace";
@@ -19,10 +19,8 @@ export function Hero() {
         <p className="hero-enter max-w-[40ch] text-[clamp(1.05rem,1.5vw,1.25rem)] leading-snug text-ink-soft" style={{ animationDelay: "0.26s" }}>
           {HERO_SUB}
         </p>
-        <div className="hero-enter mt-12 flex flex-col items-center gap-3" style={{ animationDelay: "0.34s" }}>
-          <Button href="#early-access" size="lg" className="!rounded-full !bg-ink px-7 hover:!bg-[#1a2e28]">
-            {CTA.primary}
-          </Button>
+        <div className="hero-enter mt-12 flex flex-col items-center gap-4" style={{ animationDelay: "0.34s" }}>
+          <HeroCtas />
           <a href="#how" className="text-[.92rem] font-bold text-honey-deep no-underline underline-offset-[3px] hover:underline">{CTA.secondary}</a>
         </div>
       </div>

@@ -84,6 +84,10 @@ Prefer the words in `SAY` (`src/lib/brand.ts`). Never use the words in `NEVER_SA
 | Never `ALLR` | — |
 | Never `AllR` | — |
 
+### Calls to action (2026-08-25)
+
+The hero shows two: **Download** (dark pill, macOS · Windows · Linux glyphs) → `/download`, and **Get early access** (light pill, phone glyph) → the waitlist. Desktop gets the app; phones get on the list. `/download` links only real assets from the current GitHub release (`src/lib/downloads.ts`) — no other links.
+
 ---
 
 ## 4. Locked phrases

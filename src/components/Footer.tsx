@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
 import { ETYMOLOGY, WORDMARK } from "@/lib/brand";
 
@@ -15,18 +16,18 @@ export function Footer() {
         className="mb-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[.92rem]"
         aria-label="Footer"
       >
-        <a href="#makes" className="text-ink-soft no-underline hover:text-ink">
+        <Link href="/#makes" className="text-ink-soft no-underline hover:text-ink">
           What it makes
-        </a>
-        <a href="#how" className="text-ink-soft no-underline hover:text-ink">
+        </Link>
+        <Link href="/#how" className="text-ink-soft no-underline hover:text-ink">
           How it works
-        </a>
-        <a
-          href="#early-access"
+        </Link>
+        <Link
+          href="/#early-access"
           className="text-ink-soft no-underline hover:text-ink"
         >
           Early access
-        </a>
+        </Link>
       </nav>
       <div className="flex items-center justify-center gap-2">
         Made for people with things to ship.

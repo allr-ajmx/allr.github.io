@@ -19,4 +19,4 @@ If a change needs a new color, font, radius, or slogan, update `DESIGN.md` first
 
 Voice: mentor, not vendor. Product: one workspace that makes finished work and publishes it. Not a copilot, not an agent runtime, not a self-host pitch.
 
-Locked product calls (see DESIGN.md §16): docs migrate to paper; primary CTA is waitlist / early access, not install; `/design` stays URL-only (noindex, no footer link).
+Locked product calls (see DESIGN.md §16): docs migrate to paper; primary CTAs are Download (desktop app, `/download`) and Get early access (mobile waitlist); `/design` stays URL-only (noindex, no footer link).

@@ -184,6 +184,7 @@ export const NEVER_SAY = [
 /** Primary always means waitlist / early access — never install or docs. */
 export const CTA = {
   primary: "Get early access",
+  download: "Download",
   secondary: "See how it works",
   status: "Coming soon",
   reassurance: "No credit card required. Your first project is on us.",
@@ -325,4 +326,16 @@ export const HOSTED = {
   url: "allr.app/album-launch",
   visitors: ["Mia · phone", "Investor · laptop", "Press · tablet", "Fans · phone", "Studio · desktop"],
   aside: "Because the point was never the file. The point was people seeing it.",
+} as const;
+
+export const DOWNLOAD = {
+  title: "Download Allr",
+  sub: "The desktop app for macOS, Windows and Linux. Describe what you need; it comes back finished, and published.",
+  yours: "Your platform",
+  requirements: "Requirements",
+  version: (v: string, when: string) => `Allr Desktop v${v} · ${when}`,
+  mobileTitle: "On your phone",
+  mobileBody: "Allr for phone and tablet is on its way. Get on the list and we’ll write when it’s your turn.",
+  mobileCta: "Get early access",
+  back: "Back to Allr",
 } as const;

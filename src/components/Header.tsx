@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/Button";
+import Link from "next/link";
 import { AllrMark } from "@/components/ui/AllrMark";
 import { rotationToPoint } from "@/lib/petals";
 import { CTA, WORDMARK } from "@/lib/brand";
@@ -67,32 +67,32 @@ export function Header() {
       )}
     >
       <div className="wrap flex h-[74px] items-center justify-between">
-        <a
-          href="#top"
+        <Link
+          href="/"
           className="inline-flex items-center gap-2 font-serif text-[1.55rem] no-underline transition-opacity duration-200 hover:opacity-80"
         >
           <AllrMark size={36} highlight={petal} rotate={petal !== undefined ? rotationToPoint(petal, -90) : 0} />
           {WORDMARK}
-        </a>
+        </Link>
 
         <nav
           className="hidden gap-7 text-[.98rem] font-bold text-ink-soft min-[721px]:flex"
           aria-label="Main"
         >
           {NAV_LINKS.map((link) => (
-            <a
+            <Link
               key={link.href}
               href={link.href}
               className="nav-link no-underline transition-colors duration-200 hover:text-ink"
             >
               {link.label}
-            </a>
+            </Link>
           ))}
         </nav>
 
-        <Button href="#early-access" size="sm">
+        <Link href="/#early-access" className="inline-flex items-center justify-center rounded-control bg-green px-4 py-2 text-[.92rem] font-bold text-white no-underline shadow-[0_8px_20px_rgba(46,158,99,.28)] transition-[transform,background-color] duration-150 hover:-translate-y-0.5 hover:bg-green-deep">
           {CTA.primary}
-        </Button>
+        </Link>
       </div>
     </header>
   );
