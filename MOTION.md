@@ -21,7 +21,7 @@ Four verbs. Nothing else.
 | **Settle** | It arrived on the desk | Slow, heavy, paper dropping into place |
 | **Ink** | It is being made | Honey lamplight, a held breath, no spinner-as-toy |
 | **Live** | Someone else can see it | Green, a small lift, a pulse that dies down |
-| **Glow** | It is live | The live thing itself gets a green border and a soft halo that swells once and settles |
+| **Glow** | It is live | The live thing itself gets a green border and a soft halo that swells in, then keeps breathing slowly (4.5s) — the one loop on the page, because live is an ongoing state |
 
 Professional display bar: these motions must read on a **27" monitor, a phone, and a conference projector**. No 4px fidgets. No emoji-as-the-picture. No “AI particles.”
 
@@ -132,7 +132,7 @@ The signature. One Allr window: the ask on the left, the thing it made on the ri
 | 1150ms | Artifact **Settles** in (10px rise + fade). Steps 2–3 tick. |
 | 1470ms | **Glow**. The artifact's border turns green with a halo that breathes in once. Window border `green-line`. The deploy line along the top edge (honey while making) completes and turns green, then fades. The URL dot goes green and emits two rings. *It's live.* with a checkmark that draws itself. |
 
-**Reduced motion:** artifact visible with the resting glow, no line, no rings.
+**Reduced motion:** artifact visible with the resting glow (no breathing), no line, no rings.
 
 ### 5.1b The mark (`M-BLOOM`)
 

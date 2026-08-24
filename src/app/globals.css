@@ -799,8 +799,9 @@
   /* ---------- live glow ---------- */
   /*
    * The thing that is live is the thing that lights up: a hairline green
-   * border and a wide, diffuse halo — light, not a ring. It breathes in once
-   * (halo swells then settles) and then holds. Nothing loops.
+   * border and a wide, diffuse halo — light, not a ring. It swells in once,
+   * then keeps breathing slowly, like a status LED: live is an ongoing state,
+   * so this is the one motion on the page that is allowed to loop.
    */
   .live-glow {
     border-color: rgba(46, 158, 99, 0.55);
@@ -819,7 +820,27 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .live-glow {
-      animation: glow-in 1.6s var(--ease-out-soft) both;
+      animation:
+        glow-in 1.6s var(--ease-out-soft) both,
+        glow-breathe 4.5s ease-in-out 1.6s infinite;
+    }
+  }
+  @keyframes glow-breathe {
+    0%, 100% {
+      border-color: rgba(46, 158, 99, 0.5);
+      box-shadow:
+        0 0 18px rgba(46, 158, 99, 0.2),
+        0 0 48px rgba(46, 158, 99, 0.2),
+        0 0 96px rgba(46, 158, 99, 0.12),
+        0 12px 32px rgba(34, 59, 51, 0.08);
+    }
+    50% {
+      border-color: rgba(46, 158, 99, 0.75);
+      box-shadow:
+        0 0 22px rgba(46, 158, 99, 0.34),
+        0 0 64px rgba(46, 158, 99, 0.34),
+        0 0 128px rgba(46, 158, 99, 0.22),
+        0 12px 32px rgba(34, 59, 51, 0.08);
     }
   }
   @keyframes glow-in {
