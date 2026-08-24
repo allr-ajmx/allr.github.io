@@ -968,15 +968,25 @@
     stroke-dasharray: 2 6;
   }
   .hosting__server {
-    filter: drop-shadow(0 8px 18px rgba(34, 59, 51, 0.18));
+    filter: drop-shadow(0 6px 12px rgba(34, 59, 51, 0.22));
+  }
+  .hosting__wordmark {
+    fill: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: 15px;
+  }
+  .hosting__flyer {
+    filter: drop-shadow(0 2px 4px rgba(34, 59, 51, 0.25));
   }
   .hosting__screen {
     opacity: 0.3;
   }
   @media (prefers-reduced-motion: no-preference) {
-    .hosting__server {
-      animation: server-pulse 3.2s ease-in-out infinite;
-      animation-delay: calc(var(--i, 0) * 0.5s);
+    .hosting__led {
+      animation: led-blink 1.6s ease-in-out infinite;
+    }
+    .hosting__orbit {
+      animation: orbit 60s linear infinite;
     }
     .hosting__halo {
       animation: halo-breathe 6s ease-in-out infinite;
@@ -991,21 +1001,23 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .hosting__packet { display: none; }
+    .hosting__packet, .hosting__flyer { display: none; }
     .hosting__screen { opacity: 1; }
   }
-  @keyframes server-pulse {
-    0%, 100% { transform: scale(1); }
-    12% { transform: scale(1.06); }
-    30% { transform: scale(1); }
+  @keyframes orbit {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes led-blink {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
   }
   @keyframes halo-breathe {
     0%, 100% { transform: scale(1); opacity: 0.8; }
     50% { transform: scale(1.12); opacity: 1; }
   }
   @keyframes screen-on {
-    0%, 8% { opacity: 0.3; }
-    14%, 75% { opacity: 1; }
+    0%, 6% { opacity: 0.3; }
+    12%, 80% { opacity: 1; }
     100% { opacity: 0.3; }
   }
   @keyframes card-nudge {
