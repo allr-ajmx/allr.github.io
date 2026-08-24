@@ -192,7 +192,7 @@ export const CTA = {
     "Describe what you want. Get finished work. Share it with the world.",
 } as const;
 
-export const HERO_HEADLINE = "Finished work.";
+export const HERO_HEADLINE = HERO_HEADLINE_REST;
 
 /**
  * The hero workspace. One tab per kind of thing Allr makes; each carries the

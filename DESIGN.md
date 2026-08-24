@@ -79,7 +79,7 @@ Do not paraphrase these on a page. Import from `src/lib/brand.ts` or copy exactl
 |---|---|
 | Tagline | the one subscription that replaces all of them |
 | Eyebrow | One workspace. Finished work. |
-| Hero headline | Finished work. |
+| Hero headline | the one subscription that replaces all of them. (the mark + `allr` wordmark sit above it as the name) |
 | Subhead | One AI workspace that makes finished work — decks, docs, videos, websites, apps, and games. |
 | Loop | Describe it. / Allr makes it. / Ship it. |
 | Promise | You bring the idea. We’ll take care of everything between you and ‘it’s live.’ |
