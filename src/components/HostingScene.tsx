@@ -1,6 +1,7 @@
 import { MockFor } from "@/components/mocks/Mocks";
 import { HOSTED } from "@/lib/brand";
-import { PETALS, PETAL_PATH } from "@/lib/petals";
+import { PETALS, PETAL_BY_ID, PETAL_PATH } from "@/lib/petals";
+import type { ShowcaseId } from "@/lib/brand";
 
 /*
  * Hosting, one-directional: the six petals stand around a globe — the
@@ -12,20 +13,29 @@ import { PETALS, PETAL_PATH } from "@/lib/petals";
 
 const W = 1100;
 const H = 720;
-const G = { x: 430, y: 360 }; // globe centre — its left half sits under the copy
-const GLOBE_R = 300;
+const G = { x: 400, y: 360 }; // globe centre — its left half sits under the copy
+const GLOBE_R = 270;
 /** Left of this x the web fades out under the text; fully visible right of FADE_IN. */
-const FADE_OUT = 120;
-const FADE_IN = 660;
+const FADE_OUT = 110;
+const FADE_IN = 630;
 
-type Device = { kind: "phone" | "laptop" | "tablet" | "desktop"; y: number; who: string; petal: number };
+type Device = {
+  kind: "phone" | "laptop" | "tablet" | "desktop";
+  y: number;
+  who: string;
+  /** What this person opened — each device shows a different thing. */
+  shows: ShowcaseId;
+  /** Where its wire leaves the globe, in degrees. */
+  exit: number;
+};
 const DEVICES: Device[] = [
-  { kind: "phone", y: 100, who: "Mia · on the bus", petal: 1 },
-  { kind: "laptop", y: 275, who: "An investor", petal: 2 },
-  { kind: "tablet", y: 445, who: "A journalist", petal: 3 },
-  { kind: "desktop", y: 620, who: "The studio", petal: 4 },
+  { kind: "phone", y: 100, who: "Mia · the habit tracker", shows: "apps", exit: -48 },
+  { kind: "laptop", y: 275, who: "An investor · the deck", shows: "decks", exit: -16 },
+  { kind: "tablet", y: 445, who: "A journalist · the press kit", shows: "docs", exit: 16 },
+  { kind: "desktop", y: 620, who: "The studio · the launch site", shows: "websites", exit: 48 },
 ];
 const DEVICE_X = 1010;
+const devicePos = (d: Device) => ({ x: DEVICE_X, y: d.y });
 const DEPLOY = { x: 700, y: 46 };
 
 /**
@@ -63,9 +73,10 @@ const pct = (v: number, of: number) => `${(v / of) * 100}%`;
 
 export function HostingScene() {
   const links = DEVICES.map((d, i) => {
-    const p = PETALS[d.petal];
-    const exit = toXY(p.angle, GLOBE_R);
-    return { d, p, i, path: wire(exit, { x: DEVICE_X - 80, y: d.y }) };
+    const p = PETAL_BY_ID[d.shows];
+    const pos = devicePos(d);
+    const exit = toXY(d.exit, GLOBE_R);
+    return { d, p, i, pos, path: wire(exit, { x: pos.x - 78, y: pos.y }) };
   });
   const top = toXY(-62, GLOBE_R);
   const inbound = `M${DEPLOY.x},${DEPLOY.y + 22} L${top.x},${top.y}`;
@@ -152,10 +163,10 @@ export function HostingScene() {
         </span>
       </div>
 
-      {links.map(({ d, i }) => (
-        <div key={i} className="absolute" style={{ left: pct(DEVICE_X, W), top: pct(d.y, H), width: pct(116, W), transform: "translate(-50%,-50%)" }}>
+      {links.map(({ d, i, pos }) => (
+        <div key={i} className="absolute" style={{ left: pct(pos.x, W), top: pct(pos.y, H), width: pct(128, W), transform: "translate(-50%,-50%)" }}>
           <div className="flex w-full flex-col items-center gap-1.5">
-            <DeviceFrame kind={d.kind} delay={i * 0.9 + 3.3} />
+            <DeviceFrame kind={d.kind} shows={d.shows} delay={i * 0.9 + 3.3} />
             <span className="whitespace-nowrap text-[.7rem] font-semibold text-ink-soft">{d.who}</span>
           </div>
         </div>
@@ -164,13 +175,13 @@ export function HostingScene() {
   );
 }
 
-function DeviceFrame({ kind, delay }: { kind: Device["kind"]; delay: number }) {
+function DeviceFrame({ kind, shows, delay }: { kind: Device["kind"]; shows: ShowcaseId; delay: number }) {
   // Widths are a share of the device slot, so devices scale with the stage.
   // Screens are absolutely positioned inside fixed-ratio frames, so the site
   // mock can never inflate the device.
   const screen = (
     <div className="hosting__screen mock-frame absolute inset-[2px] overflow-hidden rounded-[inherit] bg-card" style={{ animationDelay: `${delay}s`, animationDuration: "3.6s" }}>
-      <MockFor id="websites" />
+      <MockFor id={shows} />
     </div>
   );
   if (kind === "phone")
