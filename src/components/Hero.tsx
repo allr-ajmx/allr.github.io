@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/Button";
 import { AllrMark } from "@/components/ui/AllrMark";
 import { Parallax } from "@/components/motion/Parallax";
 import { Workspace } from "@/components/Workspace";
-import { CTA, EYEBROW_HERO, HERO_SUB, WORDMARK } from "@/lib/brand";
+import { CTA, EYEBROW_HERO, HERO_SUB } from "@/lib/brand";
 
 export function Hero() {
   return (
@@ -13,14 +13,8 @@ export function Hero() {
           {EYEBROW_HERO}
         </p>
 
-        {/* the name: the mark blooms, the wordmark sits beside it */}
-        <div className="hero-enter mb-2 inline-flex items-center gap-2.5" style={{ animationDelay: "0.08s" }}>
-          <AllrMark size={52} bloom className="shrink-0" />
-          <span className="font-serif text-[clamp(2.2rem,4vw,3rem)] leading-none tracking-tight">{WORDMARK}</span>
-        </div>
-
-        <h1 className="hero-enter mb-3 max-w-[22ch] text-[clamp(2.1rem,4.8vw,3.7rem)] leading-[1.05] tracking-[-0.015em]" style={{ animationDelay: "0.16s" }}>
-          the one <span className="whitespace-nowrap">subscription that</span>{" "}
+        <h1 className="hero-enter mt-1 mb-3 max-w-[22ch] text-[clamp(2.1rem,4.8vw,3.7rem)] leading-[1.05] tracking-[-0.015em]" style={{ animationDelay: "0.16s" }}>
+          the <span className="whitespace-nowrap"><AllrMark size="0.82em" bloom spin className="mark--letter" />ne</span> subscription that{" "}
           <span className="whitespace-nowrap text-green-deep">
             replaces all of them.
           </span>

@@ -864,9 +864,24 @@
   }
 
   /* ---------- the mark (AllrMark.tsx) ---------- */
-  .mark__petal {
+  .mark__petal,
+  .mark__petals {
     transform-box: fill-box;
     transform-origin: center;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .mark--spin .mark__petals {
+      animation: mark-turn 40s linear infinite;
+    }
+  }
+  @keyframes mark-turn {
+    to { transform: rotate(360deg); }
+  }
+  /* The mark as a letter: sits on the baseline like an "o". */
+  .mark--letter {
+    display: inline-block;
+    vertical-align: -0.08em;
+    margin: 0 0.02em;
   }
   @media (prefers-reduced-motion: no-preference) {
     .mark--bloom .mark__disc {
