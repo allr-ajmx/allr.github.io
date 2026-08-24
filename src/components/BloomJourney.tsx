@@ -117,7 +117,7 @@ export function BloomJourney() {
                 ))}
               </div>
               <p className="text-[.8rem] font-bold tracking-[0.06em] text-ink-soft uppercase" aria-live="polite">
-                {BLOOM.progress(active + 1)} · {step.petal.name}
+                {step.petal.name}
               </p>
             </div>
           </div>
@@ -138,7 +138,7 @@ export function BloomJourney() {
                   </div>
                   <p className="mb-3 inline-flex items-center gap-2 text-[.78rem] font-bold tracking-[0.06em] text-ink-soft uppercase">
                     <PetalShape color={s.petal.color} className="h-[11px] w-[16px]" />
-                    Petal {i + 1} · {s.petal.name}
+                    {s.petal.name}
                   </p>
                   <h3 className="mb-3 text-[clamp(1.5rem,2.6vw,2.1rem)]">{s.out.title}</h3>
                   <p className="mb-7 max-w-[46ch] text-[1.02rem] text-ink-soft">{s.out.body}</p>
@@ -160,6 +160,9 @@ export function BloomJourney() {
             })}
           </ol>
         </div>
+        <Reveal className="mx-auto mt-10 max-w-[640px] text-center" variant="fade">
+          <p className="font-serif text-[1.15rem] text-honey-deep">{BLOOM.more}</p>
+        </Reveal>
       </div>
     </section>
   );

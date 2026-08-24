@@ -310,9 +310,9 @@ export const STORY = [
 
 export const BLOOM = {
   eyebrow: "What Allr makes",
-  title: "Six petals. Six kinds of finished work.",
-  sub: "Every petal in the mark is one kind of thing Allr makes — and publishes. Scroll, and the mark turns to each one.",
-  progress: (n: number) => `Petal ${n} of 6`,
+  title: "Whatever you’re making, it comes back finished.",
+  sub: "A deck today, a site tomorrow, an app next month. Every turn of the mark is one more thing Allr finishes and publishes — here are a few.",
+  more: "…and whatever you ask for next.",
 } as const;
 
 export const HOSTED = {

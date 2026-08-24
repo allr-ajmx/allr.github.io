@@ -37,9 +37,9 @@ We do **not** lead with developers, self-hosters, or “autonomous agents.” Th
 
 ---
 
-## 2b. The Bloom — the mark is the product map
+## 2b. The Bloom — the mark turns to the work
 
-The mark has six petals; Allr makes six things. Each petal owns one, and its colour is that thing's colour everywhere on the site:
+The mark has six petals. On the homepage each petal carries one *example* of finished work and lends it a colour. This is a way of showing, not a catalogue: never write "six things", never imply the list is complete or that everything on it ships at launch. The mark turns to whatever is being made; the six below are the ones we show today.
 
 | Petal | Colour | Thing |
 |---|---|---|
@@ -50,7 +50,7 @@ The mark has six petals; Allr makes six things. Each petal owns one, and its col
 | 4 | `#34905e` deep green | Video |
 | 5 | `#9bb289` light sage | Apps |
 
-Rules: a petal shape (`PetalShape`) is the only decorative form we own — use it for bullets, numerals, backdrops and progress. Never add a seventh colour. When a surface is "about" one thing, it takes that petal's colour and the mark lights that petal (`AllrMark highlight`). Registry: `src/lib/petals.ts`.
+Rules: a petal shape (`PetalShape`) is the only decorative form we own — use it for bullets, numerals, backdrops and progress. Never add a seventh colour. When a surface is "about" one thing, it takes that petal's colour and the mark lights that petal (`AllrMark highlight`). Do not number petals in copy ("petal 3 of 6"). Registry: `src/lib/petals.ts`.
 
 ## 3. Voice
 

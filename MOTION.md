@@ -155,7 +155,7 @@ Three drawn phones. Front: the Allr chat with an ask, the reply, the artifact ca
 
 ### 5.2 What Allr makes — the Bloom (`M-BLOOM`)
 
-The identity system. The mark has six petals and Allr makes six things; each petal owns one (`src/lib/petals.ts`): Sites · Decks · Sheets · Docs · Video · Apps, in petal order, 60° apart. Every accent colour on the page is a petal colour.
+The identity system. The mark has six petals; on the homepage each carries one example of finished work (`src/lib/petals.ts`): Sites · Decks · Sheets · Docs · Video · Apps, in petal order, 60° apart. Examples, not a catalogue — copy never counts them. Every accent colour on the page is a petal colour.
 
 **Stage** — a large mark pinned on the left; six panels on the right, one per petal, each with its title, body and the artifact mock sitting on a big petal shape in its colour.
 
