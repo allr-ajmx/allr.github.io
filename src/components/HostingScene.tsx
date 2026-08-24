@@ -14,9 +14,6 @@ const W = 1100;
 const H = 720;
 const G = { x: 430, y: 360 }; // globe centre — its left half sits under the copy
 const GLOBE_R = 300;
-const SERVER_R = 176; // petal servers sit inside the globe
-const PW = 72; // petal server size (local frame, pointing up)
-const PH = 49;
 /** Left of this x the web fades out under the text; fully visible right of FADE_IN. */
 const FADE_OUT = 150;
 const FADE_IN = 600;
@@ -41,15 +38,15 @@ function ellipsePath(cx: number, cy: number, rx: number, ry: number) {
 }
 const R = GLOBE_R;
 const GLYPH = [
-  { d: ellipsePath(G.x, G.y, R, R), n: 150, s: 8, dur: 110, alpha: 0.9 },
-  { d: ellipsePath(G.x, G.y, R * 0.42, R), n: 100, s: 7, dur: 84, alpha: 0.85 },
-  { d: ellipsePath(G.x, G.y, R * 0.8, R), n: 90, s: 6.5, dur: 92, alpha: 0.7 },
-  { d: ellipsePath(G.x, G.y, R * 0.12, R), n: 76, s: 6, dur: 78, alpha: 0.6 },
-  { d: ellipsePath(G.x, G.y, R, R * 0.04), n: 96, s: 7, dur: 72, alpha: 0.85 },
-  { d: ellipsePath(G.x, G.y - R * 0.55, R * 0.83, R * 0.04), n: 76, s: 6.5, dur: 62, alpha: 0.75 },
-  { d: ellipsePath(G.x, G.y + R * 0.55, R * 0.83, R * 0.04), n: 76, s: 6.5, dur: 62, alpha: 0.75 },
-  { d: ellipsePath(G.x, G.y - R * 0.85, R * 0.52, R * 0.03), n: 46, s: 6, dur: 52, alpha: 0.65 },
-  { d: ellipsePath(G.x, G.y + R * 0.85, R * 0.52, R * 0.03), n: 46, s: 6, dur: 52, alpha: 0.65 },
+  { d: ellipsePath(G.x, G.y, R, R), n: 150, s: 13.6, dur: 110, alpha: 0.9 },
+  { d: ellipsePath(G.x, G.y, R * 0.42, R), n: 100, s: 11.9, dur: 84, alpha: 0.85 },
+  { d: ellipsePath(G.x, G.y, R * 0.8, R), n: 90, s: 11.0, dur: 92, alpha: 0.7 },
+  { d: ellipsePath(G.x, G.y, R * 0.12, R), n: 76, s: 10.2, dur: 78, alpha: 0.6 },
+  { d: ellipsePath(G.x, G.y, R, R * 0.04), n: 96, s: 11.9, dur: 72, alpha: 0.85 },
+  { d: ellipsePath(G.x, G.y - R * 0.55, R * 0.83, R * 0.04), n: 76, s: 11.0, dur: 62, alpha: 0.75 },
+  { d: ellipsePath(G.x, G.y + R * 0.55, R * 0.83, R * 0.04), n: 76, s: 11.0, dur: 62, alpha: 0.75 },
+  { d: ellipsePath(G.x, G.y - R * 0.85, R * 0.52, R * 0.03), n: 46, s: 10.2, dur: 52, alpha: 0.65 },
+  { d: ellipsePath(G.x, G.y + R * 0.85, R * 0.52, R * 0.03), n: 46, s: 10.2, dur: 52, alpha: 0.65 },
 ] as const;
 
 const toXY = (deg: number, r: number) => ({
@@ -67,9 +64,8 @@ const pct = (v: number, of: number) => `${(v / of) * 100}%`;
 export function HostingScene() {
   const links = DEVICES.map((d, i) => {
     const p = PETALS[d.petal];
-    const from = toXY(p.angle, SERVER_R + 40);
     const exit = toXY(p.angle, GLOBE_R);
-    return { d, p, i, path: `M${from.x},${from.y} L${exit.x},${exit.y} ` + wire(exit, { x: DEVICE_X - 80, y: d.y }).slice(1) };
+    return { d, p, i, path: wire(exit, { x: DEVICE_X - 80, y: d.y }) };
   });
   const top = toXY(-62, GLOBE_R);
   const inbound = `M${DEPLOY.x},${DEPLOY.y + 22} L${top.x},${top.y}`;
@@ -131,22 +127,6 @@ export function HostingScene() {
         {links.map((l) => (
           <path key={l.i} d={l.path} className="hosting__line hosting__line--out" />
         ))}
-
-        {/* petal servers */}
-        {PETALS.map((p, i) => {
-          const at = toXY(p.angle, SERVER_R);
-          return (
-            <g key={p.id} className="hosting__server" transform={`translate(${at.x} ${at.y}) rotate(${p.angle + 90})`}>
-              <g transform={`translate(${-PW / 2} ${-PH / 2})`}>
-                <path d={PETAL_PATH} transform={`scale(${PW} ${PH})`} fill={p.color} />
-                {[0.46, 0.58, 0.7].map((t) => (
-                  <rect key={t} x={PW * 0.3} y={PH * t} width={PW * 0.4} height={PH * 0.06} rx={PH * 0.03} fill="rgba(255,255,255,.55)" />
-                ))}
-                <circle cx={PW * 0.5} cy={PH * 0.3} r={PH * 0.06} fill="#fff" className="hosting__led" style={{ animationDelay: `${i * 0.4}s` }} />
-              </g>
-            </g>
-          );
-        })}
 
         </g>
         <text x={G.x + 40} y={G.y + GLOBE_R + 26} textAnchor="middle" className="hosting__label">{HOSTED.center} · the internet</text>

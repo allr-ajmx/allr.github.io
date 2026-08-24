@@ -967,9 +967,6 @@
     stroke-width: 1;
     stroke-dasharray: 2 6;
   }
-  .hosting__server {
-    filter: drop-shadow(0 6px 12px rgba(34, 59, 51, 0.22));
-  }
   @media (min-width: 64rem) {
     .hosting__fade {
       mask: url(#fade-mask);
@@ -983,9 +980,6 @@
     opacity: 0.3;
   }
   @media (prefers-reduced-motion: no-preference) {
-    .hosting__led {
-      animation: led-blink 1.6s ease-in-out infinite;
-    }
     /* Each tiny petal wobbles on its own clock on top of the travel. */
     .hosting__mote {
       transform-box: fill-box;
@@ -1014,10 +1008,6 @@
     25% { transform: translate(var(--wob-a), calc(var(--wob-a) * -0.6)) rotate(var(--wob-r)) scale(1.08); }
     50% { transform: translate(calc(var(--wob-a) * -0.5), var(--wob-a)) rotate(calc(var(--wob-r) * -0.6)) scale(0.94); }
     75% { transform: translate(calc(var(--wob-a) * -0.9), calc(var(--wob-a) * -0.4)) rotate(calc(var(--wob-r) * 0.4)) scale(1.03); }
-  }
-  @keyframes led-blink {
-    0%, 100% { opacity: 0.45; }
-    50% { opacity: 1; }
   }
   @keyframes halo-breathe {
     0%, 100% { transform: scale(1); opacity: 0.8; }
