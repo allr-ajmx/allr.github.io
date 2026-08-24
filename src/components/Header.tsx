@@ -60,8 +60,10 @@ export function Header() {
       className={cx(
         // Transparent at the top so it belongs to the hero; solid once you scroll.
         "sticky top-0 z-50 border-b-[1.5px] transition-[box-shadow,background-color,border-color] duration-300",
+        // Frosted, not opaque: a light tint over a strong blur, so the page
+        // shows through as colour while the header stays readable.
         elevated
-          ? "border-line/80 bg-paper/92 shadow-[0_10px_30px_rgba(34,59,51,0.06)] backdrop-blur-[14px]"
+          ? "border-line/60 bg-paper/55 shadow-[0_10px_30px_rgba(34,59,51,0.05)] backdrop-blur-[22px] backdrop-saturate-[1.4]"
           : "border-transparent",
       )}
     >
