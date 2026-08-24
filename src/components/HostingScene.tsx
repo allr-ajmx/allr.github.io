@@ -83,8 +83,8 @@ export function HostingScene() {
       </svg>
 
       {/* the mark, dead centre */}
-      <div className="absolute" style={{ left: `${(C.x / W) * 100}%`, top: `${(C.y / H) * 100}%`, transform: "translate(-50%,-50%)" }}>
-        <AllrMark size={132} />
+      <div className="absolute" style={{ left: `${(C.x / W) * 100}%`, top: `${(C.y / H) * 100}%`, width: `${(156 / W) * 100}%`, transform: "translate(-50%,-50%)" }}>
+        <AllrMark size="100%" className="block h-auto" />
       </div>
 
       {/* source: the new version leaving the workspace */}
