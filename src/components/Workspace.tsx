@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { MockFor } from "@/components/mocks/Mocks";
 import { AllrMark } from "@/components/ui/AllrMark";
-import { PetalShape } from "@/components/ui/PetalShape";
 import { SHOWCASE, WORKSPACE } from "@/lib/brand";
 import { cx } from "@/lib/cx";
 import { PETAL_BY_ID, rotationToPoint } from "@/lib/petals";
@@ -74,7 +73,6 @@ export function Workspace() {
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap gap-1 rounded-control border border-line bg-card/80 p-1 shadow-soft backdrop-blur-[2px]" role="tablist" aria-label="What Allr makes">
           {SHOWCASE.map((s, i) => {
-            const pt = PETAL_BY_ID[s.id];
             const on = i === active;
             return (
               <button
@@ -84,12 +82,10 @@ export function Workspace() {
                 aria-selected={on}
                 onClick={() => play(i)}
                 className={cx(
-                  "inline-flex cursor-pointer items-center gap-1.5 rounded-chip px-3.5 py-1.5 text-[.9rem] font-bold transition-[background-color,color] duration-200",
-                  on ? (pt.on === "ink" ? "text-ink" : "text-paper") : "text-ink-soft hover:bg-paper hover:text-ink",
+                  "cursor-pointer rounded-chip px-3.5 py-1.5 text-[.9rem] font-bold transition-[background-color,color] duration-200",
+                  on ? "bg-green-deep text-white" : "text-ink-soft hover:bg-paper hover:text-ink",
                 )}
-                style={on ? { background: pt.color } : undefined}
               >
-                <PetalShape color={on ? "currentColor" : pt.color} className="h-[10px] w-[14px]" />
                 {s.tab}
               </button>
             );
