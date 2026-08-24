@@ -1,4 +1,5 @@
 import { MockFor } from "@/components/mocks/Mocks";
+import { Agitator } from "@/components/motion/Agitator";
 import { HOSTED } from "@/lib/brand";
 import { PETALS, PETAL_BY_ID, PETAL_PATH } from "@/lib/petals";
 import type { ShowcaseId } from "@/lib/brand";
@@ -48,15 +49,15 @@ function ellipsePath(cx: number, cy: number, rx: number, ry: number) {
 }
 const R = GLOBE_R;
 const GLYPH = [
-  { d: ellipsePath(G.x, G.y, R, R), n: 120, s: 13.6, dur: 110, alpha: 0.9 },
-  { d: ellipsePath(G.x, G.y, R * 0.42, R), n: 80, s: 11.9, dur: 84, alpha: 0.85 },
-  { d: ellipsePath(G.x, G.y, R * 0.8, R), n: 72, s: 11.0, dur: 92, alpha: 0.7 },
-  { d: ellipsePath(G.x, G.y, R * 0.12, R), n: 61, s: 10.2, dur: 78, alpha: 0.6 },
-  { d: ellipsePath(G.x, G.y, R, R * 0.04), n: 77, s: 11.9, dur: 72, alpha: 0.85 },
-  { d: ellipsePath(G.x, G.y - R * 0.55, R * 0.83, R * 0.04), n: 61, s: 11.0, dur: 62, alpha: 0.75 },
-  { d: ellipsePath(G.x, G.y + R * 0.55, R * 0.83, R * 0.04), n: 61, s: 11.0, dur: 62, alpha: 0.75 },
-  { d: ellipsePath(G.x, G.y - R * 0.85, R * 0.52, R * 0.03), n: 37, s: 10.2, dur: 52, alpha: 0.65 },
-  { d: ellipsePath(G.x, G.y + R * 0.85, R * 0.52, R * 0.03), n: 37, s: 10.2, dur: 52, alpha: 0.65 },
+  { d: ellipsePath(G.x, G.y, R, R), n: 120, s: 13.6, dur: 176, alpha: 0.9 },
+  { d: ellipsePath(G.x, G.y, R * 0.42, R), n: 80, s: 11.9, dur: 134, alpha: 0.85 },
+  { d: ellipsePath(G.x, G.y, R * 0.8, R), n: 72, s: 11.0, dur: 147, alpha: 0.7 },
+  { d: ellipsePath(G.x, G.y, R * 0.12, R), n: 61, s: 10.2, dur: 125, alpha: 0.6 },
+  { d: ellipsePath(G.x, G.y, R, R * 0.04), n: 77, s: 11.9, dur: 115, alpha: 0.85 },
+  { d: ellipsePath(G.x, G.y - R * 0.55, R * 0.83, R * 0.04), n: 61, s: 11.0, dur: 99, alpha: 0.75 },
+  { d: ellipsePath(G.x, G.y + R * 0.55, R * 0.83, R * 0.04), n: 61, s: 11.0, dur: 99, alpha: 0.75 },
+  { d: ellipsePath(G.x, G.y - R * 0.85, R * 0.52, R * 0.03), n: 37, s: 10.2, dur: 83, alpha: 0.65 },
+  { d: ellipsePath(G.x, G.y + R * 0.85, R * 0.52, R * 0.03), n: 37, s: 10.2, dur: 83, alpha: 0.65 },
 ] as const;
 
 const toXY = (deg: number, r: number) => ({
@@ -83,6 +84,7 @@ export function HostingScene() {
 
   return (
     <div className="hosting relative mx-auto w-full" style={{ aspectRatio: `${W} / ${H}` }}>
+      <Agitator />
       <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
         <defs>
           <radialGradient id="globe-fill" cx="40%" cy="35%" r="70%">
@@ -111,8 +113,9 @@ export function HostingScene() {
               const seed = (k * 7 + ri * 13) % 11;
               return (
                 <g key={k}>
+                  <g className="hosting__push">
                   <g
-                    className="hosting__mote"
+                    className={k % 2 ? "hosting__mote hosting__mote--still" : "hosting__mote"}
                     style={{
                       ["--wob-d" as string]: `${2.6 + (seed % 5) * 0.55}s`,
                       ["--wob-a" as string]: `${1.4 + (seed % 3) * 0.6}px`,
@@ -126,6 +129,7 @@ export function HostingScene() {
                       opacity={g.alpha}
                       transform={`translate(${-g.s / 2} ${-g.s / 2.9}) scale(${g.s} ${g.s / 1.46})`}
                     />
+                  </g>
                   </g>
                   <animateMotion dur={`${g.dur}s`} begin={`${-(k / g.n) * g.dur}s`} repeatCount="indefinite" rotate="auto" path={g.d} />
                 </g>

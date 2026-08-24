@@ -985,6 +985,21 @@
       transform-box: fill-box;
       transform-origin: center;
       animation: mote-wobble var(--wob-d, 3s) ease-in-out infinite;
+      /* scrolling agitates: amplitude grows with --agi (0 calm … 1 stirred) */
+      --amp: calc(var(--wob-a, 2px) * (1 + var(--agi, 0) * 4));
+      --rot: calc(var(--wob-r, 12deg) * (1 + var(--agi, 0) * 2.5));
+    }
+    /* every other petal rides the line without wobbling — half the cost */
+    .hosting__mote--still {
+      animation: none;
+    }
+    .hosting--paused .hosting__mote {
+      animation-play-state: paused;
+    }
+    /* the pointer nudges nearby petals away, softly */
+    .hosting__push {
+      transform: translate(var(--push-x, 0px), var(--push-y, 0px));
+      transition: transform 0.4s var(--ease-out-soft);
     }
     .hosting__halo {
       animation: halo-breathe 6s ease-in-out infinite;
@@ -1005,9 +1020,9 @@
   }
   @keyframes mote-wobble {
     0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
-    25% { transform: translate(var(--wob-a), calc(var(--wob-a) * -0.6)) rotate(var(--wob-r)) scale(1.08); }
-    50% { transform: translate(calc(var(--wob-a) * -0.5), var(--wob-a)) rotate(calc(var(--wob-r) * -0.6)) scale(0.94); }
-    75% { transform: translate(calc(var(--wob-a) * -0.9), calc(var(--wob-a) * -0.4)) rotate(calc(var(--wob-r) * 0.4)) scale(1.03); }
+    25% { transform: translate(var(--amp), calc(var(--amp) * -0.6)) rotate(var(--rot)) scale(1.08); }
+    50% { transform: translate(calc(var(--amp) * -0.5), var(--amp)) rotate(calc(var(--rot) * -0.6)) scale(0.94); }
+    75% { transform: translate(calc(var(--amp) * -0.9), calc(var(--amp) * -0.4)) rotate(calc(var(--rot) * 0.4)) scale(1.03); }
   }
   @keyframes halo-breathe {
     0%, 100% { transform: scale(1); opacity: 0.8; }
