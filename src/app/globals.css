@@ -7,7 +7,7 @@
 
 @theme {
   /* ---------- palette ---------- */
-  --color-paper: #fbf8f2; /* warm evening paper */
+  --color-paper: #fcfaf6; /* warm paper, lighter */
   --color-card: #ffffff;
   --color-ink: #223b33; /* deep pine — steady, reassuring */
   --color-ink-soft: #5c7168;
@@ -979,11 +979,64 @@
     }
   }
 
-  /* Live status soft pulse on finished console */
+  /* ---------- "live" — one-shot signals, nothing loops ---------- */
+  /* The dot emits two rings, then rests. */
+  .live-ring {
+    position: relative;
+  }
+  .live-ring::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    color: var(--color-green);
+    opacity: 0;
+  }
   @media (prefers-reduced-motion: no-preference) {
-    .live-pulse {
-      animation: soft-pulse 2.4s ease-out infinite;
+    .live-ring::after {
+      animation: ring-out 1.1s var(--ease-out-soft) 2;
     }
+    .ws-line {
+      background: var(--color-honey);
+      transform: scaleX(0);
+    }
+    .ws-line--making {
+      animation: line-fill 1.15s var(--ease-ink) both;
+    }
+    .ws-line--live {
+      background: var(--color-green);
+      animation: line-done 1.4s var(--ease-out-soft) both;
+    }
+    .live-check__ring {
+      stroke-dasharray: 44;
+      stroke-dashoffset: 44;
+      animation: draw 0.5s var(--ease-out-soft) forwards;
+    }
+    .live-check__tick {
+      stroke-dasharray: 12;
+      stroke-dashoffset: 12;
+      animation: draw 0.35s var(--ease-out-soft) 0.35s forwards;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ws-line { display: none; }
+  }
+  @keyframes ring-out {
+    from { opacity: 0.9; transform: scale(1); }
+    to { opacity: 0; transform: scale(3.2); }
+  }
+  @keyframes line-fill {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(0.9); }
+  }
+  @keyframes line-done {
+    0% { transform: scaleX(0.9); opacity: 1; }
+    25% { transform: scaleX(1); opacity: 1; }
+    100% { transform: scaleX(1); opacity: 0; }
+  }
+  @keyframes draw {
+    to { stroke-dashoffset: 0; }
   }
 
   /* Floating decorative blobs inside bands */

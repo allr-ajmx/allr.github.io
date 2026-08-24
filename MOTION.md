@@ -130,9 +130,9 @@ The signature. One Allr window: the ask on the left, the thing it made on the ri
 |---|------|
 | 0 | Ask bubble present. Step 1 ticks. Artifact pane is dashed honey with a 3px ink bar travelling 0→100% (1150ms). Status: *Making your deck…* |
 | 1150ms | Artifact **Settles** in (10px rise + fade). Steps 2–3 tick. |
-| 1470ms | **Stamp**. Border `green-line`, URL pip green, status *It's live.*, confetti once. |
+| 1470ms | **Stamp**. Border `green-line`. The deploy line along the top edge (honey while making) completes and turns green, then fades. The URL dot goes green and emits two rings. *It's live.* with a checkmark that draws itself. |
 
-**Reduced motion:** artifact visible, seal down, no bar, no confetti.
+**Reduced motion:** artifact visible, seal down, no line, no rings.
 
 ### 5.1b The mark (`M-BLOOM`)
 
@@ -204,6 +204,7 @@ Keep. Do not add a second ambient system.
 - Bounce on every card
 - Lottie robots, particle fields, 3D glass
 - Autoplaying sound
+- Confetti, particles, anything that celebrates *at* the visitor — "live" is a status, shown once: deploy line, ring pulse, drawn check
 - A second hero video replacing the console
 - Generated pictures that contain the word Allr, a URL, or UI copy
 - Half-size emoji as the only picture of an artifact
@@ -224,7 +225,6 @@ Keep. Do not add a second ambient system.
 | Artifact mocks | `src/components/mocks/Mocks.tsx` |
 | The mark (bloom) | `src/components/ui/AllrMark.tsx` |
 | The seal | `src/components/ui/Stamp.tsx` |
-| Confetti | `src/components/motion/Confetti.tsx` |
 | Make cards | `src/components/WhatAllrMakes.tsx`, `src/components/ui/Card.tsx` |
 | How-it-works miniatures | `src/components/HowItWorks.tsx` |
 | Desk ensemble | `src/components/PublishingBand.tsx` |

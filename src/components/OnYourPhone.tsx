@@ -47,7 +47,7 @@ export function OnYourPhone() {
                     <div className="mock-frame overflow-hidden rounded-card border border-line bg-card shadow-soft">
                       <div className="aspect-[16/10]"><DeckMock /></div>
                       <div className="flex items-center gap-2 border-t border-line-soft px-3 py-2">
-                        <span className="live-pulse size-1.5 rounded-full bg-green" />
+                        <span className="live-ring size-1.5 rounded-full bg-green" />
                         <span className="truncate font-mono text-[.7rem]">allr.app/northwind-onepager</span>
                         <span className="ml-auto rounded-chip bg-green px-2 py-0.5 text-[.6rem] font-bold tracking-[0.03em] text-white uppercase">Live</span>
                       </div>

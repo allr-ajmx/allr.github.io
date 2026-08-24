@@ -35,7 +35,7 @@ export function PublishingBand() {
             </div>
 
             <span className="inline-flex items-center gap-2.5 rounded-control border border-green-line bg-card px-4 py-2 font-semibold text-ink shadow-soft transition-transform duration-300 hover:-translate-y-0.5">
-              <span className="live-pulse size-1.5 rounded-full bg-green" />
+              <span className="live-ring size-1.5 rounded-full bg-green" />
               <span className="font-mono text-[.9rem] tracking-tight">
                 allr.app/your-launch
               </span>

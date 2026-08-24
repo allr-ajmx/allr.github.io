@@ -95,7 +95,7 @@ function Stage({ step }: { step: number }) {
         <Stamp down={step >= 2} size="md" className="absolute -right-2 -bottom-3 z-10">Live</Stamp>
       </div>
       <div className={cx("mt-4 inline-flex items-center gap-2 rounded-control border bg-card px-3 py-1.5 text-[.85rem] font-semibold shadow-soft transition-colors duration-500", step >= 2 ? "border-green-line text-ink" : "border-line-soft text-ink-soft")}>
-        <span className={cx("size-1.5 rounded-full", step >= 2 ? "live-pulse bg-green" : "bg-honey")} />
+        <span className={cx("size-1.5 rounded-full", step >= 2 ? "live-ring bg-green" : "bg-honey")} />
         <span className="font-mono tracking-tight">allr.app/album-launch</span>
         {step >= 2 ? <span className="rounded-chip bg-green-tint px-2 py-0.5 text-[.7rem] font-bold tracking-[0.03em] text-green-deep uppercase">v1 · Live</span> : null}
       </div>

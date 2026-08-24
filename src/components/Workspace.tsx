@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { MockFor } from "@/components/mocks/Mocks";
-import { Confetti } from "@/components/motion/Confetti";
 import { AllrMark } from "@/components/ui/AllrMark";
 import { Stamp } from "@/components/ui/Stamp";
 import { SHOWCASE, WORKSPACE } from "@/lib/brand";
@@ -99,7 +98,16 @@ export function Workspace() {
           live ? "border-green-line shadow-[0_30px_80px_rgba(46,158,99,.16),0_0_0_4px_rgba(46,158,99,.06)]" : "border-line",
         )}
       >
-        {live ? <div key={run} className="absolute inset-0 z-20"><Confetti /></div> : null}
+        {/* deploy line — fills while making, completes green on live, then fades */}
+        <span
+          key={`line-${run}`}
+          aria-hidden="true"
+          className={cx(
+            "ws-line absolute inset-x-0 top-0 z-20 h-[2px] origin-left",
+            p === "making" && "ws-line--making",
+            made && "ws-line--live",
+          )}
+        />
 
         {/* title bar */}
         <div className="flex items-center gap-3 border-b border-line-soft bg-paper/70 px-4 py-2.5">
@@ -109,7 +117,7 @@ export function Workspace() {
           <span className="ml-2 inline-flex items-center gap-1.5 text-[.85rem] font-bold"><AllrMark size={16} /> allr</span>
           <span className="min-w-0 truncate text-[.85rem] text-ink-soft">/ {item.slug}</span>
           <span className="ml-auto hidden items-center gap-2 rounded-control sm:inline-flex border border-line-soft bg-card px-2.5 py-1 font-mono text-[.78rem] tracking-tight text-ink">
-            <span className={cx("size-1.5 rounded-full transition-colors duration-300", live ? "live-pulse bg-green" : "bg-honey")} />
+            <span key={`dot-${run}`} className={cx("relative size-1.5 rounded-full transition-colors duration-300", live ? "live-ring bg-green" : "bg-honey")} />
             allr.app/{item.slug}
           </span>
         </div>
@@ -154,5 +162,15 @@ export function Workspace() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** A checkmark that draws itself once. */
+function LiveCheck() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
+      <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" className="live-check__ring" />
+      <path d="M4.5 8.4 7 10.8 11.6 5.6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="live-check__tick" />
+    </svg>
   );
 }
