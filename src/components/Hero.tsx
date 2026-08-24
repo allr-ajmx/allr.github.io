@@ -21,7 +21,7 @@ export function Hero() {
 
         <h1 className="hero-enter mb-3 max-w-[22ch] text-[clamp(2.1rem,4.8vw,3.7rem)] leading-[1.05] tracking-[-0.015em]" style={{ animationDelay: "0.16s" }}>
           the one <span className="whitespace-nowrap">subscription that</span>{" "}
-          <span className="hero-swash relative whitespace-nowrap text-green-deep before:absolute before:-inset-x-[2%] before:bottom-[.05em] before:-z-10 before:h-[.34em] before:rounded-full before:bg-green-tint before:content-['']">
+          <span className="whitespace-nowrap text-green-deep">
             replaces all of them.
           </span>
         </h1>
