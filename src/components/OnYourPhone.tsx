@@ -44,7 +44,7 @@ export function OnYourPhone() {
                   <div className="flex flex-1 flex-col gap-3 p-3.5 text-[.8rem]">
                     <div className="self-end rounded-card rounded-tr-[4px] bg-ink px-3 py-2 leading-snug text-paper">{PHONE.ask}</div>
                     <div className="self-start rounded-card rounded-tl-[4px] border border-line bg-card px-3 py-2 leading-snug text-ink shadow-soft">{PHONE.reply}</div>
-                    <div className="live-glow mock-frame overflow-hidden rounded-card border border-green bg-card shadow-soft">
+                    <div className="live-glow mock-frame overflow-hidden rounded-card border bg-card shadow-soft">
                       <div className="aspect-[16/10]"><DeckMock /></div>
                       <div className="flex items-center gap-2 border-t border-line-soft px-3 py-2">
                         <span className="live-ring size-1.5 rounded-full bg-green" />

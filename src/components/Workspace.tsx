@@ -116,7 +116,7 @@ export function Workspace() {
           <span className="ml-2 inline-flex items-center gap-1.5 text-[.85rem] font-bold"><AllrMark size={16} /> allr</span>
           <span className="min-w-0 truncate text-[.85rem] text-ink-soft">/ {item.slug}</span>
           <span className="ml-auto hidden items-center gap-2 rounded-control sm:inline-flex border border-line-soft bg-card px-2.5 py-1 font-mono text-[.78rem] tracking-tight text-ink">
-            <span key={`dot-${run}`} className={cx("relative size-1.5 rounded-full transition-colors duration-300", live ? "live-ring bg-green" : "bg-honey")} />
+            <span key={`dot-${run}`} className={cx("relative size-1.5 rounded-full transition-colors duration-300", live ? "live-ring bg-green" : p === "making" ? "dot-making" : "bg-line")} />
             allr.app/{item.slug}
           </span>
         </div>
@@ -132,8 +132,8 @@ export function Workspace() {
                 const on = !shouldAnimate || (p === "making" ? i === 0 : made);
                 const doing = shouldAnimate && p === "making" && i === 1;
                 return (
-                  <span key={step} className={cx("ws-step inline-flex items-center gap-2 transition-colors duration-300", on ? "text-ink" : doing ? "text-honey-deep" : "text-ink-soft/60")} style={{ ["--i" as string]: i }}>
-                    <span className={cx("flex size-4 items-center justify-center rounded-full text-[.6rem] font-bold", on ? "bg-green text-white" : doing ? "border border-honey" : "border border-line")}>{on ? "✓" : ""}</span>
+                  <span key={step} className={cx("ws-step inline-flex items-center gap-2 transition-colors duration-300", on ? "text-ink" : doing ? "text-ink-soft" : "text-ink-soft/60")} style={{ ["--i" as string]: i }}>
+                    <span className={cx("flex size-4 items-center justify-center rounded-full text-[.6rem] font-bold", on ? "bg-green text-white" : doing ? "dot-making" : "border border-line")}>{on ? "✓" : ""}</span>
                     {step}
                   </span>
                 );
@@ -147,7 +147,7 @@ export function Workspace() {
           {/* the thing */}
           <div className="relative bg-[linear-gradient(160deg,#fbf8f2,#f3ecdd)] p-4 sm:p-6">
             <div className="relative aspect-[16/10] w-full">
-              <div key={`mock-${run}`} className={cx("ws-artifact absolute inset-0 overflow-hidden rounded-card border bg-card shadow-lift", made && "ws-artifact--in", live ? "live-glow border-green" : "border-line")}>
+              <div key={`mock-${run}`} className={cx("ws-artifact absolute inset-0 overflow-hidden rounded-card border bg-card shadow-lift", made && "ws-artifact--in", live ? "live-glow" : "border-line")}>
                 <MockFor id={item.id} />
               </div>
               {p === "making" ? (

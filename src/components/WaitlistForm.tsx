@@ -102,7 +102,7 @@ export function WaitlistForm({
           "ticket relative w-full max-w-[520px] rounded-card border px-6 py-5 text-left",
           onGreen
             ? "live-glow--on-green mx-auto border-white/70 bg-white/10 text-white"
-            : "live-glow border-green bg-card text-ink shadow-soft",
+            : "live-glow bg-card text-ink shadow-soft",
         )}
         role="status"
       >

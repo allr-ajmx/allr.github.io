@@ -85,7 +85,7 @@ function Stage({ step }: { step: number }) {
         </div>
       </div>
       <div className="relative aspect-[16/10] w-full">
-        <div className={cx("absolute inset-0 overflow-hidden rounded-card border bg-card shadow-lift transition-[opacity,transform,border-color] duration-700", step >= 1 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3", step >= 2 ? "live-glow border-green" : "border-line")}>
+        <div className={cx("absolute inset-0 overflow-hidden rounded-card border bg-card shadow-lift transition-[opacity,transform,border-color] duration-700", step >= 1 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3", step >= 2 ? "live-glow" : "border-line")}>
           <MockFor id="websites" />
         </div>
         <div className={cx("absolute inset-0 rounded-card border border-dashed border-honey-line bg-honey-tint/30 transition-opacity duration-500", step === 0 ? "opacity-100" : "opacity-0")}>
@@ -93,7 +93,7 @@ function Stage({ step }: { step: number }) {
         </div>
       </div>
       <div className={cx("mt-4 inline-flex items-center gap-2 rounded-control border bg-card px-3 py-1.5 text-[.85rem] font-semibold shadow-soft transition-colors duration-500", step >= 2 ? "border-green-line text-ink" : "border-line-soft text-ink-soft")}>
-        <span className={cx("size-1.5 rounded-full", step >= 2 ? "live-ring bg-green" : "bg-honey")} />
+        <span className={cx("size-1.5 rounded-full", step >= 2 ? "live-ring bg-green" : step === 1 ? "dot-making" : "bg-line")} />
         <span className="font-mono tracking-tight">allr.app/album-launch</span>
         {step >= 2 ? <span className="rounded-chip bg-green-tint px-2 py-0.5 text-[.7rem] font-bold tracking-[0.03em] text-green-deep uppercase">v1 · Live</span> : null}
       </div>
