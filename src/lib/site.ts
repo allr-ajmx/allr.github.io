@@ -27,7 +27,7 @@ export function getSiteUrl(): string {
     ""
   ).replace(/\/$/, "");
   if (basePath) {
-    return `https://allar-ajmx.github.io${basePath}`;
+    return `https://allr-ajmx.github.io${basePath}`;
   }
 
   // Prefer the Vercel marketing URL as the canonical production host.

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
 import { ETYMOLOGY, WORDMARK } from "@/lib/brand";
 
@@ -27,6 +28,12 @@ export function Footer() {
         >
           Early access
         </a>
+        <Link
+          href="/design"
+          className="text-ink-soft no-underline hover:text-ink"
+        >
+          How we make things
+        </Link>
       </nav>
       <div className="flex items-center justify-center gap-2">
         Made for people with things to ship.

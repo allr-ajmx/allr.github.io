@@ -14,13 +14,14 @@ The homepage has one visual sentence:
 
 Visitors should feel they are watching a **desk at the end of the day**, not a product demo of software chrome. Artifacts are photographed objects (letterpress, laid paper, lamplight). UI chrome (URL, Live, labels, waitlist) is HTML, because generated pictures cannot be trusted with “Allr” or `allr.app/your-launch`.
 
-Three verbs. Nothing else.
+Four verbs. Nothing else.
 
 | Verb | Means | Feel |
 |------|--------|------|
 | **Settle** | It arrived on the desk | Slow, heavy, paper dropping into place |
 | **Ink** | It is being made | Honey lamplight, a held breath, no spinner-as-toy |
 | **Live** | Someone else can see it | Green, a small lift, a pulse that dies down |
+| **Stamp** | It is finished, and that is final | The seal comes down once: scale 1.7→1, ink multiplied into paper, an indent that spreads and holds |
 
 Professional display bar: these motions must read on a **27" monitor, a phone, and a conference projector**. No 4px fidgets. No emoji-as-the-picture. No “AI particles.”
 
@@ -48,7 +49,11 @@ Never run more than **one verb at a time** on one object. A still settles, *then
 
 ---
 
-## 3. Visual system (stills)
+## 3. Visual system
+
+> **Retired (2026-08-24):** the photographed stills in `public/visuals/` are no longer used anywhere. Artifacts are drawn UI mocks (§5.1). The section below is kept for history only.
+
+### 3.0 Stills (historical)
 
 Assets live in `public/visuals/`. They are editorial stills, not icons.
 
@@ -115,34 +120,27 @@ Working must **not** look like a loading spinner. It looks like the lamp coming 
 
 ## 5. Sequences by homepage section
 
-### 5.1 Hero — Launch console (`M-CONSOLE`)
+### 5.1 Hero — The Workspace (`M-WORKSPACE`)
 
-The signature. Plays once when ≥25% of the console is in view. Replay is a deliberate click.
+The signature. One Allr window: the ask on the left, the thing it made on the right. Tabs (Decks · Docs · Sheets · Video · Sites · Apps) switch what is being made, with a one-line caption beside them. Plays once on scroll-in; each tab is a deliberate replay.
 
-**Stage**
-
-- Browser chrome (HTML): traffic lights, `allr.app/your-launch`, Live chip
-- 2×3 grid of artifact stills (Deck … App)
-- Status line + count `n/6`
-
-**Timeline** (t=0 is first intersection)
+**Stage** — all HTML (`Workspace.tsx`, `mocks/Mocks.tsx`). No photographs anywhere on the page: every artifact is a drawn UI — a slide, a page, a grid, a player, a site, a phone — sized from its container so the same mock is crisp at 120px and 700px.
 
 | t | What |
 |---|------|
-| 0–400ms | Console settles (`scale 0.98→1`, opacity 0→1, `--ease-out-soft`) |
-| 400ms | URL pip is **honey**. Live chip is scale 0.9 / opacity 0 |
-| 400 + n×STEP | Artifact *n* enters **working** (INK) |
-| 400 + n×STEP + 0.88×STEP | Artifact *n* enters **done** (LIVE). Status copy advances |
-| after last LIVE + 380ms | Console border goes `green-line`. Green outer glow `0 0 0 4px rgba(46,158,99,.06)`. Live chip springs in. URL pip turns green. Live pulse runs twice. Confetti: 24 paper-fibre chips (green/honey only), fall 1.7s, then gone — not a loop |
-| Replay | Snap to idle, run the clock again |
+| 0 | Ask bubble present. Step 1 ticks. Artifact pane is dashed honey with a 3px ink bar travelling 0→100% (1150ms). Status: *Making your deck…* |
+| 1150ms | Artifact **Settles** in (10px rise + fade). Steps 2–3 tick. |
+| 1470ms | **Stamp**. Border `green-line`, URL pip green, status *It's live.*, confetti once. |
 
-**Status copy** (mentor, already in `LaunchConsole`): one line, no counts except `n/6`.
+**Reduced motion:** artifact visible, seal down, no bar, no confetti.
 
-**Reduced motion:** paint all six **done**, Live on, no confetti, no pulse.
+### 5.1b The mark (`M-BLOOM`)
+
+The hero mark is inline SVG (`AllrMark.tsx`). On load its six petals bloom in order (scale 0 → 1.22 → 1, 100ms stagger) — the loader's intro from the logo package, ported to CSS on the light brand. Plays once; nowhere else does the mark move.
 
 ### 5.2 What Allr makes (`M-CARDS`)
 
-Six cards. Each has the matching still at **16:10** on top, then title + body + ready/live pill.
+Six cards. Each has the matching **mock** (`MockFrame`) at 16:10 on top, then title + body + ready/live pill.
 
 **Timeline per card** (stagger `i × 70ms` after the card’s reveal)
 
@@ -204,7 +202,11 @@ Keep. Do not add a second ambient system.
 | Spec | `MOTION.md` (this file) |
 | Still registry | `src/lib/visuals.ts` |
 | Still + states | `src/components/visuals/ArtifactStill.tsx` |
-| Console sequence | `src/components/LaunchConsole.tsx` |
+| Workspace | `src/components/Workspace.tsx` |
+| Artifact mocks | `src/components/mocks/Mocks.tsx` |
+| The mark (bloom) | `src/components/ui/AllrMark.tsx` |
+| The seal | `src/components/ui/Stamp.tsx` |
+| Confetti | `src/components/motion/Confetti.tsx` |
 | Make cards | `src/components/WhatAllrMakes.tsx`, `src/components/ui/Card.tsx` |
 | How-it-works miniatures | `src/components/HowItWorks.tsx` |
 | Desk ensemble | `src/components/PublishingBand.tsx` |
@@ -225,7 +227,9 @@ Keep. Do not add a second ambient system.
 
 ## 8. QA
 
-- [ ] Console plays once on first view; Watch again replays
+- [ ] Desk plays once on first view; a scenario chip or Watch again replays
+- [ ] Seal never covers a label chip (labels sit top-left, seal bottom-right)
+- [ ] Waitlist success shows the stamped ticket; Share copies the page URL
 - [ ] Six stills share lamp direction (upper-left honey)
 - [ ] No generated text is legible as a word
 - [ ] URL and Live are always HTML

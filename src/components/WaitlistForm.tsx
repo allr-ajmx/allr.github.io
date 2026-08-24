@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { CTA } from "@/lib/brand";
+import { Stamp } from "@/components/ui/Stamp";
+import { CTA, WAITLIST_DONE } from "@/lib/brand";
 import { cx } from "@/lib/cx";
 
 type Variant = "inline" | "onGreen";
@@ -61,6 +62,7 @@ export function WaitlistForm({
   const [status, setStatus] = useState<"idle" | "sending" | "ok" | "err">(
     "idle",
   );
+  const [shared, setShared] = useState(false);
 
   const onGreen = variant === "onGreen";
 
@@ -80,17 +82,67 @@ export function WaitlistForm({
     }
   }
 
+  async function share() {
+    const url = `${location.origin}${location.pathname}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Allr", url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      setShared(true);
+    } catch {
+      // Dismissed share sheet or clipboard refused — nothing to recover.
+    }
+  }
+
   if (status === "ok") {
     return (
-      <p
+      <div
         className={cx(
-          "font-serif text-[1.15rem]",
-          onGreen ? "text-white" : "text-green-deep",
+          "ticket relative w-full max-w-[520px] rounded-card border border-dashed px-6 py-5 text-left",
+          onGreen
+            ? "mx-auto border-white/50 bg-white/10 text-white"
+            : "border-line bg-card text-ink shadow-soft",
         )}
         role="status"
       >
-        You&rsquo;re on the list. We&rsquo;ll write when it&rsquo;s your turn.
-      </p>
+        <p className="font-serif text-[1.25rem]">{WAITLIST_DONE.headline}</p>
+        <p
+          className={cx(
+            "mt-1 truncate font-mono text-[.85rem]",
+            onGreen ? "text-white/85" : "text-ink-soft",
+          )}
+        >
+          {email.trim().toLowerCase()}
+        </p>
+        <p
+          className={cx(
+            "mt-2 text-[.95rem]",
+            onGreen ? "text-white/90" : "text-ink-soft",
+          )}
+        >
+          {WAITLIST_DONE.sub}
+        </p>
+        <button
+          type="button"
+          onClick={share}
+          className={cx(
+            "mt-3 cursor-pointer text-[.9rem] font-bold underline underline-offset-[3px]",
+            onGreen ? "text-white" : "text-honey-deep",
+          )}
+        >
+          {shared ? WAITLIST_DONE.copied : WAITLIST_DONE.share}
+        </button>
+        <Stamp
+          down
+          size="sm"
+          tone={onGreen ? "honey" : "green"}
+          className="absolute -top-4 right-4"
+        >
+          {WAITLIST_DONE.stamp}
+        </Stamp>
+      </div>
     );
   }
 

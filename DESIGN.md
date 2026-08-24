@@ -27,6 +27,8 @@ People with something to ship, who are tired of paying a stack of AI subscriptio
 | Audience | What they need from us |
 |---|---|
 | Creators | Site, promo, press kit, in front of an audience |
+
+On the homepage the audiences are not cards. The hero workspace shows one thing being made per tab (`SHOWCASE` in `brand.ts`) — a visitor picks the kind of work that is theirs and watches it get made and go live.
 | Founders & solopreneurs | Deck, model, landing page, demo — one plan |
 | Students & educators | Presentations and papers, not formatting battles |
 | Small teams | One place, one share link |
@@ -77,6 +79,7 @@ Do not paraphrase these on a page. Import from `src/lib/brand.ts` or copy exactl
 |---|---|
 | Tagline | the one subscription that replaces all of them |
 | Eyebrow | One workspace. Finished work. |
+| Hero headline | Finished work. |
 | Subhead | One AI workspace that makes finished work — decks, docs, videos, websites, apps, and games. |
 | Loop | Describe it. / Allr makes it. / Ship it. |
 | Promise | You bring the idea. We’ll take care of everything between you and ‘it’s live.’ |

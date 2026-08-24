@@ -1,6 +1,6 @@
 import { Reveal } from "@/components/Reveal";
 import { SectionHead } from "@/components/ui/SectionHead";
-import { ArtifactStill } from "@/components/visuals/ArtifactStill";
+import { MockFrame } from "@/components/mocks/Mocks";
 
 const NUM_TINTS = [
   "bg-honey-tint text-honey-deep",
@@ -34,7 +34,7 @@ const STEPS = [
         asset — not a starting point you have to finish yourself.
       </>
     ),
-    aside: "The pills go green. That's your work, done.",
+    aside: "The seal comes down. That's your work, done.",
   },
   {
     title: "Ship it.",
@@ -77,11 +77,7 @@ export function HowItWorks() {
                       className="stagger-child"
                       style={{ ["--i" as string]: n }}
                     >
-                      <ArtifactStill
-                        id={id}
-                        className="artifact-still--on-reveal"
-                        sizes="120px"
-                      />
+                      <MockFrame id={id} aspect="aspect-[4/3]" />
                     </div>
                   ))}
                 </div>

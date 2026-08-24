@@ -7,9 +7,9 @@ import { CTA, WORDMARK } from "@/lib/brand";
 import { cx } from "@/lib/cx";
 
 const NAV_LINKS = [
-  { href: "#makes", label: "What it makes" },
+  { href: "#publish", label: "It's live" },
   { href: "#how", label: "How it works" },
-  { href: "#who", label: "Who it's for" },
+  { href: "#makes", label: "What it makes" },
   { href: "#pricing", label: "Pricing" },
 ];
 

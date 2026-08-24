@@ -37,9 +37,9 @@ jobs:
 
       - name: Build static site
         env:
-          # Project Pages URL: https://allar-ajmx.github.io/allr.github.io/
+          # Project Pages URL: https://allr-ajmx.github.io/allr.github.io/
           BASE_PATH: /allr.github.io
-          NEXT_PUBLIC_SITE_URL: https://allar-ajmx.github.io/allr.github.io
+          NEXT_PUBLIC_SITE_URL: https://allr-ajmx.github.io/allr.github.io
         run: pnpm build
 
       # postbuild (package.json) already copies OG/icons to .png + .nojekyll

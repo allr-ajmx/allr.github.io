@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AmbientBackground } from "@/components/AmbientBackground";
 import { Swatch } from "@/components/design/Swatch";
 import { Footer } from "@/components/Footer";
@@ -62,13 +63,13 @@ export function VocabularyPage() {
       <AmbientBackground />
       <header className="sticky top-0 z-50 border-b-[1.5px] border-line-soft bg-paper/80 backdrop-blur-[14px]">
         <div className="wrap flex h-[74px] items-center justify-between">
-          <a
+          <Link
             href="/"
             className="inline-flex items-center gap-2 font-serif text-[1.55rem] no-underline transition-opacity duration-200 hover:opacity-80"
           >
             <Logo size={36} priority />
             {WORDMARK}
-          </a>
+          </Link>
           <nav
             className="hidden gap-6 text-[.92rem] font-bold text-ink-soft min-[721px]:flex"
             aria-label="Spec"

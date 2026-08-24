@@ -1,7 +1,7 @@
 import { Reveal } from "@/components/Reveal";
-import { ArtifactStill } from "@/components/visuals/ArtifactStill";
+import { MockFrame } from "@/components/mocks/Mocks";
 import { cx } from "@/lib/cx";
-import type { ArtifactId } from "@/lib/visuals";
+import type { ShowcaseId } from "@/lib/brand";
 
 export type Tint = "green" | "honey" | "sage" | "clay";
 
@@ -29,7 +29,7 @@ export function Card({
   ready?: string;
   /** Stagger delay in ms for grid entrances. */
   delay?: number;
-  visual?: ArtifactId;
+  visual?: ShowcaseId;
 }) {
   return (
     <Reveal
@@ -37,11 +37,7 @@ export function Card({
       className="surface-lift flex flex-col gap-3.5 rounded-card border border-line bg-card/95 p-6 shadow-soft backdrop-blur-[2px]"
     >
       {visual ? (
-        <ArtifactStill
-          id={visual}
-          className="artifact-still--on-reveal mb-0.5"
-          sizes="(max-width: 560px) 90vw, (max-width: 860px) 45vw, 320px"
-        />
+        <MockFrame id={visual} className="mb-0.5 shadow-soft" />
       ) : (
         <div
           className={cx(

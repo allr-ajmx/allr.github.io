@@ -191,3 +191,85 @@ export const CTA = {
   finalSub:
     "Describe what you want. Get finished work. Share it with the world.",
 } as const;
+
+export const HERO_HEADLINE = "Finished work.";
+
+/**
+ * The hero workspace. One tab per kind of thing Allr makes; each carries the
+ * ask that produced it, the caption beside the tabs, and the link it got.
+ * Everything in the window is HTML — no pictures of paper.
+ */
+export const SHOWCASE = [
+  {
+    id: "decks",
+    tab: "Decks",
+    noun: "deck",
+    prompt: "A ten-slide pitch deck for Northwind Coffee's seed round.",
+    caption: "Ask for a deck. Get one you could present in the next meeting.",
+    slug: "northwind-seed",
+  },
+  {
+    id: "docs",
+    tab: "Docs",
+    noun: "doc",
+    prompt: "A two-page proposal for the community garden grant, formal but warm.",
+    caption: "Written, formatted, and ready to send — not a draft to finish.",
+    slug: "garden-grant",
+  },
+  {
+    id: "spreadsheets",
+    tab: "Sheets",
+    noun: "budget",
+    prompt: "A twelve-month studio budget with rent, payroll, and a runway line.",
+    caption: "Real formulas. Change a number and everything downstream updates.",
+    slug: "studio-budget",
+  },
+  {
+    id: "video",
+    tab: "Video",
+    noun: "video",
+    prompt: "A forty-second teaser for the album, lyrics over the artwork.",
+    caption: "Rendered and shareable, with a page of its own.",
+    slug: "album-teaser",
+  },
+  {
+    id: "websites",
+    tab: "Sites",
+    noun: "site",
+    prompt: "A landing page for the album launch with a mailing list signup.",
+    caption: "On the internet the moment it's done, at a link that's yours.",
+    slug: "album-launch",
+  },
+  {
+    id: "apps",
+    tab: "Apps",
+    noun: "app",
+    prompt: "A simple habit tracker my study group can use on their phones.",
+    caption: "Working software from a description. The thing, not a prototype.",
+    slug: "habit-tracker",
+  },
+] as const;
+
+export type ShowcaseId = (typeof SHOWCASE)[number]["id"];
+
+export const WORKSPACE = {
+  making: (noun: string) => `Making your ${noun}…`,
+  live: "It’s live.",
+  you: "You",
+  steps: ["Understood the ask", "Made it", "Published it"],
+} as const;
+
+/** Pre-launch pricing. One line, no math. */
+export const PRICING = {
+  eyebrow: "Pricing",
+  line: "One plan. Priced when we launch.",
+  sub: "The waitlist hears first, and your first project is on us.",
+} as const;
+
+export const WAITLIST_DONE = {
+  headline: "You’re on the list.",
+  sub: "We’ll write when it’s your turn.",
+  stamp: "In line",
+  share: "Share Allr",
+  copied: "Link copied",
+} as const;
