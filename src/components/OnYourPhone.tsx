@@ -2,6 +2,7 @@ import { DeckMock } from "@/components/mocks/Mocks";
 import { Parallax } from "@/components/motion/Parallax";
 import { Reveal } from "@/components/Reveal";
 import { AllrMark } from "@/components/ui/AllrMark";
+import { cx } from "@/lib/cx";
 import { SectionHead } from "@/components/ui/SectionHead";
 import { PHONE } from "@/lib/brand";
 
@@ -66,22 +67,34 @@ export function OnYourPhone() {
             </Reveal>
           </Parallax>
 
-          {/* chats — floating chips, in between */}
-          <Parallax speed={0.08} className="absolute right-0 bottom-24 hidden w-[200px] sm:block lg:right-[4%]">
-            <Reveal variant="right" delay={200} className="flex flex-col items-start gap-2">
-              <span className="text-[.8rem] font-bold text-ink-soft">{PHONE.chatsLead}</span>
-              {PHONE.chats.map((c, i) => (
-                <span key={c} className="stagger-child inline-flex items-center gap-2 rounded-full border border-line bg-card px-3 py-1.5 text-[.85rem] font-bold shadow-soft" style={{ ["--i" as string]: i, ["--stagger-base" as string]: "70ms" }}>
-                  <span className="size-1.5 rounded-full bg-honey" />{c}
-                </span>
-              ))}
+          {/* third phone — every project, further away */}
+          <Parallax speed={0.12} className="absolute right-[2%] bottom-6 hidden w-[240px] sm:block lg:right-[6%]">
+            <Reveal variant="right" delay={200}>
+              <Phone tilt="6deg" dim>
+                <div className="flex h-full flex-col bg-paper">
+                  <div className="flex items-center gap-2 border-b border-line-soft bg-card px-4 pt-11 pb-3">
+                    <AllrMark size={18} />
+                    <span className="text-[.95rem] font-bold">Projects</span>
+                    <span className="ml-auto rounded-chip border border-line px-2 py-0.5 text-[.62rem] font-bold text-ink-soft">{PHONE.projects.length}</span>
+                  </div>
+                  <div className="flex flex-col divide-y divide-line-soft px-3 text-[.76rem]">
+                    {PHONE.projects.map((pr) => (
+                      <div key={pr.name} className="flex items-center gap-2 py-2.5">
+                        <span className={cx("size-1.5 shrink-0 rounded-full", pr.live ? "bg-green" : "bg-line")} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-semibold">{pr.name}</span>
+                          <span className="text-ink-soft">{pr.kind} · {pr.when}</span>
+                        </span>
+                        {pr.live ? <span className="rounded-chip bg-green-tint px-1.5 py-0.5 text-[.58rem] font-bold tracking-[0.03em] text-green-deep uppercase">Live</span> : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Phone>
             </Reveal>
           </Parallax>
         </div>
 
-        <Reveal className="mx-auto mt-8 flex flex-wrap justify-center gap-2 text-[.85rem] font-bold text-ink-soft sm:hidden">
-          {PHONE.chatsLead} {PHONE.chats.join(" · ")}
-        </Reveal>
       </div>
     </section>
   );

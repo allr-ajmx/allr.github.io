@@ -277,12 +277,17 @@ export const WAITLIST_DONE = {
 export const PHONE = {
   eyebrow: "On your phone",
   title: "The same workspace, in your pocket.",
-  sub: "Ask from the bus. It’s live before you get off. Every project, every link, every version — on desktop, phone and tablet, and in the chats you already use.",
+  sub: "Ask from the bus. It’s live before you get off. Every project, every link, every version — the same workspace on desktop, phone and tablet.",
   ask: "Turn the Northwind deck into a one-page summary for the investor I’m meeting at 3.",
   reply: "Done. One page, same numbers, and it’s live at the link below.",
   notif: { app: "Allr", title: "Your summary is ready", body: "northwind-onepager · tap to open" },
-  chats: ["Telegram", "WhatsApp", "Slack", "Discord", "Signal"],
-  chatsLead: "Or just message it:",
+  projects: [
+    { name: "Northwind seed deck", kind: "Deck", when: "2m", live: true },
+    { name: "Investor one-pager", kind: "Doc", when: "just now", live: true },
+    { name: "Album launch site", kind: "Site", when: "Tue", live: true },
+    { name: "Studio budget", kind: "Sheet", when: "Mon", live: false },
+    { name: "Habit tracker", kind: "App", when: "Sun", live: true },
+  ],
 } as const;
 
 export const STORY = [
