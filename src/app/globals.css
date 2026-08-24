@@ -214,6 +214,17 @@
   }
 }
 
+@property --wipe {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+
+@keyframes wipe-in {
+  from { --wipe: -18%; }
+  to { --wipe: 100%; }
+}
+
 @keyframes soft-pulse {
   0%,
   100% {
@@ -525,6 +536,32 @@
 
     .js [data-reveal="hidden"][data-reveal-variant="right"] {
       transform: translate3d(14px, 0, 0);
+    }
+
+    /* Headlines: come into focus, not just into view */
+    .js [data-reveal][data-reveal-variant="blur"] {
+      transition-duration: 0.9s;
+    }
+    .js [data-reveal="hidden"][data-reveal-variant="blur"] {
+      filter: blur(10px);
+      transform: translate3d(0, 10px, 0) scale(0.985);
+    }
+
+    /* The promise: a wipe from the left, like ink being laid down */
+    .js [data-reveal][data-reveal-variant="wipe"] {
+      transition-duration: 1.1s;
+      -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 var(--wipe, 100%), transparent calc(var(--wipe, 100%) + 18%));
+      mask-image: linear-gradient(90deg, #000 0%, #000 var(--wipe, 100%), transparent calc(var(--wipe, 100%) + 18%));
+      transition-property: opacity, transform, --wipe;
+    }
+    .js [data-reveal="hidden"][data-reveal-variant="wipe"] {
+      --wipe: -18%;
+      opacity: 1;
+      transform: none;
+    }
+    .js [data-reveal="shown"][data-reveal-variant="wipe"] {
+      --wipe: 100%;
+      animation: wipe-in 1.1s var(--ease-out-soft) both;
     }
 
     /* Stagger children once the parent is revealed */

@@ -138,6 +138,21 @@ The signature. One Allr window: the ask on the left, the thing it made on the ri
 
 The hero mark is inline SVG (`AllrMark.tsx`). On load its six petals bloom in order (scale 0 → 1.22 → 1, 100ms stagger) — the loader's intro from the logo package, ported to CSS on the light brand. Plays once; nowhere else does the mark move.
 
+### 5.1c Scroll (`M-SCROLL`)
+
+Two scroll behaviours, both transform-only and both off under reduced motion:
+
+- **Parallax** (`motion/Parallax.tsx`) — an element drifts a fraction of the distance it scrolls, relative to the viewport centre. Positive `speed` = further away (slower), negative = nearer (faster). Used on: hero mark (0.22), hero window (−0.05), the Versions panel (0.1), the two phones (0.16 / −0.06) and the chat chips (0.08). Offsets are clamped; the observer watches a static wrapper, never the moving element.
+- **Reveal variants** — `blur` for section headlines (come into focus: blur 10px → 0, 0.9s) and `wipe` for the promise (mask sweeps left→right like ink being laid down, 1.1s). Everything else keeps `up`/`scale`.
+
+### 5.1d How it works — scrollytelling (`M-STORY`)
+
+On large screens the three steps scroll on the left while one stage stays sticky on the right. A band across the middle of the viewport decides the active step; the stage moves through the same three beats as the hero: ask → the site settles in → seal + live URL with `v1 · Live`. Inactive steps sit at 45% opacity. Below `lg` each step carries its own inline stage.
+
+### 5.1e On your phone (`M-PHONE`)
+
+Two drawn phones. Front: the Allr chat with an ask, the reply, the artifact card with its live link, Share/Open. Back, tilted −6°, further away: the lock screen with an Allr notification. Chips for Telegram / WhatsApp / Slack / Discord / Signal float between them. Nothing loops.
+
 ### 5.2 What Allr makes (`M-CARDS`)
 
 Six cards. Each has the matching **mock** (`MockFrame`) at 16:10 on top, then title + body + ready/live pill.
@@ -203,6 +218,9 @@ Keep. Do not add a second ambient system.
 | Still registry | `src/lib/visuals.ts` |
 | Still + states | `src/components/visuals/ArtifactStill.tsx` |
 | Workspace | `src/components/Workspace.tsx` |
+| Parallax | `src/components/motion/Parallax.tsx` |
+| Story stage | `src/components/HowItWorks.tsx` |
+| Phones | `src/components/OnYourPhone.tsx` |
 | Artifact mocks | `src/components/mocks/Mocks.tsx` |
 | The mark (bloom) | `src/components/ui/AllrMark.tsx` |
 | The seal | `src/components/ui/Stamp.tsx` |

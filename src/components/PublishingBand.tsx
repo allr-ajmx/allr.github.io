@@ -1,6 +1,7 @@
 import { Reveal } from "@/components/Reveal";
 import { Pill } from "@/components/ui/Pill";
 import { VersionsMock } from "@/components/mocks/Mocks";
+import { Parallax } from "@/components/motion/Parallax";
 
 export function PublishingBand() {
   return (
@@ -48,9 +49,9 @@ export function PublishingBand() {
               it.
             </p>
           </div>
-          <div className="mock-frame w-full">
+          <Parallax speed={0.1} className="mock-frame w-full">
             <VersionsMock />
-          </div>
+          </Parallax>
           </div>
         </Reveal>
       </div>

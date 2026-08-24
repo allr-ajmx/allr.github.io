@@ -11,7 +11,7 @@ export function AllrPromise() {
       <div className="wrap relative">
         <Reveal
           className="mx-auto max-w-[720px] px-6 py-2.5 text-center"
-          variant="fade"
+          variant="wipe"
         >
           <blockquote className="font-serif text-[clamp(1.35rem,2.8vw,1.8rem)] leading-[1.45]">
             &ldquo;You bring the idea. We&rsquo;ll take care of everything

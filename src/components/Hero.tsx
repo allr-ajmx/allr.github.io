@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/Button";
 import { AllrMark } from "@/components/ui/AllrMark";
+import { Parallax } from "@/components/motion/Parallax";
 import { Workspace } from "@/components/Workspace";
 import { CTA, HERO_HEADLINE, HERO_SUB } from "@/lib/brand";
 
@@ -8,7 +9,7 @@ export function Hero() {
     <section className="relative">
       <div className="wrap relative z-10 flex flex-col items-center pt-16 pb-6 text-center sm:pt-24">
         <div className="hero-enter mb-7" style={{ animationDelay: "0s" }}>
-          <AllrMark size={72} bloom />
+          <Parallax speed={0.22}><AllrMark size={72} bloom /></Parallax>
         </div>
         <h1 className="hero-enter mb-6 max-w-[14ch] text-[clamp(3.2rem,8.5vw,6.4rem)] leading-[0.98] tracking-[-0.02em]" style={{ animationDelay: "0.1s" }}>
           {HERO_HEADLINE}
@@ -25,7 +26,7 @@ export function Hero() {
       </div>
 
       <div className="hero-enter-console wrap relative z-10 mt-12 max-w-[1100px] sm:mt-16" style={{ animationDelay: "0.4s" }}>
-        <Workspace />
+        <Parallax speed={-0.05}><Workspace /></Parallax>
       </div>
     </section>
   );

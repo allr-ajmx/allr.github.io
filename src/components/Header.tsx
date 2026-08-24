@@ -10,6 +10,7 @@ const NAV_LINKS = [
   { href: "#publish", label: "It's live" },
   { href: "#how", label: "How it works" },
   { href: "#makes", label: "What it makes" },
+  { href: "#phone", label: "On your phone" },
   { href: "#pricing", label: "Pricing" },
 ];
 

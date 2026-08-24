@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cx } from "@/lib/cx";
 
-export type RevealVariant = "up" | "fade" | "scale" | "left" | "right";
+export type RevealVariant = "up" | "fade" | "scale" | "left" | "right" | "blur" | "wipe";
 
 /**
  * Fades its content up the first time it scrolls into view.

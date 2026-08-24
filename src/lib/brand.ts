@@ -273,3 +273,32 @@ export const WAITLIST_DONE = {
   share: "Share Allr",
   copied: "Link copied",
 } as const;
+
+export const PHONE = {
+  eyebrow: "On your phone",
+  title: "The same workspace, in your pocket.",
+  sub: "Ask from the bus. It’s live before you get off. Every project, every link, every version — on desktop, phone and tablet, and in the chats you already use.",
+  ask: "Turn the Northwind deck into a one-page summary for the investor I’m meeting at 3.",
+  reply: "Done. One page, same numbers, and it’s live at the link below.",
+  notif: { app: "Allr", title: "Your summary is ready", body: "northwind-onepager · tap to open" },
+  chats: ["Telegram", "WhatsApp", "Slack", "Discord", "Signal"],
+  chatsLead: "Or just message it:",
+} as const;
+
+export const STORY = [
+  {
+    title: "Describe it.",
+    body: "Tell Allr what you need in plain language — a deck, a page, a budget. No jargon, no settings, no templates to pick first.",
+    aside: "Say it like you'd say it to a friend.",
+  },
+  {
+    title: "Allr makes it.",
+    body: "It picks the right tools behind the scenes and makes the finished thing — designed, formatted, with the numbers working.",
+    aside: "The seal comes down. That's your work, done.",
+  },
+  {
+    title: "Ship it.",
+    body: "A link for your deck, a live URL for your site, a page for your video. Every change is a new version you can go back to.",
+    aside: "That feeling when it's out in the world? That's the point.",
+  },
+] as const;

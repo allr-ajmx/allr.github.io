@@ -6,6 +6,7 @@ import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { Hero } from "@/components/Hero";
 import { HowItWorks } from "@/components/HowItWorks";
+import { OnYourPhone } from "@/components/OnYourPhone";
 import { Pricing } from "@/components/Pricing";
 import { PublishingBand } from "@/components/PublishingBand";
 import { Solution } from "@/components/Solution";
@@ -22,6 +23,7 @@ export default function Home() {
         <HowItWorks />
         <WhatAllrMakes />
         <Solution />
+        <OnYourPhone />
         <AllrPromise />
         <Pricing />
         <Faq />
