@@ -1,14 +1,7 @@
 import { Reveal } from "@/components/Reveal";
 import { JunkPill, OnePill } from "@/components/ui/JunkPill";
 import { SectionHead } from "@/components/ui/SectionHead";
-
-const STACK = [
-  "SlideThing · $18/mo",
-  "DocBot · $12/mo",
-  "VidMaker · $29/mo",
-  "SiteBuilder · $25/mo",
-  "AppGen · $20/mo",
-];
+import { PROBLEM_STACK } from "@/lib/brand";
 
 export function Problem() {
   return (
@@ -45,7 +38,7 @@ export function Problem() {
           delay={120}
         >
           <div className="flex flex-col items-center gap-2.5">
-            {STACK.map((name, i) => (
+            {PROBLEM_STACK.map((name, i) => (
               <span
                 key={name}
                 className="stagger-child"
@@ -59,13 +52,13 @@ export function Problem() {
           </div>
           <span
             className="stagger-child font-serif text-[1.9rem] text-honey-deep"
-            style={{ ["--i" as string]: STACK.length }}
+            style={{ ["--i" as string]: PROBLEM_STACK.length }}
           >
             →
           </span>
           <span
             className="stagger-child"
-            style={{ ["--i" as string]: STACK.length + 1 }}
+            style={{ ["--i" as string]: PROBLEM_STACK.length + 1 }}
           >
             <OnePill>allr · everything ✓</OnePill>
           </span>

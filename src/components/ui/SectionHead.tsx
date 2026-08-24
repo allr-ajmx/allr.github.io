@@ -13,7 +13,7 @@ export function SectionHead({
   children?: React.ReactNode;
 }) {
   return (
-    <Reveal className="mx-auto mb-[46px] max-w-[660px] text-center">
+    <Reveal className="mx-auto mb-[46px] max-w-[660px] text-center" variant="blur">
       <Pill tone={tone} className="mb-5">
         {eyebrow}
       </Pill>

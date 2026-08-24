@@ -1,16 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { ArtifactStill } from "@/components/visuals/ArtifactStill";
 import { cx } from "@/lib/cx";
-
-const ASSETS = [
-  { emoji: "📊", label: "Deck" },
-  { emoji: "📄", label: "Doc" },
-  { emoji: "🧮", label: "Spreadsheet" },
-  { emoji: "🎬", label: "Video" },
-  { emoji: "🌐", label: "Website" },
-  { emoji: "🕹️", label: "App & game" },
-] as const;
+import { ARTIFACTS, ARTIFACT_ORDER } from "@/lib/visuals";
 
 /** Encouraging status copy — the mentor voice. */
 const MESSAGES = [
@@ -23,7 +16,7 @@ const MESSAGES = [
   "Everything’s ready. You’re live. 🎉",
 ];
 
-const STEP_MS = 800;
+const STEP_MS = 880;
 const CONFETTI_COLORS = ["#2E9E63", "#E9A83E", "#F6C56B", "#8FBF9F", "#1E7A49"];
 
 /** Deterministic scatter — random values here would break hydration. */
@@ -93,14 +86,14 @@ export function LaunchConsole() {
 
     const timers: number[] = [];
 
-    ASSETS.forEach((_, i) => {
+    ARTIFACT_ORDER.forEach((_, i) => {
       timers.push(window.setTimeout(() => setWorking(i), 400 + i * STEP_MS));
       timers.push(
         window.setTimeout(
           () => {
             setWorking(-1);
             setDone(i + 1);
-            if (i === ASSETS.length - 1) {
+            if (i === ARTIFACT_ORDER.length - 1) {
               timers.push(window.setTimeout(() => setFinished(true), 380));
             }
           },
@@ -121,7 +114,7 @@ export function LaunchConsole() {
   }, []);
 
   // With motion suppressed the console simply shows its finished state.
-  const doneCount = shouldAnimate ? done : ASSETS.length;
+  const doneCount = shouldAnimate ? done : ARTIFACT_ORDER.length;
   const workingIndex = shouldAnimate ? working : -1;
   const live = shouldAnimate ? finished : true;
   const status = MESSAGES[live ? 6 : Math.min(doneCount, MESSAGES.length - 2)];
@@ -195,11 +188,10 @@ export function LaunchConsole() {
         {/* the assets being built — modern tiles, not bubble pills */}
         <div className="px-4 pt-4 pb-1 sm:px-5 sm:pt-5">
           <div className="grid grid-cols-2 gap-2 @[34rem]:grid-cols-3">
-            {ASSETS.map((asset, i) => (
+            {ARTIFACT_ORDER.map((id, i) => (
               <AssetTile
-                key={asset.label}
-                emoji={asset.emoji}
-                label={asset.label}
+                key={id}
+                id={id}
                 state={
                   i < doneCount
                     ? "done"
@@ -220,7 +212,7 @@ export function LaunchConsole() {
             )}
           >
             <span className="rounded-chip border border-line-soft bg-paper px-2 py-0.5 font-mono text-[.78rem] tabular-nums">
-              {doneCount}/{ASSETS.length}
+              {doneCount}/{ARTIFACT_ORDER.length}
             </span>
             <span>{status}</span>
           </span>
@@ -237,7 +229,7 @@ export function LaunchConsole() {
               Watch again
             </button>
             <a
-              href="#final"
+              href="#early-access"
               className={cx(
                 "inline-flex items-center justify-center gap-2 rounded-control bg-green px-4 py-2.5 text-[.92rem] font-bold text-white no-underline shadow-[0_8px_20px_rgba(46,158,99,.28)]",
                 "transition-[opacity,transform,background-color] duration-[350ms] ease-[cubic-bezier(.22,1,0.36,1)] hover:bg-green-deep",
@@ -246,7 +238,7 @@ export function LaunchConsole() {
                   : "pointer-events-none translate-y-1.5 opacity-0",
               )}
             >
-              Visit your project →
+              Get early access →
             </a>
           </div>
         </div>
@@ -261,49 +253,48 @@ export function LaunchConsole() {
 }
 
 function AssetTile({
-  emoji,
-  label,
+  id,
   state,
 }: {
-  emoji: string;
-  label: string;
+  id: (typeof ARTIFACT_ORDER)[number];
   state: "idle" | "working" | "done";
 }) {
   return (
     <div
       className={cx(
-        "flex items-center gap-2.5 rounded-control border px-3 py-2.5 transition-[background-color,border-color,color,box-shadow] duration-[400ms]",
-        state === "done" &&
-          "animate-pop border-green-line bg-green-tint text-green-deep shadow-[0_0_0_1px_rgba(46,158,99,.06)]",
-        state === "working" &&
-          "border-honey-line bg-honey-tint text-honey-deep",
-        state === "idle" && "border-line-soft bg-paper/80 text-ink-soft",
+        "overflow-hidden rounded-control border bg-card transition-[border-color,box-shadow,background-color] duration-[400ms]",
+        state === "done" && "border-green-line shadow-[0_0_0_1px_rgba(46,158,99,.06)]",
+        state === "working" && "border-honey-line",
+        state === "idle" && "border-line-soft",
       )}
     >
-      <span
+      <div className="relative aspect-[16/10]">
+        <ArtifactStill
+          id={id}
+          state={state}
+          bare
+          sizes="(max-width: 720px) 45vw, 220px"
+        />
+      </div>
+      <div
         className={cx(
-          "flex size-8 shrink-0 items-center justify-center rounded-chip text-[1rem]",
-          state === "done" && "bg-card/70",
-          state === "working" && "bg-card/60",
-          state === "idle" && "bg-card",
+          "flex items-center justify-between gap-2 px-2.5 py-2",
+          state === "done" && "text-green-deep",
+          state === "working" && "text-honey-deep",
+          state === "idle" && "text-ink-soft",
         )}
-        aria-hidden="true"
       >
-        {emoji}
-      </span>
-      <span className="min-w-0 flex-1 text-[.9rem] font-semibold tracking-[-0.01em]">
-        {label}
-      </span>
-      <span className="flex size-5 shrink-0 items-center justify-center">
-        {state === "working" ? (
-          <span className="size-3.5 animate-spin rounded-full border-2 border-line border-t-honey" />
-        ) : null}
-        {state === "done" ? (
-          <span className="flex size-5 items-center justify-center rounded-chip bg-green text-[.65rem] font-bold text-white">
-            ✓
-          </span>
-        ) : null}
-      </span>
+        <span className="min-w-0 truncate text-[.82rem] font-semibold tracking-[-0.01em]">
+          {ARTIFACTS[id].label}
+        </span>
+        <span className="flex size-5 shrink-0 items-center justify-center">
+          {state === "done" ? (
+            <span className="flex size-5 items-center justify-center rounded-chip bg-green text-[.65rem] font-bold text-white">
+              ✓
+            </span>
+          ) : null}
+        </span>
+      </div>
     </div>
   );
 }

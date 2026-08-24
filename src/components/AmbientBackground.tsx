@@ -9,25 +9,26 @@ export function AmbientBackground() {
       aria-hidden="true"
     >
       {/* base — richer than flat paper */}
-      <div className="absolute inset-0 bg-[#f7f1e6]" />
-      <div className="ambient-mesh absolute inset-0" />
+      <div className="absolute inset-0 bg-[#fdfcf9]" />
+      <div className="ambient-mesh absolute inset-0 opacity-50" />
 
       {/* soft diagonal ribbons for depth */}
-      <div className="ambient-ribbons absolute inset-0" />
+      <div className="ambient-ribbons absolute inset-0 opacity-30" />
 
-      {/* large color blooms */}
+      {/* large color blooms — masked away from the centre column */}
+      <div className="ambient-edges absolute inset-0 opacity-35">
       <span className="ambient-orb ambient-orb--a absolute -top-[18%] left-[-8%] size-[min(72vw,760px)] rounded-full bg-[radial-gradient(circle,rgba(233,168,62,0.38)_0%,rgba(233,168,62,0.12)_42%,transparent_70%)] blur-[2px]" />
       <span className="ambient-orb ambient-orb--b absolute top-[12%] right-[-14%] size-[min(78vw,820px)] rounded-full bg-[radial-gradient(circle,rgba(46,158,99,0.22)_0%,rgba(46,158,99,0.07)_45%,transparent_72%)] blur-[1px]" />
       <span className="ambient-orb ambient-orb--c absolute top-[48%] left-[-12%] size-[min(60vw,640px)] rounded-full bg-[radial-gradient(circle,rgba(246,197,107,0.28)_0%,transparent_68%)]" />
       <span className="ambient-orb ambient-orb--d absolute bottom-[-10%] right-[8%] size-[min(68vw,700px)] rounded-full bg-[radial-gradient(circle,rgba(30,122,73,0.16)_0%,rgba(34,59,51,0.05)_50%,transparent_72%)]" />
-      <span className="ambient-orb ambient-orb--e absolute top-[32%] left-[38%] size-[min(42vw,420px)] rounded-full bg-[radial-gradient(circle,rgba(255,236,198,0.55)_0%,transparent_70%)]" />
+      </div>
 
       {/* lamplight beams from top */}
-      <div className="ambient-beams absolute inset-0" />
+      <div className="ambient-beams absolute inset-0 opacity-40" />
 
       {/* concentric rings + soft grid geometry */}
       <svg
-        className="ambient-geometry absolute inset-0 h-full w-full opacity-[0.55]"
+        className="ambient-geometry ambient-edges absolute inset-0 h-full w-full opacity-[0.4]"
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
@@ -101,8 +102,8 @@ export function AmbientBackground() {
       </svg>
 
       {/* dual-scale paper texture */}
-      <div className="ambient-grain ambient-grain--fine absolute inset-0 opacity-[0.55]" />
-      <div className="ambient-grain ambient-grain--fiber absolute inset-0 opacity-[0.28]" />
+      <div className="ambient-grain ambient-grain--fine absolute inset-0 opacity-[0.4]" />
+      <div className="ambient-grain ambient-grain--fiber absolute inset-0 opacity-[0.18]" />
 
       {/* floating lamplight motes */}
       <div className="ambient-motes absolute inset-0">

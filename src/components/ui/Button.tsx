@@ -36,35 +36,44 @@ export function Button({
   size = "md",
   className,
   children,
+  type,
+  disabled,
 }: {
-  /**
-   * Omit to render the button as an inert badge — same shape and colour, but
-   * no link, no pointer and no hover response. Used for "Coming soon", which
-   * is a status rather than something to click.
-   */
   href?: string;
   variant?: Variant;
   size?: Size;
   className?: string;
   children: React.ReactNode;
+  type?: "button" | "submit";
+  disabled?: boolean;
 }) {
   const tone = VARIANTS[variant];
+  const interactive = Boolean(href || type) && !disabled;
   const classes = cx(
     BASE,
     tone.base,
     SIZES[size],
-    href && INTERACTIVE,
-    href && tone.hover,
+    interactive && INTERACTIVE,
+    interactive && tone.hover,
+    disabled && "cursor-wait opacity-80",
     className,
   );
 
-  if (!href) {
-    return <span className={classes}>{children}</span>;
+  if (href) {
+    return (
+      <a href={href} className={classes}>
+        {children}
+      </a>
+    );
   }
 
-  return (
-    <a href={href} className={classes}>
-      {children}
-    </a>
-  );
+  if (type) {
+    return (
+      <button type={type} className={classes} disabled={disabled}>
+        {children}
+      </button>
+    );
+  }
+
+  return <span className={classes}>{children}</span>;
 }

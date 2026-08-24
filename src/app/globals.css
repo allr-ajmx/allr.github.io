@@ -1,8 +1,13 @@
 @import "tailwindcss";
 
+/*
+ * Allr marketing tokens. Do not add colors, radii, or fonts here without
+ * updating DESIGN.md (contract) and /design (living spec).
+ */
+
 @theme {
   /* ---------- palette ---------- */
-  --color-paper: #fbf8f2; /* warm evening paper */
+  --color-paper: #fdfcf9; /* warm paper, near-white */
   --color-card: #ffffff;
   --color-ink: #223b33; /* deep pine — steady, reassuring */
   --color-ink-soft: #5c7168;
@@ -18,6 +23,14 @@
   --color-green-deep: #1e7a49;
   --color-green-tint: #e4f4ea;
   --color-green-line: #c2e5d0;
+
+  /* the six petals of the mark — the product map */
+  --color-petal-0: #74926b; /* Sites */
+  --color-petal-1: #f7c14c; /* Decks */
+  --color-petal-2: #e6981a; /* Sheets */
+  --color-petal-3: #f8dc8d; /* Docs */
+  --color-petal-4: #34905e; /* Video */
+  --color-petal-5: #9bb289; /* Apps */
 
   --color-sage-tint: #ecf2ec;
   --color-sage-line: #dce8dd;
@@ -38,6 +51,7 @@
   /* ---------- motion ---------- */
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-ink: cubic-bezier(0.45, 0, 0.2, 1);
   --animate-pop: pop 0.45s var(--ease-spring);
   --animate-fall: fall 1.7s ease-out forwards;
   --animate-spin-slow: spin 1s linear infinite;
@@ -170,6 +184,24 @@
   }
 }
 
+@keyframes light-sweep {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes ink-bar {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
 @keyframes shimmer {
   0% {
     background-position: 200% center;
@@ -188,6 +220,17 @@
     opacity: 1;
     transform: translate3d(0, 0, 0);
   }
+}
+
+@property --wipe {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 100%;
+}
+
+@keyframes wipe-in {
+  from { --wipe: -18%; }
+  to { --wipe: 100%; }
 }
 
 @keyframes soft-pulse {
@@ -291,6 +334,45 @@
 
 @layer components {
   /* Body copy blocks — needs descendant selectors, so it stays a class. */
+  .allr-field {
+    width: 100%;
+    border: 1.5px solid var(--color-line);
+    border-radius: var(--radius-control);
+    background: var(--color-card);
+    color: var(--color-ink);
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.98rem;
+    line-height: 1.4;
+    padding: 0.72em 1em;
+  }
+  .allr-field::placeholder {
+    color: var(--color-ink-soft);
+    font-weight: 500;
+    opacity: 0.8;
+  }
+  .allr-field:focus {
+    outline: 3px solid var(--color-honey);
+    outline-offset: 2px;
+    border-color: var(--color-honey-line);
+  }
+  .allr-field--on-green {
+    border-color: transparent;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   .prose-block {
     max-width: 640px;
     margin-inline: auto;
@@ -464,6 +546,32 @@
       transform: translate3d(14px, 0, 0);
     }
 
+    /* Headlines: come into focus, not just into view */
+    .js [data-reveal][data-reveal-variant="blur"] {
+      transition-duration: 0.9s;
+    }
+    .js [data-reveal="hidden"][data-reveal-variant="blur"] {
+      filter: blur(10px);
+      transform: translate3d(0, 10px, 0) scale(0.985);
+    }
+
+    /* The promise: a wipe from the left, like ink being laid down */
+    .js [data-reveal][data-reveal-variant="wipe"] {
+      transition-duration: 1.1s;
+      -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 var(--wipe, 100%), transparent calc(var(--wipe, 100%) + 18%));
+      mask-image: linear-gradient(90deg, #000 0%, #000 var(--wipe, 100%), transparent calc(var(--wipe, 100%) + 18%));
+      transition-property: opacity, transform, --wipe;
+    }
+    .js [data-reveal="hidden"][data-reveal-variant="wipe"] {
+      --wipe: -18%;
+      opacity: 1;
+      transform: none;
+    }
+    .js [data-reveal="shown"][data-reveal-variant="wipe"] {
+      --wipe: 100%;
+      animation: wipe-in 1.1s var(--ease-out-soft) both;
+    }
+
     /* Stagger children once the parent is revealed */
     .js [data-reveal="shown"] .stagger-child {
       animation: rise-in 0.45s var(--ease-out-soft) both;
@@ -599,6 +707,424 @@
     transform: scaleX(1);
   }
 
+  /* ---------- artifact stills (MOTION.md) ---------- */
+  .artifact-still {
+    position: relative;
+    overflow: hidden;
+    border: 1.5px solid var(--color-line);
+    border-radius: 12px;
+    background: var(--color-paper);
+    box-shadow: 0 10px 28px rgba(34, 59, 51, 0.12);
+    isolation: isolate;
+    transition:
+      border-color 0.48s var(--ease-out-soft),
+      box-shadow 0.48s var(--ease-out-soft),
+      transform 0.48s var(--ease-out-soft);
+  }
+  .artifact-still__photo {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 42%;
+    transform: scale(1.1);
+    filter: saturate(0.94) brightness(0.96);
+    transition:
+      filter 0.64s var(--ease-ink, cubic-bezier(0.45, 0, 0.2, 1)),
+      transform 0.48s var(--ease-out-soft);
+  }
+  .artifact-still__sweep,
+  .artifact-still__bar {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+  }
+  .artifact-still__sweep {
+    background: linear-gradient(
+      105deg,
+      transparent 30%,
+      rgba(233, 168, 62, 0.28) 48%,
+      transparent 66%
+    );
+    opacity: 0;
+  }
+  .artifact-still__bar {
+    top: auto;
+    height: 2px;
+    transform: scaleX(0);
+    transform-origin: left center;
+    background: var(--color-honey);
+  }
+  .artifact-still--working {
+    border-color: var(--color-honey-line);
+  }
+  .artifact-still--working .artifact-still__photo {
+    filter: saturate(1) brightness(1.04);
+  }
+  .artifact-still--done {
+    border-color: var(--color-green-line);
+    transform: translateY(-2px);
+    box-shadow:
+      0 12px 32px rgba(34, 59, 51, 0.12),
+      0 0 0 1.5px rgba(46, 158, 99, 0.28);
+  }
+  .artifact-still--done .artifact-still__photo {
+    filter: saturate(1) brightness(1.02);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .js [data-reveal="shown"] .artifact-still--on-reveal .artifact-still__sweep {
+      opacity: 1;
+      animation: light-sweep 0.64s var(--ease-ink) 0.12s both;
+    }
+    .js [data-reveal="shown"] .artifact-still--on-reveal .artifact-still__bar {
+      animation: ink-bar 0.64s var(--ease-ink) 0.12s both;
+    }
+    .js [data-reveal="shown"] .artifact-still--on-reveal {
+      border-color: var(--color-green-line);
+      transform: translateY(-2px);
+      box-shadow:
+        0 12px 32px rgba(34, 59, 51, 0.12),
+        0 0 0 1.5px rgba(46, 158, 99, 0.28);
+      transition-delay: 0.76s;
+    }
+    .js [data-reveal="shown"] .artifact-still--on-reveal .artifact-still__photo {
+      filter: saturate(1) brightness(1.02);
+      transition-delay: 0.76s;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .artifact-still--working .artifact-still__sweep {
+      opacity: 1;
+      animation: light-sweep 0.64s cubic-bezier(0.45, 0, 0.2, 1) both;
+    }
+    .artifact-still--working .artifact-still__bar {
+      animation: ink-bar 0.64s cubic-bezier(0.45, 0, 0.2, 1) both;
+    }
+  }
+
+
+  /* ---------- live glow ---------- */
+  /*
+   * The thing that is live is the thing that lights up: a hairline green
+   * border and a wide, diffuse halo — light, not a ring. It swells in once,
+   * then keeps breathing slowly, like a status LED: live is an ongoing state,
+   * so this is the one motion on the page that is allowed to loop.
+   */
+  .live-glow {
+    border-color: rgba(46, 158, 99, 0.55);
+    box-shadow:
+      0 0 18px rgba(46, 158, 99, 0.22),
+      0 0 48px rgba(46, 158, 99, 0.22),
+      0 0 96px rgba(46, 158, 99, 0.14),
+      0 12px 32px rgba(34, 59, 51, 0.08);
+  }
+  .live-glow--on-green {
+    border-color: rgba(255, 255, 255, 0.6);
+    box-shadow:
+      0 0 18px rgba(255, 255, 255, 0.3),
+      0 0 48px rgba(255, 255, 255, 0.28),
+      0 0 96px rgba(255, 255, 255, 0.16);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .live-glow {
+      animation:
+        glow-in 1.6s var(--ease-out-soft) both,
+        glow-breathe 4.5s ease-in-out 1.6s infinite;
+    }
+  }
+  @keyframes glow-breathe {
+    0%, 100% {
+      border-color: rgba(46, 158, 99, 0.5);
+      box-shadow:
+        0 0 18px rgba(46, 158, 99, 0.2),
+        0 0 48px rgba(46, 158, 99, 0.2),
+        0 0 96px rgba(46, 158, 99, 0.12),
+        0 12px 32px rgba(34, 59, 51, 0.08);
+    }
+    50% {
+      border-color: rgba(46, 158, 99, 0.75);
+      box-shadow:
+        0 0 22px rgba(46, 158, 99, 0.34),
+        0 0 64px rgba(46, 158, 99, 0.34),
+        0 0 128px rgba(46, 158, 99, 0.22),
+        0 12px 32px rgba(34, 59, 51, 0.08);
+    }
+  }
+  @keyframes glow-in {
+    0% {
+      border-color: var(--color-line);
+      box-shadow:
+        0 0 0 rgba(46, 158, 99, 0),
+        0 0 0 rgba(46, 158, 99, 0),
+        0 0 0 rgba(46, 158, 99, 0),
+        0 12px 32px rgba(34, 59, 51, 0.08);
+    }
+    50% {
+      border-color: rgba(46, 158, 99, 0.7);
+      box-shadow:
+        0 0 24px rgba(46, 158, 99, 0.32),
+        0 0 72px rgba(46, 158, 99, 0.34),
+        0 0 140px rgba(46, 158, 99, 0.22),
+        0 12px 32px rgba(34, 59, 51, 0.08);
+    }
+    100% {
+      border-color: rgba(46, 158, 99, 0.55);
+      box-shadow:
+        0 0 18px rgba(46, 158, 99, 0.22),
+        0 0 48px rgba(46, 158, 99, 0.22),
+        0 0 96px rgba(46, 158, 99, 0.14),
+        0 12px 32px rgba(34, 59, 51, 0.08);
+    }
+  }
+
+  /* The status dot: breathing grey while something is being made. */
+  .dot-making {
+    background: #b8c2bc;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .dot-making {
+      animation: dot-breathe 1.4s ease-in-out infinite;
+    }
+  }
+  @keyframes dot-breathe {
+    0%, 100% { opacity: 0.45; transform: scale(0.85); }
+    50% { opacity: 1; transform: scale(1.15); }
+  }
+
+  /* ---------- the mark (AllrMark.tsx) ---------- */
+  .mark__petal,
+  .mark__petals {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  /* The disc keeps a hairline so the mark holds its edge on light paper. */
+  .mark__disc {
+    stroke: rgba(183, 126, 31, 0.4);
+    stroke-width: 1.2;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .mark--spin .mark__petals {
+      animation: mark-turn 40s linear infinite;
+    }
+  }
+  @keyframes mark-turn {
+    to { transform: rotate(360deg); }
+  }
+  /* Turning the petal group to point at something */
+  .mark__petals--eased {
+    transition: transform 0.9s var(--ease-out-soft);
+  }
+  /* Lighting one petal: the other five recede */
+  .mark--focus .mark__petal {
+    transition: opacity 0.45s var(--ease-out-soft);
+  }
+  .mark--focus .mark__petal:not([data-petal="0"]):not([data-petal="1"]):not([data-petal="2"]):not([data-petal="3"]):not([data-petal="4"]):not([data-petal="5"]) {
+    opacity: 1;
+  }
+  .mark--focus[style*="--focus: 0"] .mark__petal:not([data-petal="0"]),
+  .mark--focus[style*="--focus: 1"] .mark__petal:not([data-petal="1"]),
+  .mark--focus[style*="--focus: 2"] .mark__petal:not([data-petal="2"]),
+  .mark--focus[style*="--focus: 3"] .mark__petal:not([data-petal="3"]),
+  .mark--focus[style*="--focus: 4"] .mark__petal:not([data-petal="4"]),
+  .mark--focus[style*="--focus: 5"] .mark__petal:not([data-petal="5"]) {
+    opacity: 0.22;
+  }
+
+  /* ---------- hosting scene (HostingScene.tsx) ---------- */
+  .hosting__line {
+    fill: none;
+    stroke-width: 1.2;
+    stroke-linecap: round;
+  }
+  .hosting__line--in {
+    stroke: rgba(183, 126, 31, 0.55);
+    stroke-dasharray: 3 6;
+  }
+  .hosting__line--out {
+    stroke: rgba(46, 158, 99, 0.45);
+    stroke-dasharray: 3 6;
+  }
+  .hosting__label {
+    fill: var(--color-ink-soft);
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .hosting__packet--in {
+    fill: var(--color-honey);
+    filter: drop-shadow(0 0 6px rgba(247, 193, 76, 0.9));
+  }
+  .hosting__packet--out {
+    fill: var(--color-green);
+    filter: drop-shadow(0 0 6px rgba(46, 158, 99, 0.8));
+  }
+  .hosting__ring {
+    fill: none;
+    stroke: rgba(34, 59, 51, 0.18);
+    stroke-width: 1;
+    stroke-dasharray: 2 6;
+  }
+  @media (min-width: 64rem) {
+    .hosting__fade {
+      mask: url(#fade-mask);
+      -webkit-mask: url(#fade-mask);
+    }
+  }
+  .hosting__flyer {
+    filter: drop-shadow(0 2px 4px rgba(34, 59, 51, 0.25));
+  }
+  .hosting__screen {
+    opacity: 0.3;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    /* Each tiny petal wobbles on its own clock on top of the travel. */
+    .hosting__mote {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: mote-wobble var(--wob-d, 3s) ease-in-out infinite;
+      /* scrolling agitates: amplitude grows with --agi (0 calm … 1 stirred) */
+      --amp: calc(var(--wob-a, 2px) * (1 + var(--agi, 0) * 4));
+      --rot: calc(var(--wob-r, 12deg) * (1 + var(--agi, 0) * 2.5));
+    }
+    /* every other petal rides the line without wobbling — half the cost */
+    .hosting__mote--still {
+      animation: none;
+    }
+    .hosting--paused .hosting__mote {
+      animation-play-state: paused;
+    }
+    /* the pointer nudges nearby petals away, softly */
+    .hosting__push {
+      transform: translate(var(--push-x, 0px), var(--push-y, 0px));
+      transition: transform 0.4s var(--ease-out-soft);
+    }
+    .hosting__halo {
+      animation: halo-breathe 6s ease-in-out infinite;
+      transform-origin: center;
+      transform-box: fill-box;
+    }
+    .hosting__screen {
+      animation: screen-on 3.2s ease-out infinite;
+    }
+    .hosting__card {
+      animation: card-nudge 3.6s ease-in-out infinite;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hosting__packet, .hosting__flyer { display: none; }
+    .hosting__stream animateMotion { display: none; }
+    .hosting__screen { opacity: 1; }
+  }
+  @keyframes mote-wobble {
+    0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+    25% { transform: translate(var(--amp), calc(var(--amp) * -0.6)) rotate(var(--rot)) scale(1.08); }
+    50% { transform: translate(calc(var(--amp) * -0.5), var(--amp)) rotate(calc(var(--rot) * -0.6)) scale(0.94); }
+    75% { transform: translate(calc(var(--amp) * -0.9), calc(var(--amp) * -0.4)) rotate(calc(var(--rot) * 0.4)) scale(1.03); }
+  }
+  @keyframes halo-breathe {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.12); opacity: 1; }
+  }
+  @keyframes screen-on {
+    0%, 6% { opacity: 0.3; }
+    12%, 80% { opacity: 1; }
+    100% { opacity: 0.3; }
+  }
+  @keyframes card-nudge {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+
+  /* ---------- the Bloom (BloomJourney.tsx) ---------- */
+  .bloom-wash {
+    background:
+      radial-gradient(60% 50% at 0% 40%, color-mix(in srgb, var(--petal, #f7c14c) 26%, transparent), transparent 70%),
+      radial-gradient(50% 40% at 100% 70%, color-mix(in srgb, var(--petal, #f7c14c) 14%, transparent), transparent 70%);
+    transition: background 0.8s var(--ease-out-soft);
+  }
+  .bloom-halo {
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--petal, #f7c14c) 34%, transparent), transparent 72%);
+    transition: background 0.8s var(--ease-out-soft);
+  }
+  .petal {
+    overflow: visible;
+    transform-origin: 50% 60%;
+  }
+
+  /* The mark as a letter: sits on the baseline like an "o", and gets the
+     letter's own stroke around the disc so it reads as an "o", not an icon. */
+  .mark--letter {
+    display: inline-block;
+    vertical-align: -0.08em;
+    margin: 0 0.02em;
+    overflow: visible;
+  }
+  .mark--letter .mark__disc {
+    stroke: currentColor;
+    stroke-width: 6;
+    paint-order: stroke fill;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .mark--bloom .mark__disc {
+      animation: mark-disc 0.8s var(--ease-out-soft) both;
+    }
+    .mark--bloom .mark__petal {
+      animation: mark-bloom 0.85s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+      animation-delay: calc(150ms + var(--n, 0) * 100ms);
+    }
+  }
+  @keyframes mark-disc {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes mark-bloom {
+    0% { opacity: 0; transform: scale(0); }
+    70% { opacity: 1; transform: scale(1.22); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  /* ---------- mocks ---------- */
+  .mock-frame {
+    container-type: inline-size;
+  }
+  .mock {
+    font-size: clamp(2.5px, 2.3cqw, 15px);
+    line-height: 1.35;
+  }
+
+  /* ---------- the workspace (Workspace.tsx) ---------- */
+  .ws-artifact {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+    transition:
+      opacity 0.55s var(--ease-out-soft),
+      transform 0.55s var(--ease-out-soft);
+  }
+  .ws-artifact--in {
+    opacity: 1;
+    transform: none;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .ws-inkbar {
+      animation: ink-bar 1.15s var(--ease-ink) both;
+    }
+    .ws-caption {
+      animation: rise-in 0.45s var(--ease-out-soft) both;
+    }
+    .ws-step {
+      animation: rise-in 0.4s var(--ease-out-soft) both;
+      animation-delay: calc(var(--i, 0) * 90ms);
+    }
+  }
+  /* Keep the middle of the page clean paper; colour lives at the edges. */
+  .ambient-edges {
+    -webkit-mask-image: linear-gradient(90deg, #000 0%, rgba(0,0,0,.45) 22%, transparent 38%, transparent 62%, rgba(0,0,0,.45) 78%, #000 100%);
+    mask-image: linear-gradient(90deg, #000 0%, rgba(0,0,0,.45) 22%, transparent 38%, transparent 62%, rgba(0,0,0,.45) 78%, #000 100%);
+  }
+
   /* ---------- elevated cards / surfaces ---------- */
   .surface-lift {
     transition:
@@ -628,11 +1154,64 @@
     }
   }
 
-  /* Live status soft pulse on finished console */
+  /* ---------- "live" — one-shot signals, nothing loops ---------- */
+  /* The dot emits two rings, then rests. */
+  .live-ring {
+    position: relative;
+  }
+  .live-ring::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    color: var(--color-green);
+    opacity: 0;
+  }
   @media (prefers-reduced-motion: no-preference) {
-    .live-pulse {
-      animation: soft-pulse 2.4s ease-out infinite;
+    .live-ring::after {
+      animation: ring-out 1.1s var(--ease-out-soft) 2;
     }
+    .ws-line {
+      background: var(--color-honey);
+      transform: scaleX(0);
+    }
+    .ws-line--making {
+      animation: line-fill 1.15s var(--ease-ink) both;
+    }
+    .ws-line--live {
+      background: var(--color-green);
+      animation: line-done 1.4s var(--ease-out-soft) both;
+    }
+    .live-check__ring {
+      stroke-dasharray: 44;
+      stroke-dashoffset: 44;
+      animation: draw 0.5s var(--ease-out-soft) forwards;
+    }
+    .live-check__tick {
+      stroke-dasharray: 12;
+      stroke-dashoffset: 12;
+      animation: draw 0.35s var(--ease-out-soft) 0.35s forwards;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ws-line { display: none; }
+  }
+  @keyframes ring-out {
+    from { opacity: 0.9; transform: scale(1); }
+    to { opacity: 0; transform: scale(3.2); }
+  }
+  @keyframes line-fill {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(0.9); }
+  }
+  @keyframes line-done {
+    0% { transform: scaleX(0.9); opacity: 1; }
+    25% { transform: scaleX(1); opacity: 1; }
+    100% { transform: scaleX(1); opacity: 0; }
+  }
+  @keyframes draw {
+    to { stroke-dashoffset: 0; }
   }
 
   /* Floating decorative blobs inside bands */
