@@ -80,17 +80,31 @@ export function HostingScene() {
         <circle cx={G.x} cy={G.y} r={GLOBE_R} fill="url(#globe-fill)" opacity="0.6" />
         {GLYPH.map((g, ri) => (
           <g key={ri} className="hosting__stream">
-            {Array.from({ length: g.n }, (_, k) => (
-              <g key={k}>
-                <path
-                  d={PETAL_PATH}
-                  fill={PETALS[(k + ri) % PETALS.length].color}
-                  opacity={g.alpha}
-                  transform={`translate(${-g.s / 2} ${-g.s / 2.9}) scale(${g.s} ${g.s / 1.46})`}
-                />
-                <animateMotion dur={`${g.dur}s`} begin={`${-(k / g.n) * g.dur}s`} repeatCount="indefinite" rotate="auto" path={g.d} />
-              </g>
-            ))}
+            {Array.from({ length: g.n }, (_, k) => {
+              // Deterministic per-petal wobble so no two move alike.
+              const seed = (k * 7 + ri * 13) % 11;
+              return (
+                <g key={k}>
+                  <g
+                    className="hosting__mote"
+                    style={{
+                      ["--wob-d" as string]: `${2.6 + (seed % 5) * 0.55}s`,
+                      ["--wob-a" as string]: `${1.4 + (seed % 3) * 0.6}px`,
+                      ["--wob-r" as string]: `${8 + (seed % 4) * 5}deg`,
+                      animationDelay: `${-(seed * 0.37)}s`,
+                    }}
+                  >
+                    <path
+                      d={PETAL_PATH}
+                      fill={PETALS[(k + ri) % PETALS.length].color}
+                      opacity={g.alpha}
+                      transform={`translate(${-g.s / 2} ${-g.s / 2.9}) scale(${g.s} ${g.s / 1.46})`}
+                    />
+                  </g>
+                  <animateMotion dur={`${g.dur}s`} begin={`${-(k / g.n) * g.dur}s`} repeatCount="indefinite" rotate="auto" path={g.d} />
+                </g>
+              );
+            })}
           </g>
         ))}
         <text x={G.x} y={G.y + GLOBE_R + 26} textAnchor="middle" className="hosting__label">{HOSTED.center} · the internet</text>

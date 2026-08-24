@@ -985,6 +985,12 @@
     .hosting__led {
       animation: led-blink 1.6s ease-in-out infinite;
     }
+    /* Each tiny petal wobbles on its own clock on top of the travel. */
+    .hosting__mote {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: mote-wobble var(--wob-d, 3s) ease-in-out infinite;
+    }
     .hosting__halo {
       animation: halo-breathe 6s ease-in-out infinite;
       transform-origin: center;
@@ -1001,6 +1007,12 @@
     .hosting__packet, .hosting__flyer { display: none; }
     .hosting__stream animateMotion { display: none; }
     .hosting__screen { opacity: 1; }
+  }
+  @keyframes mote-wobble {
+    0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+    25% { transform: translate(var(--wob-a), calc(var(--wob-a) * -0.6)) rotate(var(--wob-r)) scale(1.08); }
+    50% { transform: translate(calc(var(--wob-a) * -0.5), var(--wob-a)) rotate(calc(var(--wob-r) * -0.6)) scale(0.94); }
+    75% { transform: translate(calc(var(--wob-a) * -0.9), calc(var(--wob-a) * -0.4)) rotate(calc(var(--wob-r) * 0.4)) scale(1.03); }
   }
   @keyframes led-blink {
     0%, 100% { opacity: 0.45; }
