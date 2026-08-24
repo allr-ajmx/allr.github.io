@@ -38,11 +38,12 @@ function ellipsePath(cx: number, cy: number, rx: number, ry: number) {
 }
 const R = GLOBE_R;
 const GLYPH = [
-  { d: ellipsePath(G.x, G.y, R, R), n: 48, s: 10, dur: 90, alpha: 0.9 },
-  { d: ellipsePath(G.x, G.y, R * 0.42, R), n: 34, s: 9, dur: 70, alpha: 0.85 },
-  { d: ellipsePath(G.x, G.y, R, R * 0.05), n: 30, s: 9, dur: 60, alpha: 0.85 },
-  { d: ellipsePath(G.x, G.y - R * 0.55, R * 0.83, R * 0.05), n: 24, s: 8, dur: 52, alpha: 0.75 },
-  { d: ellipsePath(G.x, G.y + R * 0.55, R * 0.83, R * 0.05), n: 24, s: 8, dur: 52, alpha: 0.75 },
+  { d: ellipsePath(G.x, G.y, R, R), n: 72, s: 7, dur: 90, alpha: 0.9 },
+  { d: ellipsePath(G.x, G.y, R * 0.42, R), n: 52, s: 6.5, dur: 70, alpha: 0.85 },
+  { d: ellipsePath(G.x, G.y, R * 0.8, R), n: 44, s: 6, dur: 76, alpha: 0.7 },
+  { d: ellipsePath(G.x, G.y, R, R * 0.05), n: 46, s: 6.5, dur: 60, alpha: 0.85 },
+  { d: ellipsePath(G.x, G.y - R * 0.55, R * 0.83, R * 0.05), n: 36, s: 6, dur: 52, alpha: 0.75 },
+  { d: ellipsePath(G.x, G.y + R * 0.55, R * 0.83, R * 0.05), n: 36, s: 6, dur: 52, alpha: 0.75 },
 ] as const;
 
 const toXY = (deg: number, r: number) => ({
@@ -130,8 +131,6 @@ export function HostingScene() {
             </g>
           );
         })}
-        <circle cx={G.x} cy={G.y} r={26} fill="#fbf1e2" stroke="rgba(183,126,31,.5)" strokeWidth="1.2" />
-        <text x={G.x} y={G.y + 5} textAnchor="middle" className="hosting__wordmark">allr</text>
 
         {/* petals in flight — one per wire, landing on its device */}
         {links.map((l) => (

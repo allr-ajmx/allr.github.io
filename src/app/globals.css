@@ -970,11 +970,6 @@
   .hosting__server {
     filter: drop-shadow(0 6px 12px rgba(34, 59, 51, 0.22));
   }
-  .hosting__wordmark {
-    fill: var(--color-ink);
-    font-family: var(--font-serif);
-    font-size: 15px;
-  }
   .hosting__flyer {
     filter: drop-shadow(0 2px 4px rgba(34, 59, 51, 0.25));
   }
