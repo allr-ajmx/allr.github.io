@@ -187,7 +187,7 @@ Three steps. Each card owns a miniature of the verb.
 
 ### 5.4 It's live — the hosting scene (`M-HOSTED`)
 
-The one dark band on the page — ink on paper, the counterpart. On the right, hosting drawn as a living diagram (`HostingScene.tsx`): a new version leaves the workspace card, travels a honey line into the mark — the six petals are the servers, each pulsing in turn — and fans out along green lines to people's screens, which light up as the packets arrive. Packets are SMIL `animateMotion`; nodes, halo and screens are CSS. Hosting is an ongoing state, so like the live glow this is allowed to loop, slowly (3–6s cycles). Reduced motion: no packets, screens lit, nothing moves.
+No box. The scene sits straight on the paper, full width (`HostingScene.tsx`). The mark at the centre; around it six **petal-shaped server windows**, each holding a copy of the user's site — the app lives *in* the petals (petal `clip-path`, colour rim, slow pulse in turn). Beyond a dashed **"the internet"** ring, real devices — phones, laptops, a tablet, a desktop — each connect to the nearest petal and show the same live site; their screens light as packets arrive. A **You · deploy v4** card at the top-left feeds new versions in along a honey line. Packets are SMIL `animateMotion`: honey inward, green outward. Hosting is ongoing, so this loops slowly; under reduced motion nothing moves and every screen is lit. Below `lg` the stage keeps its 760px minimum inside a horizontal scroller.
 
 ### 5.4b Legacy publishing band (`M-DESK`, retired)
 
