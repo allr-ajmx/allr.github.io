@@ -14,10 +14,11 @@ export function Hero() {
         </p>
 
         <h1 className="hero-enter mt-1 mb-3 max-w-[22ch] text-[clamp(2.1rem,4.8vw,3.7rem)] leading-[1.05] tracking-[-0.015em]" style={{ animationDelay: "0.16s" }}>
-          the <span className="whitespace-nowrap"><AllrMark size="0.82em" bloom spin className="mark--letter" />ne</span> subscription that{" "}
-          <span className="whitespace-nowrap text-green-deep">
-            replaces all of them.
-          </span>
+          the <span className="whitespace-nowrap"><AllrMark size="0.82em" bloom spin className="mark--letter" />ne</span> subscription{" "}
+          <span className="whitespace-nowrap sm:whitespace-normal">
+            that <span className="text-green-deep">replaces</span>
+          </span>{" "}
+          <span className="whitespace-nowrap text-green-deep">all of them.</span>
         </h1>
         <p className="hero-enter max-w-[40ch] text-[clamp(1.05rem,1.5vw,1.25rem)] leading-snug text-ink-soft" style={{ animationDelay: "0.26s" }}>
           {HERO_SUB}
