@@ -1,57 +1,34 @@
+import { HostingScene } from "@/components/HostingScene";
 import { Reveal } from "@/components/Reveal";
-import { Pill } from "@/components/ui/Pill";
-import { VersionsMock } from "@/components/mocks/Mocks";
-import { Parallax } from "@/components/motion/Parallax";
+import { HOSTED } from "@/lib/brand";
 
+/** The one dark band on the page — the counterpart to all that paper. */
 export function PublishingBand() {
   return (
     <section id="publish" className="pt-6 pb-22">
       <div className="wrap">
         <Reveal
-          className="relative overflow-hidden rounded-panel border border-[#F0DEB8] bg-[linear-gradient(150deg,#FDF3DF,var(--color-honey-tint)_55%,#F3ECDC)] px-7 py-14 shadow-soft sm:px-8 sm:py-16"
+          className="relative overflow-hidden rounded-panel bg-ink px-7 py-14 text-paper shadow-[0_30px_80px_rgba(34,59,51,.28)] sm:px-10 sm:py-16"
           variant="scale"
         >
-          <div className="relative grid items-center gap-10 lg:grid-cols-[1fr_minmax(0,30rem)]">
-          <div className="max-w-[34rem] text-left">
-            <Pill tone="green" className="mb-[18px]">
-              It’s live
-            </Pill>
+          {/* a little lamplight in the dark */}
+          <span aria-hidden="true" className="pointer-events-none absolute -top-40 -left-24 size-[420px] rounded-full bg-[radial-gradient(closest-side,rgba(247,193,76,.16),transparent_70%)]" />
+          <span aria-hidden="true" className="pointer-events-none absolute -right-32 -bottom-40 size-[460px] rounded-full bg-[radial-gradient(closest-side,rgba(52,144,94,.22),transparent_70%)]" />
 
-            <h2 className="mb-[18px] text-[clamp(1.7rem,3.2vw,2.3rem)]">
-              Your work gets a home, a link, and an audience.
-            </h2>
-
-            <div className="prose-block mb-7 max-lg:mx-auto !ml-0 max-lg:text-center">
-              <p>
-                Every other AI tool stops at the download button. Allr keeps
-                going: the moment a thing is finished, it&rsquo;s on the
-                internet, at a link that&rsquo;s yours.
-              </p>
-              <p>
-                Every change is a new version. Change your mind? Go back to
-                the one you liked, in one click. Nothing you make ever gets
-                lost in a downloads folder.
-              </p>
+          <div className="relative grid items-center gap-12 lg:grid-cols-[minmax(0,30rem)_1fr] lg:gap-16">
+            <div className="max-w-[34rem]">
+              <span className="mb-[18px] inline-flex items-center gap-2 rounded-chip border border-green/40 bg-green/15 px-3 py-1.5 text-[.8rem] font-bold tracking-[0.04em] text-[#9fe0bb] uppercase">
+                <span className="live-ring size-1.5 rounded-full bg-green" />
+                {HOSTED.eyebrow}
+              </span>
+              <h2 className="mb-[18px] text-[clamp(1.7rem,3.2vw,2.3rem)] text-paper">{HOSTED.title}</h2>
+              <p className="mb-4 text-[1.02rem] leading-relaxed text-paper/80">{HOSTED.p1}</p>
+              <p className="mb-7 text-[1.02rem] leading-relaxed text-paper/80">{HOSTED.p2}</p>
+              <p className="font-serif text-[1.18rem] text-honey">{HOSTED.aside}</p>
             </div>
-
-            <span className="inline-flex items-center gap-2.5 rounded-control border border-green-line bg-card px-4 py-2 font-semibold text-ink shadow-soft transition-transform duration-300 hover:-translate-y-0.5">
-              <span className="live-ring size-1.5 rounded-full bg-green" />
-              <span className="font-mono text-[.9rem] tracking-tight">
-                allr.app/your-launch
-              </span>
-              <span className="rounded-chip bg-green-tint px-2.5 py-1 text-[.72rem] font-bold tracking-[0.03em] text-green-deep uppercase">
-                Live
-              </span>
-            </span>
-
-            <p className="mt-7 font-serif text-[1.18rem] text-honey-deep">
-              Because the point was never the file. The point was people seeing
-              it.
-            </p>
-          </div>
-          <Parallax speed={0.1} className="mock-frame w-full">
-            <VersionsMock />
-          </Parallax>
+            <div className="py-4">
+              <HostingScene />
+            </div>
           </div>
         </Reveal>
       </div>

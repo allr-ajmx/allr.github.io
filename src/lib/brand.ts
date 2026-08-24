@@ -314,3 +314,15 @@ export const BLOOM = {
   sub: "Every petal in the mark is one kind of thing Allr makes — and publishes. Scroll, and the mark turns to each one.",
   progress: (n: number) => `Petal ${n} of 6`,
 } as const;
+
+export const HOSTED = {
+  eyebrow: "It’s live",
+  title: "Your work gets a home, a link, and an audience.",
+  p1: "Every other AI tool stops at the download button. Allr keeps going: the moment a thing is finished, it’s hosted — on the internet, at a link that’s yours, for anyone you send it to.",
+  p2: "Every change is a new version. Change your mind? Go back to the one you liked, in one click. Nothing you make ever gets lost in a downloads folder.",
+  source: { version: "v4", note: "Added the press kit link" },
+  center: "Hosted by Allr",
+  url: "allr.app/album-launch",
+  visitors: ["Mia · phone", "Investor · laptop", "Press · tablet", "Fans · phone", "Studio · desktop"],
+  aside: "Because the point was never the file. The point was people seeing it.",
+} as const;

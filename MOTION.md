@@ -185,7 +185,11 @@ Three steps. Each card owns a miniature of the verb.
 | 2 Allr makes it. | Three tiny stills (deck, doc, site) in a row | They INK then LIVE in order, 220ms apart — a 1.2s echo of the console |
 | 3 Ship it. | URL chip `allr.app/your-launch` | Pip honey→green, Live label springs, pulse twice |
 
-### 5.4 Publishing band (`M-DESK`)
+### 5.4 It's live — the hosting scene (`M-HOSTED`)
+
+The one dark band on the page — ink on paper, the counterpart. On the right, hosting drawn as a living diagram (`HostingScene.tsx`): a new version leaves the workspace card, travels a honey line into the mark — the six petals are the servers, each pulsing in turn — and fans out along green lines to people's screens, which light up as the packets arrive. Packets are SMIL `animateMotion`; nodes, halo and screens are CSS. Hosting is an ongoing state, so like the live glow this is allowed to loop, slowly (3–6s cycles). Reduced motion: no packets, screens lit, nothing moves.
+
+### 5.4b Legacy publishing band (`M-DESK`, retired)
 
 The ensemble still (`desk-ensemble.jpg`) sits **behind** the copy, masked so type stays readable (left/centre copy, still stronger on the right — same idea as the hero letterpress).
 

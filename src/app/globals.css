@@ -931,6 +931,79 @@
     opacity: 0.22;
   }
 
+  /* ---------- hosting scene (HostingScene.tsx) ---------- */
+  .hosting__line {
+    fill: none;
+    stroke-width: 1.2;
+    stroke-linecap: round;
+  }
+  .hosting__line--in {
+    stroke: rgba(247, 193, 76, 0.45);
+    stroke-dasharray: 3 6;
+  }
+  .hosting__line--out {
+    stroke: rgba(159, 224, 187, 0.35);
+    stroke-dasharray: 3 6;
+  }
+  .hosting__packet--in {
+    fill: var(--color-honey);
+    filter: drop-shadow(0 0 6px rgba(247, 193, 76, 0.9));
+  }
+  .hosting__packet--out {
+    fill: #7fd6a4;
+    filter: drop-shadow(0 0 6px rgba(127, 214, 164, 0.9));
+  }
+  .hosting__ring {
+    fill: none;
+    stroke: rgba(251, 241, 226, 0.14);
+    stroke-width: 1;
+    stroke-dasharray: 2 5;
+  }
+  .hosting__node {
+    filter: drop-shadow(0 0 4px currentColor);
+  }
+  .hosting__screen {
+    opacity: 0.25;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .hosting__node {
+      animation: node-pulse 3s ease-in-out infinite;
+    }
+    .hosting__halo {
+      animation: halo-breathe 6s ease-in-out infinite;
+      transform-origin: center;
+      transform-box: fill-box;
+    }
+    .hosting__screen {
+      animation: screen-on 3.2s ease-out infinite;
+    }
+    .hosting__card {
+      animation: card-nudge 3.6s ease-in-out infinite;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .hosting__packet { display: none; }
+    .hosting__screen { opacity: 1; }
+  }
+  @keyframes node-pulse {
+    0%, 100% { r: 5; opacity: 0.8; }
+    12% { r: 8; opacity: 1; }
+    30% { r: 5; opacity: 0.8; }
+  }
+  @keyframes halo-breathe {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.12); opacity: 1; }
+  }
+  @keyframes screen-on {
+    0%, 8% { opacity: 0.25; }
+    14%, 70% { opacity: 1; }
+    100% { opacity: 0.25; }
+  }
+  @keyframes card-nudge {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+
   /* ---------- the Bloom (BloomJourney.tsx) ---------- */
   .bloom-wash {
     background:
