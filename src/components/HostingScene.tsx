@@ -14,9 +14,9 @@ const W = 640;
 const H = 680;
 const G = { x: 190, y: 350 }; // globe centre
 const GLOBE_R = 138;
-const SERVER_R = 92; // petal servers sit inside the globe
-const PW = 64; // petal server size (local frame, pointing up)
-const PH = 44;
+const SERVER_R = 84; // petal servers sit inside the globe
+const PW = 50; // petal server size (local frame, pointing up)
+const PH = 34;
 
 type Device = { kind: "phone" | "laptop" | "tablet" | "desktop"; y: number; who: string; petal: number };
 const DEVICES: Device[] = [
@@ -28,12 +28,21 @@ const DEVICES: Device[] = [
 const DEVICE_X = 560;
 const DEPLOY = { x: 190, y: 56 };
 
-/** Rings of tiny petals that make the globe: radius, count, size, speed. */
-const ORBITS = [
-  { r: 138, n: 34, s: 9, dur: 90, dir: "normal", offset: 0, alpha: 0.55 },
-  { r: 124, n: 28, s: 8, dur: 70, dir: "reverse", offset: 7, alpha: 0.45 },
-  { r: 58, n: 12, s: 7, dur: 40, dir: "normal", offset: 15, alpha: 0.6 },
-  { r: 42, n: 8, s: 6, dur: 28, dir: "reverse", offset: 0, alpha: 0.7 },
+/**
+ * The web glyph — outer circle, a meridian, the equator, two parallels —
+ * each line drawn as a stream of tiny petals travelling along it. Paths are
+ * closed loops so the motion never jumps.
+ */
+function ellipsePath(cx: number, cy: number, rx: number, ry: number) {
+  return `M${cx - rx},${cy} a${rx},${ry} 0 1,0 ${rx * 2},0 a${rx},${ry} 0 1,0 ${-rx * 2},0`;
+}
+const R = GLOBE_R;
+const GLYPH = [
+  { d: ellipsePath(G.x, G.y, R, R), n: 48, s: 10, dur: 90, alpha: 0.9 },
+  { d: ellipsePath(G.x, G.y, R * 0.42, R), n: 34, s: 9, dur: 70, alpha: 0.85 },
+  { d: ellipsePath(G.x, G.y, R, R * 0.05), n: 30, s: 9, dur: 60, alpha: 0.85 },
+  { d: ellipsePath(G.x, G.y - R * 0.55, R * 0.83, R * 0.05), n: 24, s: 8, dur: 52, alpha: 0.75 },
+  { d: ellipsePath(G.x, G.y + R * 0.55, R * 0.83, R * 0.05), n: 24, s: 8, dur: 52, alpha: 0.75 },
 ] as const;
 
 const toXY = (deg: number, r: number) => ({
@@ -67,28 +76,21 @@ export function HostingScene() {
           </radialGradient>
         </defs>
 
-        {/* the internet — a globe made of tiny petals, each ring turning */}
-        <circle cx={G.x} cy={G.y} r={GLOBE_R} fill="url(#globe-fill)" />
-        {ORBITS.map((o, ri) => (
-          <g
-            key={ri}
-            className="hosting__orbit"
-            style={{ transformOrigin: `${G.x}px ${G.y}px`, animationDuration: `${o.dur}s`, animationDirection: o.dir }}
-          >
-            {Array.from({ length: o.n }, (_, k) => {
-              const a = (k / o.n) * 360 + o.offset;
-              const at = toXY(a, o.r);
-              const c = PETALS[(k + ri) % PETALS.length].color;
-              return (
+        {/* the internet — the web glyph, every line a stream of tiny petals */}
+        <circle cx={G.x} cy={G.y} r={GLOBE_R} fill="url(#globe-fill)" opacity="0.6" />
+        {GLYPH.map((g, ri) => (
+          <g key={ri} className="hosting__stream">
+            {Array.from({ length: g.n }, (_, k) => (
+              <g key={k}>
                 <path
-                  key={k}
                   d={PETAL_PATH}
-                  fill={c}
-                  opacity={o.alpha}
-                  transform={`translate(${at.x} ${at.y}) rotate(${a + 90}) translate(${-o.s / 2} ${-o.s / 2.9}) scale(${o.s} ${o.s / 1.46})`}
+                  fill={PETALS[(k + ri) % PETALS.length].color}
+                  opacity={g.alpha}
+                  transform={`translate(${-g.s / 2} ${-g.s / 2.9}) scale(${g.s} ${g.s / 1.46})`}
                 />
-              );
-            })}
+                <animateMotion dur={`${g.dur}s`} begin={`${-(k / g.n) * g.dur}s`} repeatCount="indefinite" rotate="auto" path={g.d} />
+              </g>
+            ))}
           </g>
         ))}
         <text x={G.x} y={G.y + GLOBE_R + 26} textAnchor="middle" className="hosting__label">{HOSTED.center} · the internet</text>
@@ -151,37 +153,31 @@ export function HostingScene() {
 
 function DeviceFrame({ kind, delay }: { kind: Device["kind"]; delay: number }) {
   // Widths are a share of the device slot, so devices scale with the stage.
+  // Screens are absolutely positioned inside fixed-ratio frames, so the site
+  // mock can never inflate the device.
   const screen = (
-    <div className="hosting__screen mock-frame h-full w-full overflow-hidden bg-card" style={{ animationDelay: `${delay}s`, animationDuration: "3.6s" }}>
+    <div className="hosting__screen mock-frame absolute inset-[2px] overflow-hidden rounded-[inherit] bg-card" style={{ animationDelay: `${delay}s`, animationDuration: "3.6s" }}>
       <MockFor id="websites" />
     </div>
   );
   if (kind === "phone")
     return (
-      <div className="w-[36%] rounded-[10px] border-[3px] border-ink bg-ink p-[2px] shadow-lift" style={{ aspectRatio: "9 / 18" }}>
-        <div className="h-full w-full overflow-hidden rounded-[7px]">{screen}</div>
-      </div>
+      <div className="relative w-[36%] overflow-hidden rounded-[10px] border-[3px] border-ink bg-ink shadow-lift" style={{ aspectRatio: "9 / 18" }}>{screen}</div>
     );
   if (kind === "tablet")
     return (
-      <div className="w-[62%] rounded-[9px] border-[3px] border-ink bg-ink p-[2px] shadow-lift" style={{ aspectRatio: "4 / 3" }}>
-        <div className="h-full w-full overflow-hidden rounded-[6px]">{screen}</div>
-      </div>
+      <div className="relative w-[62%] overflow-hidden rounded-[9px] border-[3px] border-ink bg-ink shadow-lift" style={{ aspectRatio: "4 / 3" }}>{screen}</div>
     );
   if (kind === "laptop")
     return (
       <div className="flex w-full flex-col items-center">
-        <div className="w-[82%] rounded-t-[7px] border-[3px] border-b-0 border-ink bg-ink p-[2px] shadow-lift" style={{ aspectRatio: "16 / 10" }}>
-          <div className="h-full w-full overflow-hidden rounded-t-[4px]">{screen}</div>
-        </div>
+        <div className="relative w-[82%] overflow-hidden rounded-t-[7px] border-[3px] border-b-0 border-ink bg-ink shadow-lift" style={{ aspectRatio: "16 / 10" }}>{screen}</div>
         <div className="h-[5px] w-[96%] rounded-b-[4px] bg-ink" />
       </div>
     );
   return (
     <div className="flex w-full flex-col items-center">
-      <div className="w-[90%] rounded-[7px] border-[3px] border-ink bg-ink p-[2px] shadow-lift" style={{ aspectRatio: "16 / 10" }}>
-        <div className="h-full w-full overflow-hidden rounded-[4px]">{screen}</div>
-      </div>
+      <div className="relative w-[90%] overflow-hidden rounded-[7px] border-[3px] border-ink bg-ink shadow-lift" style={{ aspectRatio: "16 / 10" }}>{screen}</div>
       <div className="h-[10px] w-[8px] bg-ink" />
       <div className="h-[3px] w-[44px] rounded-full bg-ink" />
     </div>

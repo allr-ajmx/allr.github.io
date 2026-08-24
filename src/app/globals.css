@@ -985,9 +985,6 @@
     .hosting__led {
       animation: led-blink 1.6s ease-in-out infinite;
     }
-    .hosting__orbit {
-      animation: orbit 60s linear infinite;
-    }
     .hosting__halo {
       animation: halo-breathe 6s ease-in-out infinite;
       transform-origin: center;
@@ -1002,10 +999,8 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .hosting__packet, .hosting__flyer { display: none; }
+    .hosting__stream animateMotion { display: none; }
     .hosting__screen { opacity: 1; }
-  }
-  @keyframes orbit {
-    to { transform: rotate(360deg); }
   }
   @keyframes led-blink {
     0%, 100% { opacity: 0.45; }
@@ -1078,7 +1073,7 @@
     container-type: inline-size;
   }
   .mock {
-    font-size: clamp(6px, 2.3cqw, 15px);
+    font-size: clamp(2.5px, 2.3cqw, 15px);
     line-height: 1.35;
   }
 
