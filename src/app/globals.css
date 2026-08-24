@@ -898,11 +898,18 @@
   @keyframes mark-turn {
     to { transform: rotate(360deg); }
   }
-  /* The mark as a letter: sits on the baseline like an "o". */
+  /* The mark as a letter: sits on the baseline like an "o", and gets the
+     letter's own stroke around the disc so it reads as an "o", not an icon. */
   .mark--letter {
     display: inline-block;
     vertical-align: -0.08em;
     margin: 0 0.02em;
+    overflow: visible;
+  }
+  .mark--letter .mark__disc {
+    stroke: currentColor;
+    stroke-width: 6;
+    paint-order: stroke fill;
   }
   @media (prefers-reduced-motion: no-preference) {
     .mark--bloom .mark__disc {
