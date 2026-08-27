@@ -20,6 +20,9 @@ async function sha256Hex(text: string) {
   return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** Which deployment the signup came from, e.g. "https://allr.work". */
+const source = () => (typeof location !== "undefined" ? location.origin : "unknown").slice(0, 64);
+
 async function submitEmail(email: string) {
   // 1. Firestore, straight from the browser. Rules allow create only; the
   //    document id is the hash of the email so duplicates are refused (409).
@@ -34,7 +37,7 @@ async function submitEmail(email: string) {
       body: JSON.stringify({
         fields: {
           email: { stringValue: email },
-          source: { stringValue: "allr.github.io" },
+          source: { stringValue: source() },
           userAgent: { stringValue: navigator.userAgent.slice(0, 512) },
           createdAt: { timestampValue: new Date().toISOString() },
         },
@@ -52,7 +55,7 @@ async function submitEmail(email: string) {
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ email, source: "allr.github.io" }),
+      body: JSON.stringify({ email, source: source() }),
     });
     if (!res.ok) throw new Error("waitlist");
     return;
