@@ -1,0 +1,28 @@
+rules_version = '2';
+
+// Waitlist: the website may add one document per email; nobody can read,
+// list, change or delete from the browser. Everything else is denied.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /waitlist/{id} {
+      allow create: if
+        request.resource.data.keys().hasOnly(['email', 'source', 'createdAt', 'userAgent'])
+        && request.resource.data.email is string
+        && request.resource.data.email.size() >= 6
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')
+        && request.resource.data.source is string
+        && request.resource.data.source.size() <= 64
+        && request.resource.data.userAgent is string
+        && request.resource.data.userAgent.size() <= 512
+        // client clock, but must be within five minutes of server time
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.createdAt > request.time - duration.value(5, 'm')
+        && request.resource.data.createdAt < request.time + duration.value(5, 'm');
+      allow read, update, delete: if false;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

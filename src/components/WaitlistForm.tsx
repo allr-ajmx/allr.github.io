@@ -7,10 +7,44 @@ import { cx } from "@/lib/cx";
 
 type Variant = "inline" | "onGreen";
 
+const FIREBASE_PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+const FIREBASE_API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 const WAITLIST_URL = process.env.NEXT_PUBLIC_WAITLIST_URL;
 const WAITLIST_EMAIL = process.env.NEXT_PUBLIC_WAITLIST_EMAIL;
 
+/** Thrown when the address is already on the list. */
+export class AlreadyOnList extends Error {}
+
+async function sha256Hex(text: string) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 async function submitEmail(email: string) {
+  // 1. Firestore, straight from the browser. Rules allow create only; the
+  //    document id is the hash of the email so duplicates are refused (409).
+  if (FIREBASE_PROJECT_ID && FIREBASE_API_KEY) {
+    const id = await sha256Hex(email);
+    const url =
+      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}` +
+      `/databases/(default)/documents/waitlist?documentId=${id}&key=${FIREBASE_API_KEY}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fields: {
+          email: { stringValue: email },
+          source: { stringValue: "allr.github.io" },
+          userAgent: { stringValue: navigator.userAgent.slice(0, 512) },
+          createdAt: { timestampValue: new Date().toISOString() },
+        },
+      }),
+    });
+    if (res.status === 409) throw new AlreadyOnList();
+    if (!res.ok) throw new Error("waitlist");
+    return;
+  }
+
   if (WAITLIST_URL) {
     const res = await fetch(WAITLIST_URL, {
       method: "POST",
@@ -58,7 +92,7 @@ export function WaitlistForm({
   id?: string;
 }) {
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "sending" | "ok" | "err">(
+  const [status, setStatus] = useState<"idle" | "sending" | "ok" | "dup" | "err">(
     "idle",
   );
   const [shared, setShared] = useState(false);
@@ -76,8 +110,8 @@ export function WaitlistForm({
     try {
       await submitEmail(value);
       setStatus("ok");
-    } catch {
-      setStatus("err");
+    } catch (e) {
+      setStatus(e instanceof AlreadyOnList ? "dup" : "err");
     }
   }
 
@@ -95,7 +129,7 @@ export function WaitlistForm({
     }
   }
 
-  if (status === "ok") {
+  if (status === "ok" || status === "dup") {
     return (
       <div
         className={cx(
@@ -106,7 +140,9 @@ export function WaitlistForm({
         )}
         role="status"
       >
-        <p className="font-serif text-[1.25rem]">{WAITLIST_DONE.headline}</p>
+        <p className="font-serif text-[1.25rem]">
+          {status === "dup" ? WAITLIST_DONE.already : WAITLIST_DONE.headline}
+        </p>
         <p
           className={cx(
             "mt-1 truncate font-mono text-[.85rem]",

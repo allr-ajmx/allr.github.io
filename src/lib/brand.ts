@@ -269,6 +269,7 @@ export const PRICING = {
 
 export const WAITLIST_DONE = {
   headline: "You’re on the list.",
+  already: "You’re already on the list.",
   sub: "We’ll write when it’s your turn.",
   stamp: "In line",
   share: "Share Allr",

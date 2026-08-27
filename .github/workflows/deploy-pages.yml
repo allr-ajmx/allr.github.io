@@ -40,6 +40,11 @@ jobs:
           # Project Pages URL: https://allr-ajmx.github.io/allr.github.io/
           BASE_PATH: /allr.github.io
           NEXT_PUBLIC_SITE_URL: https://allr-ajmx.github.io/allr.github.io
+          # Waitlist → Firestore. Repository secrets (Settings → Secrets and
+          # variables → Actions → Secrets); see firebase/README.md. These are
+          # baked into the public bundle by design — the rules are the security.
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
         run: pnpm build
 
       # postbuild (package.json) already copies OG/icons to .png + .nojekyll
