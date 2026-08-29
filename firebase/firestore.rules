@@ -21,6 +21,28 @@ service cloud.firestore {
         && request.resource.data.createdAt < request.time + duration.value(5, 'm');
       allow read, update, delete: if false;
     }
+    // Mobile closed beta: same shape as the waitlist, plus which platform the
+    // person wants. A separate collection so someone already on the main
+    // waitlist can still join the beta (both use the email hash as the id).
+    match /beta_signups/{id} {
+      allow create: if
+        request.resource.data.keys().hasOnly(['email', 'source', 'createdAt', 'userAgent', 'platform'])
+        && request.resource.data.email is string
+        && request.resource.data.email.size() >= 6
+        && request.resource.data.email.size() <= 254
+        && request.resource.data.email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')
+        && request.resource.data.source is string
+        && request.resource.data.source.size() <= 64
+        && request.resource.data.userAgent is string
+        && request.resource.data.userAgent.size() <= 512
+        && request.resource.data.platform in ['android', 'ios', 'either']
+        // client clock, but must be within five minutes of server time
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.createdAt > request.time - duration.value(5, 'm')
+        && request.resource.data.createdAt < request.time + duration.value(5, 'm');
+      allow read, update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

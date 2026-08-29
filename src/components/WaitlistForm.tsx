@@ -7,6 +7,11 @@ import { cx } from "@/lib/cx";
 
 type Variant = "inline" | "onGreen";
 
+/** Firestore collection to create in. Each has its own rule block. */
+type Collection = "waitlist" | "beta_signups";
+
+export type PlatformOption = { id: string; label: string };
+
 const FIREBASE_PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 const FIREBASE_API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 const WAITLIST_URL = process.env.NEXT_PUBLIC_WAITLIST_URL;
@@ -23,14 +28,20 @@ async function sha256Hex(text: string) {
 /** Which deployment the signup came from, e.g. "https://allr.work". */
 const source = () => (typeof location !== "undefined" ? location.origin : "unknown").slice(0, 64);
 
-async function submitEmail(email: string) {
+async function submitEmail(
+  email: string,
+  collection: Collection,
+  platform?: string,
+) {
   // 1. Firestore, straight from the browser. Rules allow create only; the
   //    document id is the hash of the email so duplicates are refused (409).
+  //    Each collection has its own id space, so someone already on the main
+  //    waitlist can still join the mobile beta.
   if (FIREBASE_PROJECT_ID && FIREBASE_API_KEY) {
     const id = await sha256Hex(email);
     const url =
       `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}` +
-      `/databases/(default)/documents/waitlist?documentId=${id}&key=${FIREBASE_API_KEY}`;
+      `/databases/(default)/documents/${collection}?documentId=${id}&key=${FIREBASE_API_KEY}`;
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -40,6 +51,7 @@ async function submitEmail(email: string) {
           source: { stringValue: source() },
           userAgent: { stringValue: navigator.userAgent.slice(0, 512) },
           createdAt: { timestampValue: new Date().toISOString() },
+          ...(platform ? { platform: { stringValue: platform } } : {}),
         },
       }),
     });
@@ -55,7 +67,7 @@ async function submitEmail(email: string) {
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ email, source: source() }),
+      body: JSON.stringify({ email, source: source(), platform }),
     });
     if (!res.ok) throw new Error("waitlist");
     return;
@@ -90,11 +102,25 @@ async function submitEmail(email: string) {
 export function WaitlistForm({
   variant = "inline",
   id,
+  collection = "waitlist",
+  platforms,
+  platformLegend,
+  submitLabel = CTA.primary,
+  done,
 }: {
   variant?: Variant;
   id?: string;
+  /** Which list this form joins. */
+  collection?: Collection;
+  /** Show a platform chooser and record the choice with the signup. */
+  platforms?: readonly PlatformOption[];
+  platformLegend?: string;
+  submitLabel?: string;
+  /** Overrides the confirmation copy. Defaults to WAITLIST_DONE. */
+  done?: { headline: string; sub: string };
 }) {
   const [email, setEmail] = useState("");
+  const [platform, setPlatform] = useState(platforms?.[0]?.id);
   const [status, setStatus] = useState<"idle" | "sending" | "ok" | "dup" | "err">(
     "idle",
   );
@@ -111,7 +137,7 @@ export function WaitlistForm({
     }
     setStatus("sending");
     try {
-      await submitEmail(value);
+      await submitEmail(value, collection, platform);
       setStatus("ok");
     } catch (e) {
       setStatus(e instanceof AlreadyOnList ? "dup" : "err");
@@ -144,7 +170,9 @@ export function WaitlistForm({
         role="status"
       >
         <p className="font-serif text-[1.25rem]">
-          {status === "dup" ? WAITLIST_DONE.already : WAITLIST_DONE.headline}
+          {status === "dup"
+            ? WAITLIST_DONE.already
+            : (done?.headline ?? WAITLIST_DONE.headline)}
         </p>
         <p
           className={cx(
@@ -160,7 +188,7 @@ export function WaitlistForm({
             onGreen ? "text-white/90" : "text-ink-soft",
           )}
         >
-          {WAITLIST_DONE.sub}
+          {done?.sub ?? WAITLIST_DONE.sub}
         </p>
         <button
           type="button"
@@ -176,15 +204,8 @@ export function WaitlistForm({
     );
   }
 
-  return (
-    <form
-      id={id}
-      onSubmit={onSubmit}
-      className={cx(
-        "relative flex w-full max-w-[520px] flex-col gap-2.5 sm:flex-row sm:items-center",
-        onGreen && "mx-auto",
-      )}
-    >
+  const row = (
+    <>
       <label className="sr-only" htmlFor={id ? `${id}-email` : "waitlist-email"}>
         Email
       </label>
@@ -212,7 +233,7 @@ export function WaitlistForm({
         disabled={status === "sending"}
         className="shrink-0"
       >
-        {status === "sending" ? "Joining…" : CTA.primary}
+        {status === "sending" ? "Joining\u2026" : submitLabel}
       </Button>
       {status === "err" ? (
         <p
@@ -225,6 +246,61 @@ export function WaitlistForm({
           Try that email again?
         </p>
       ) : null}
+    </>
+  );
+
+  // With a platform chooser the row needs a column above it; without one the
+  // markup stays exactly as the homepage has always rendered it.
+  if (platforms?.length) {
+    return (
+      <form
+        id={id}
+        onSubmit={onSubmit}
+        className={cx(
+          "flex w-full max-w-[520px] flex-col items-center gap-3.5",
+          onGreen && "mx-auto",
+        )}
+      >
+        <div className="relative flex w-full flex-col gap-2.5 sm:flex-row sm:items-center">
+          {row}
+        </div>
+        <fieldset className="flex items-center gap-2">
+          <legend className="sr-only">{platformLegend ?? "Platform"}</legend>
+          {platforms.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setPlatform(option.id)}
+              aria-pressed={platform === option.id}
+              className={cx(
+                "cursor-pointer rounded-chip border px-3.5 py-1.5 text-[.85rem] font-bold transition-colors duration-200",
+                platform === option.id
+                  ? onGreen
+                    ? "border-white/45 bg-white/20 text-white"
+                    : "border-green-line bg-green-tint text-green-deep"
+                  : onGreen
+                    ? "border-white/20 text-white/75 hover:border-white/35 hover:text-white"
+                    : "border-line text-ink-soft hover:border-[#D8CFBB] hover:text-ink",
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </fieldset>
+      </form>
+    );
+  }
+
+  return (
+    <form
+      id={id}
+      onSubmit={onSubmit}
+      className={cx(
+        "relative flex w-full max-w-[520px] flex-col gap-2.5 sm:flex-row sm:items-center",
+        onGreen && "mx-auto",
+      )}
+    >
+      {row}
     </form>
   );
 }

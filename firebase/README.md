@@ -1,8 +1,19 @@
 # Waitlist on Firebase (Firestore)
 
-Signups from the site go straight into a Firestore collection called `waitlist`,
-one document per email. The browser can only **create**; it can never read or
-list the collection, so the public web API key exposes nothing.
+Signups from the site go straight into Firestore, one document per email. The
+browser can only **create**; it can never read or list a collection, so the
+public web API key exposes nothing.
+
+There are two collections:
+
+| Collection | Written by | Extra field |
+|---|---|---|
+| `waitlist` | The early-access form on `/` (`#early-access`) | — |
+| `beta_signups` | The mobile closed-beta form on `/app` (`#get`) | `platform` — `android`, `ios` or `either` |
+
+They are separate so someone already on the early-access list can still join the
+mobile beta: both use the email hash as the document id, so one shared
+collection would reject the second signup.
 
 ## One-time setup
 
@@ -20,10 +31,11 @@ list the collection, so the public web API key exposes nothing.
 
 ## How it works
 
-`src/components/WaitlistForm.tsx` calls the Firestore REST API:
+`src/components/WaitlistForm.tsx` calls the Firestore REST API — the same
+component serves both forms, with the collection passed as a prop:
 
 ```
-POST https://firestore.googleapis.com/v1/projects/{projectId}/databases/(default)/documents/waitlist?documentId={sha256(email)}&key={apiKey}
+POST https://firestore.googleapis.com/v1/projects/{projectId}/databases/(default)/documents/{collection}?documentId={sha256(email)}&key={apiKey}
 ```
 
 The document id is the SHA-256 of the lower-cased email, so a second signup
@@ -33,10 +45,11 @@ with the same address is rejected by Firestore (409) and shown as
 
 ## Reading the list
 
-Firebase console → Firestore → `waitlist`, or export with the Firebase CLI:
+Firebase console → Firestore → `waitlist` or `beta_signups`, or export with the
+Firebase CLI:
 
 ```
-firebase firestore:export ./waitlist-export --collection-ids waitlist
+firebase firestore:export ./waitlist-export --collection-ids waitlist,beta_signups
 ```
 
 ## Hardening later (optional)
@@ -45,3 +58,10 @@ firebase firestore:export ./waitlist-export --collection-ids waitlist
   once enabled.
 - A Cloud Function on `waitlist/{id}` create can send the welcome email and
   compute a position (needs the Blaze plan).
+
+## When the rules change
+
+`firestore.rules` is not deployed by CI. After editing it — for example when
+`beta_signups` was added — re-paste it in the console (Rules tab → Publish) or
+run `firebase deploy --only firestore:rules`. Until that happens the new
+collection's writes are refused and the form shows its error state.
