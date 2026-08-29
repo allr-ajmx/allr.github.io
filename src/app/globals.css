@@ -45,6 +45,8 @@
   --radius-control: 10px; /* buttons, inputs, chips */
   --radius-chip: 8px; /* small tags / status */
   --radius-panel: 20px; /* large feature bands */
+  --radius-frame: 22px; /* a screenshot / app-window frame */
+  --radius-phone: 36px; /* the phone shell in a device frame */
   --shadow-soft: 0 8px 24px rgba(34, 59, 51, 0.07);
   --shadow-lift: 0 18px 48px rgba(34, 59, 51, 0.11);
 
