@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cx } from "@/lib/cx";
 
 type Variant = "green" | "ghost" | "white";
@@ -60,6 +61,15 @@ export function Button({
   );
 
   if (href) {
+    // Root-relative links go through next/link so the basePath is applied on
+    // the GitHub Pages subpath deploy. Everything else is a plain anchor.
+    if (href.startsWith("/")) {
+      return (
+        <Link href={href} className={classes}>
+          {children}
+        </Link>
+      );
+    }
     return (
       <a href={href} className={classes}>
         {children}
