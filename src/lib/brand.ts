@@ -334,9 +334,146 @@ export const DOWNLOAD = {
   sub: "The desktop app for macOS, Windows and Linux. Describe what you need; it comes back finished, and published.",
   yours: "Your platform",
   requirements: "Requirements",
-  version: (v: string, when: string) => `Allr Desktop v${v} · ${when}`,
+  version: (v: string, when: string | null) =>
+    when ? `Allr Desktop v${v} · ${when}` : `Allr Desktop v${v}`,
+  /** Shown when the release API was unreachable at build time. */
+  versionUnknown: "Latest release",
   mobileTitle: "On your phone",
   mobileBody: "Allr for phone and tablet is on its way. Get on the list and we’ll write when it’s your turn.",
   mobileCta: "Get early access",
   back: "Back to Allr",
+  /** Per-platform, keyed by `Platform` in `lib/releases.ts`. */
+  needs: {
+    macos: "Apple silicon and Intel — one universal build.",
+    windows: "Windows 10 or later, 64-bit.",
+    linux: "x86-64. The AppImage and tarball run on most distributions; the .deb is for Debian and Ubuntu, the .rpm for Fedora, RHEL and openSUSE.",
+  },
+  seeApp: "See the app",
+} as const;
+
+/**
+ * The app page (`/app`). One idea: every tool you work in, in one place, on
+ * every device you own.
+ *
+ * Ported from the primary-website `/client` page and rewritten into the voice
+ * in DESIGN.md — same sections, same ideas, none of the power-user words from
+ * NEVER_SAY. Anything about how we build or release the app belongs in the
+ * repo, not on this page.
+ */
+export const APP = {
+  title: "The app",
+  /** ~120 chars, matching SITE_DESCRIPTION. */
+  description:
+    "One app for all of it — writing, design, video, publishing — on your desktop and, soon, on your phone.",
+
+  hero: {
+    headline: "One app for all of it.",
+    subLead: "Every tool you work in, brought together ",
+    subSwash: "in one place",
+    subRest: ", on every device you own.",
+    betaTitle: "Android and iOS are in closed beta",
+    betaSub: "The whole app, on your phone.",
+    betaCta: "Join the beta",
+  },
+
+  one: {
+    eyebrow: "One place",
+    title: "Everything in one window",
+    body: "Documents, video, design, marketing, publishing, automation — today each one is its own app, its own login, its own island. Allr is where all of it comes together.",
+    legend: [
+      { status: "planned", label: "Planned" },
+      { status: "progress", label: "In progress" },
+      { status: "working", label: "Working" },
+    ],
+    modules: [
+      { name: "Docs, sheets and decks", status: "planned" },
+      { name: "Video editing", status: "planned" },
+      { name: "Design and images", status: "planned" },
+      { name: "Marketing that runs itself", status: "planned" },
+      { name: "Publishing and marketplace", status: "planned" },
+      { name: "Automations", status: "planned" },
+      { name: "Apps that run themselves", status: "planned" },
+      { name: "Memory that learns your work", status: "planned" },
+    ],
+    card: {
+      title: "Allr",
+      body: "One window, one login, one set of shortcuts — and a workspace that reaches every part of it without you switching apps.",
+      platforms: "Windows, macOS, Linux, Android and iOS.",
+    },
+  },
+
+  inside: {
+    eyebrow: "Inside the app",
+    title: "A whole workspace, ready to go",
+    capabilities: [
+      {
+        title: "The full workspace",
+        body: "Writing, editing, files, previews and project status — side by side in panes you can resize, with Allr working in them beside you.",
+        tint: "green",
+        icon: "workspace",
+      },
+      {
+        title: "Allr drives it",
+        body: "It opens a preview, runs a step, reveals a pane, rearranges your layout and walks you through a task. The app is something it uses, not just something it talks about.",
+        tint: "honey",
+        icon: "spark",
+      },
+      {
+        title: "Add what you need",
+        body: "Browse, install and set up add-ons from one screen. Add one by link, watch how it’s doing, and give it its own place in the app.",
+        tint: "sage",
+        icon: "puzzle",
+      },
+      {
+        title: "Work that runs without you",
+        body: "Schedule a job, hand a task off to run on its own, and let it keep going across machines. Close the lid; come back to finished work.",
+        tint: "clay",
+        icon: "clock",
+      },
+      {
+        title: "Connect to any workspace",
+        body: "On this machine, on another one of yours, or hosted for you — all managed from one screen. Every home for your work, the same app.",
+        tint: "green",
+        icon: "link",
+      },
+      {
+        title: "Always a keystroke away",
+        body: "It waits quietly with a tray icon and one shortcut. A single input bar appears over whatever you were doing, and grows as it answers.",
+        tint: "honey",
+        icon: "bolt",
+      },
+    ],
+  },
+
+  growing: {
+    title: "And it keeps growing",
+    body: "New things land continuously — voice on the device, more add-ons, more of the workspace under Allr’s hands. The app is growing faster than any one of the tools it replaces.",
+  },
+
+  get: {
+    title: "Get the app",
+    betaLead: "Android and iOS are in ",
+    betaStrong: "closed beta",
+    betaRest: ". The same app, the same screens, on your phone.",
+    betaCta: "Join the beta",
+    betaSending: "Sending…",
+    betaDone: "You’re on the list.",
+    betaDoneSub: "Invites go out in batches, so it may be a little while.",
+    betaLegend: "Which platform?",
+    betaPlatforms: [
+      { id: "android", label: "Android" },
+      { id: "ios", label: "iOS" },
+      { id: "either", label: "Either" },
+    ],
+  },
+
+  download: {
+    /** Under the buttons, next to the version. */
+    free: "free while in beta",
+    version: (v: string) => `Version ${v}`,
+    versionUnknown: "Latest release",
+    forPlatform: (name: string) => `Download for ${name}`,
+    /** Before the visitor's platform is known — and what the server renders. */
+    anyPlatform: "Download the app",
+  },
 } as const;
