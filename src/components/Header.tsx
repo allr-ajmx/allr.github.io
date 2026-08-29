@@ -12,6 +12,7 @@ const NAV_LINKS = [
   { href: "#how", label: "How it works" },
   { href: "#makes", label: "What it makes" },
   { href: "#phone", label: "On your phone" },
+  { href: "/app", label: "The app" },
 ];
 
 export function Header() {

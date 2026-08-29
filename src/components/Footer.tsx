@@ -22,6 +22,9 @@ export function Footer() {
         <Link href="/#how" className="text-ink-soft no-underline hover:text-ink">
           How it works
         </Link>
+        <Link href="/app" className="text-ink-soft no-underline hover:text-ink">
+          The app
+        </Link>
         <Link
           href="/#early-access"
           className="text-ink-soft no-underline hover:text-ink"
