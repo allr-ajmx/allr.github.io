@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { AmbientBackground } from "@/components/AmbientBackground";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
@@ -10,15 +10,41 @@ import { AllrMark } from "@/components/ui/AllrMark";
 import { PlatformIcon } from "@/components/ui/PlatformIcon";
 import { DOWNLOAD } from "@/lib/brand";
 import { cx } from "@/lib/cx";
-import { DESKTOP_RELEASED, DESKTOP_VERSION, PLATFORM_ORDER, PLATFORMS, detectPlatform, type Platform } from "@/lib/downloads";
+import {
+  detectPlatform,
+  fetchLatestRelease,
+  formatReleaseDate,
+  formatSize,
+  PLATFORM_LABELS,
+  PLATFORM_ORDER,
+  resolveDownloads,
+  type Platform,
+  type Release,
+} from "@/lib/releases";
 
-export function DownloadPage() {
+/** The detected platform never changes during a session, so nothing to watch. */
+const noopSubscribe = () => () => {};
+
+export function DownloadPage({ release: initial }: { release: Release | null }) {
+  const [release, setRelease] = useState(initial);
+
   // Detected once on the client; the server renders no "your platform" badge.
   const mine = useSyncExternalStore<Platform | undefined>(
-    () => () => {},
-    () => detectPlatform(navigator.userAgent),
+    noopSubscribe,
+    () => detectPlatform(),
     () => undefined,
   );
+
+  // Catch a release published since the last site build.
+  useEffect(() => {
+    let live = true;
+    fetchLatestRelease().then((fresh) => {
+      if (live && fresh) setRelease(fresh);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   return (
     <>
@@ -34,14 +60,16 @@ export function DownloadPage() {
             {DOWNLOAD.sub}
           </p>
           <p className="hero-enter mt-6 rounded-chip border border-line bg-card/80 px-3 py-1.5 font-mono text-[.78rem] text-ink-soft" style={{ animationDelay: "0.3s" }}>
-            {DOWNLOAD.version(DESKTOP_VERSION, DESKTOP_RELEASED)}
+            {release
+              ? DOWNLOAD.version(release.version, formatReleaseDate(release.publishedAt))
+              : DOWNLOAD.versionUnknown}
           </p>
         </section>
 
         <section className="wrap pb-16">
           <div className="grid gap-5 md:grid-cols-3">
             {PLATFORM_ORDER.map((id, i) => {
-              const p = PLATFORMS[id];
+              const builds = resolveDownloads(release, id);
               const yours = mine === id;
               return (
                 <Reveal
@@ -57,12 +85,12 @@ export function DownloadPage() {
                   ) : null}
                   <div className="mb-5 flex items-center gap-3">
                     <span className="flex size-11 items-center justify-center rounded-control bg-paper text-ink"><PlatformIcon platform={id} size={22} /></span>
-                    <h2 className="text-[1.35rem]">{p.name}</h2>
+                    <h2 className="text-[1.35rem]">{PLATFORM_LABELS[id]}</h2>
                   </div>
                   <div className="flex flex-col gap-2.5">
-                    {p.builds.map((b, k) => (
+                    {builds.map((b, k) => (
                       <a
-                        key={b.href}
+                        key={b.id}
                         href={b.href}
                         download
                         className={cx(
@@ -70,13 +98,15 @@ export function DownloadPage() {
                           k === 0 ? "bg-ink text-paper hover:bg-[#1a2e28]" : "border border-line bg-card text-ink hover:border-honey-line hover:bg-paper",
                         )}
                       >
-                        {b.label}
-                        <span className={cx("text-[.72rem] font-semibold", k === 0 ? "text-paper/70" : "text-ink-soft")}>{b.note}</span>
+                        {k === 0 ? `Download for ${PLATFORM_LABELS[id]}` : b.label}
+                        <span className={cx("text-[.72rem] font-semibold", k === 0 ? "text-paper/70" : "text-ink-soft")}>
+                          {[k === 0 ? b.label : null, b.hint, b.size ? formatSize(b.size) : null].filter(Boolean).join(" · ")}
+                        </span>
                       </a>
                     ))}
                   </div>
                   <p className="mt-5 text-[.85rem] leading-relaxed text-ink-soft">
-                    <span className="font-bold text-ink">{DOWNLOAD.requirements}: </span>{p.requirements}
+                    <span className="font-bold text-ink">{DOWNLOAD.requirements}: </span>{DOWNLOAD.needs[id]}
                   </p>
                 </Reveal>
               );
@@ -95,8 +125,9 @@ export function DownloadPage() {
               {DOWNLOAD.mobileCta}
             </Link>
           </Reveal>
-          <p className="mt-8 text-center">
+          <p className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-center">
             <Link href="/" className="text-[.92rem] font-bold text-honey-deep no-underline underline-offset-[3px] hover:underline">← {DOWNLOAD.back}</Link>
+            <Link href="/app" className="text-[.92rem] font-bold text-honey-deep no-underline underline-offset-[3px] hover:underline">{DOWNLOAD.seeApp} →</Link>
           </p>
         </section>
       </main>

@@ -1,4 +1,4 @@
-import type { Platform } from "@/lib/downloads";
+import type { Platform } from "@/lib/releases";
 
 /** Monochrome platform glyphs, drawn in currentColor. */
 export function PlatformIcon({ platform, size = 18, className }: { platform: Platform | "mobile"; size?: number; className?: string }) {
