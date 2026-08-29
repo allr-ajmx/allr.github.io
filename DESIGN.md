@@ -305,6 +305,8 @@ Campaign pages may cut sections. They may not reorder the six outputs, swap the 
 | `src/lib/site.ts` | Canonical URL + re-exports |
 | `src/app/globals.css` | Tokens, atmosphere, motion |
 | `src/components/ui/` | Primitives |
+| `src/components/app/` | The `/app` page sections and its two drawn screens |
+| `src/lib/releases.ts` | The latest desktop release — the only source of download links |
 | `MOTION.md` | Homepage motion & stills contract |
 | `public/visuals/` | Editorial stills (desk, six artifacts) |
 | `public/logo_base.svg` | Mark |
@@ -321,6 +323,10 @@ Answered while this vocabulary was written. Do not reopen on a later page.
 | Docs atmosphere | **One Allr: paper** | `allr-agent/website` defaults to the landing paper wash. Same faces and hues. Dark is opt-in pine, never navy. Denser layout is fine |
 | Primary CTA | **Waitlist / early access form** | Keep the line “Get early access.” When “Coming soon” is retired, primary goes to a waitlist form — not install, not docs. Install stays a secondary path |
 | `/design` visibility | **URL only** | Noindex. No footer link. Team and agents open `/design` directly |
+| The app page | **`/app`, in the nav** | Ported from the primary-website `/client` page and rewritten into this voice. Copy lives in `APP` in `src/lib/brand.ts`. `/download` stays as its own page; both read the same release data |
+| Where a download button goes | **`/download`, always** | Only `/download` links at a release asset. Every download button elsewhere — the homepage hero, both on `/app` — navigates there first, so the formats, sizes and requirements are read before anything is fetched |
+| Download links | **Live from GitHub Releases** | `src/lib/releases.ts` is the only source. Fetched at build time so the static export works with no JS, re-fetched on mount so a new release reaches visitors before the next site build. Targets the `Allr_*` full bundles. Never hand-write a version or an asset URL |
+| Mobile beta list | **Separate Firestore collection** | `beta_signups`, not `waitlist`, so someone already on the early-access list can still join the mobile beta. Rules in `firebase/firestore.rules` |
 
 ## 17. Still open
 

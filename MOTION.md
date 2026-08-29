@@ -209,6 +209,23 @@ Keep. Do not add a second ambient system.
 - Hero letterpress stamp settle (1.25s)
 - `surface-lift` on cards: 3px, 300ms, `--ease-out-soft`
 
+### 5.7 The app page (`M-APP`, `/app`)
+
+The only section here that is not on the homepage. Same four verbs, nothing new.
+
+| Beat | What | Timing |
+|------|------|--------|
+| 1 | H1 settles | `hero-enter`, delay 0.05s |
+| 2 | Sub settles, then the swash inks under "in one place" | `hero-enter` 0.12s, `hero-swash` |
+| 3 | Download row settles | `hero-enter` 0.19s |
+| 4 | Beta strip settles | `hero-enter` 0.26s |
+| 5 | Laptop scales in | `Reveal variant="scale"`, delay 80ms |
+| 6 | Phone rises under its corner | `Reveal variant="up"`, delay 260ms |
+
+Below the hero: `Reveal` only — `left`/`fade`/`right` across the one-window row (the module grid staggers on `--i` via `stagger-child`), a 60ms stagger down the six capability cards, and `scale` on the two bands. The honey and green bands reuse `band-blob`; no new drift.
+
+Both device screens are **drawn UI** (`src/components/app/mocks.tsx`), per §5's rule that no photograph appears on the site. `DeviceFrame` keeps an image path for the day a real capture ships, but the page does not use it.
+
 ### 5.6 What we refuse
 
 - Typewriter on the H1
@@ -230,6 +247,9 @@ Keep. Do not add a second ambient system.
 | Spec | `MOTION.md` (this file) |
 | Still registry | `src/lib/visuals.ts` |
 | Still + states | `src/components/visuals/ArtifactStill.tsx` |
+| App page sequence | `src/components/app/AppHero.tsx` |
+| App page drawn screens | `src/components/app/mocks.tsx` |
+| Device frames | `src/components/ui/DeviceFrame.tsx` |
 | Workspace | `src/components/Workspace.tsx` |
 | The Bloom | `src/components/BloomJourney.tsx` |
 | Petal registry | `src/lib/petals.ts` |
