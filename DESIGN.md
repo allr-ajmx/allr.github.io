@@ -307,7 +307,8 @@ Campaign pages may cut sections. They may not reorder the six outputs, swap the 
 | `src/components/ui/` | Primitives |
 | `src/components/app/` | The `/app` page sections and its two drawn screens |
 | `src/lib/releases.ts` | The latest desktop release — the only source of download links |
-| `vercel.json` | Host routing on allr.work: `/docs` proxies the `allr-agent` docs, `/release` sends people to GitHub Releases |
+| `public/docs/` | The built docs, copied in from `allr-agent/website` by `scripts/sync-docs.mjs`. Generated — never hand-edit a page here |
+| `vercel.json` | Host routing on allr.work: `/release` sends people to GitHub Releases |
 | `MOTION.md` | Homepage motion & stills contract |
 | `public/visuals/` | Editorial stills (desk, six artifacts) |
 | `public/logo_base.svg` | Mark |
@@ -328,7 +329,7 @@ Answered while this vocabulary was written. Do not reopen on a later page.
 | Where a download button goes | **`/download`, always** | Only `/download` links at a release asset. Every download button elsewhere — the homepage hero, both on `/app` — navigates there first, so the formats, sizes and requirements are read before anything is fetched |
 | Download links | **Live from GitHub Releases** | `src/lib/releases.ts` is the only source. Fetched at build time so the static export works with no JS, re-fetched on mount so a new release reaches visitors before the next site build. Targets the `Allr_*` full bundles. Never hand-write a version or an asset URL |
 | Mobile beta list | **Separate Firestore collection** | `beta_signups`, not `waitlist`, so someone already on the early-access list can still join the mobile beta. Rules in `firebase/firestore.rules` |
-| Where the docs live | **`allr-agent/website`, served at `/docs`** | The Docusaurus site stays in the product repo and deploys to that repo's GitHub Pages; `vercel.json` rewrites `allr.work/docs/*` onto it, so one domain, two builds. Its `baseUrl` is `/docs/` — never move it under a subdomain without changing both sides. `/llms.txt` and `/llms-full.txt` proxy the same way |
+| Where the docs live | **Written in `allr-agent`, shipped from `public/docs`** | The Docusaurus source stays in the product repo (`website/`, `baseUrl: '/docs/'`); its finished build is copied into `public/docs` by `pnpm sync-docs` and committed, so allr.work serves the docs from this one deployment with no proxy or second host. The cost is that the snapshot is only as fresh as the last sync: after a docs change, re-run the sync and commit. Never edit a page under `public/docs` — the edit belongs upstream and the next sync would overwrite it. `/llms.txt` and `/llms-full.txt` are copied to the site root the same way |
 | `/release` | **A redirect, not a page** | `allr.work/release` sends visitors to the GitHub Releases page for `allr-ajmx/allr-agent`; `/release/latest` to the latest one. A temporary redirect, so the destination can move. Marketing download buttons still go to `/download` — this is the raw-artifact door for links shared in issues and chat |
 
 ## 17. Still open

@@ -7,6 +7,7 @@
     "build": "next build",
     "postbuild": "node scripts/copy-social-assets.mjs",
     "generate-og": "node scripts/generate-og.mjs",
+    "sync-docs": "node scripts/sync-docs.mjs",
     "start": "next start",
     "lint": "eslint"
   },

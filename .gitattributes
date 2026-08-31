@@ -1,0 +1,4 @@
+# The docs are built in allr-agent and copied in by scripts/sync-docs.mjs.
+# Generated output: keep it out of diffs and out of language stats.
+public/docs/** linguist-generated=true -diff
+public/llms*.txt linguist-generated=true -diff

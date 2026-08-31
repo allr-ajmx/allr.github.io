@@ -1,0 +1,135 @@
+# Allr
+
+> The self-improving AI agent, built on Hermes Agent by Nous Research. A terminal-native autonomous coding and task agent with persistent memory, agent-created skills, and a messaging gateway that lives on 21+ messaging platforms — 19 native to the gateway plus IRC and Microsoft Teams via plugins (Telegram, Discord, Slack, SMS, Matrix, ...). Runs on local, Docker, SSH, Daytona, Modal, or Singularity backends. Works with Nous Portal, OpenRouter, OpenAI, Anthropic, Google, or any OpenAI-compatible endpoint.
+
+Install: `curl -fsSL https://raw.githubusercontent.com/allr-ajmx/allr-agent/main/scripts/install.sh | bash`  (Linux, macOS, WSL2, Termux)
+
+Repo: https://github.com/allr-ajmx/allr-agent
+
+## Getting Started
+
+- [Installation](https://allr.work/docs/getting-started/installation): Install Allr on Linux, macOS, WSL2, native Windows, or Android via Termux
+- [Quickstart](https://allr.work/docs/getting-started/quickstart): Your first conversation with Allr — from install to chatting in under 5 minutes
+- [Learning Path](https://allr.work/docs/getting-started/learning-path): Choose your learning path through the Allr documentation based on your experience level and goals.
+- [Updating](https://allr.work/docs/getting-started/updating): How to update Allr to the latest version or uninstall it
+- [Termux (Android)](https://allr.work/docs/getting-started/termux): Run Allr directly on an Android phone with Termux
+- [Nix Setup](https://allr.work/docs/getting-started/nix-setup): Install and deploy Allr with Nix — from quick `nix run` to fully declarative NixOS module with container mode
+
+## Using Allr
+
+- [CLI](https://allr.work/docs/user-guide/cli): Master the Allr terminal interface — commands, keybindings, personalities, and more
+- [TUI (Ink terminal UI)](https://allr.work/docs/user-guide/tui): Launch the modern terminal UI for Allr — mouse-friendly, rich overlays, and non-blocking input.
+- [Configuration](https://allr.work/docs/user-guide/configuration): Configure Allr — config.yaml, providers, models, API keys, and more
+- [Configuring Models](https://allr.work/docs/user-guide/configuring-models): Assign main and auxiliary models from the dashboard, config file, or CLI, plus per-provider request options.
+- [Sessions](https://allr.work/docs/user-guide/sessions): Session persistence, resume, search, management, and per-platform session tracking
+- [Profiles](https://allr.work/docs/user-guide/profiles): Run multiple independent Allr agents on one machine, each with its own config, keys, memory, and sessions.
+- [Git Worktrees](https://allr.work/docs/user-guide/git-worktrees): Run multiple Allr agents safely on the same repository using git worktrees and isolated checkouts
+- [Docker Backend](https://allr.work/docs/user-guide/docker): Running Allr in Docker and using Docker as a terminal backend
+- [Security](https://allr.work/docs/user-guide/security): Security model, dangerous command approval, user authorization, container isolation, and production deployment best practices
+- [Checkpoints & Rollback](https://allr.work/docs/user-guide/checkpoints-and-rollback): Filesystem safety nets for destructive operations using shadow git repos and automatic snapshots
+
+## Core Features
+
+- [Features Overview](https://allr.work/docs/user-guide/features/overview): A tour of what Allr can do: persistent memory, file-aware context, browser automation, voice, and the features that combine them
+- [Tools](https://allr.work/docs/user-guide/features/tools): Overview of Allr's tools — what's available, how toolsets work, and terminal backends
+- [Skills System](https://allr.work/docs/user-guide/features/skills): On-demand knowledge documents — progressive disclosure, agent-managed skills, and the Skills Hub
+- [Curator](https://allr.work/docs/user-guide/features/curator): Background maintenance for agent-created skills — usage tracking, staleness, archival, and LLM-driven review
+- [Memory](https://allr.work/docs/user-guide/features/memory): How Allr remembers across sessions — MEMORY.md, USER.md, and session search
+- [Memory Providers](https://allr.work/docs/user-guide/features/memory-providers): External memory provider plugins — Honcho, OpenViking, Mem0, Hindsight, Holographic, RetainDB, ByteRover, Supermemory
+- [Context Files](https://allr.work/docs/user-guide/features/context-files): Project context files — .hermes.md, AGENTS.md, CLAUDE.md, global SOUL.md, and .cursorrules — automatically injected into every conversation
+- [Context References](https://allr.work/docs/user-guide/features/context-references): Inline @-syntax for attaching files, folders, git diffs, and URLs directly into your messages
+- [Personality & SOUL.md](https://allr.work/docs/user-guide/features/personality): Customize Allr's personality with a global SOUL.md, built-in personalities, and custom persona definitions
+- [Plugins](https://allr.work/docs/user-guide/features/plugins): Extend Allr with custom tools, hooks, and integrations via the plugin system
+- [Built-in Plugins](https://allr.work/docs/user-guide/features/built-in-plugins): Plugins shipped with Allr that run automatically via lifecycle hooks — disk-cleanup and friends
+
+## Automation
+
+- [Cron Jobs](https://allr.work/docs/user-guide/features/cron): Schedule automated tasks with natural language, manage them with one cron tool, and attach one or more skills
+- [Delegation](https://allr.work/docs/user-guide/features/delegation): Spawn isolated child agents for parallel workstreams with delegate_task
+- [Kanban Multi-Agent](https://allr.work/docs/user-guide/features/kanban): Durable SQLite-backed task board for coordinating multiple Allr profiles
+- [Kanban Tutorial](https://allr.work/docs/user-guide/features/kanban-tutorial): A dashboard walkthrough of four kanban workflows: solo feature work, fleet farming, role pipelines, and crash recovery.
+- [Persistent Goals](https://allr.work/docs/user-guide/features/goals): Set a standing goal and let Allr keep working across turns until it's done. Our take on the Ralph loop.
+- [Code Execution](https://allr.work/docs/user-guide/features/code-execution): Programmatic Python execution with RPC tool access — collapse multi-step workflows into a single turn
+- [Hooks](https://allr.work/docs/user-guide/features/hooks): Run custom code at key lifecycle points — log activity, send alerts, post to webhooks
+- [Batch Processing](https://allr.work/docs/user-guide/features/batch-processing): Generate agent trajectories at scale — parallel processing, checkpointing, and toolset distributions
+
+## Media & Web
+
+- [Voice Mode](https://allr.work/docs/user-guide/features/voice-mode): Real-time voice conversations with Allr — CLI, Telegram, Discord (DMs, text channels, and voice channels)
+- [Browser](https://allr.work/docs/user-guide/features/browser)
+- [Vision](https://allr.work/docs/user-guide/features/vision)
+- [Image Generation](https://allr.work/docs/user-guide/features/image-generation)
+- [Text-to-Speech](https://allr.work/docs/user-guide/features/tts): Text-to-speech and voice message transcription across all platforms
+
+## Messaging Platforms
+
+- [Overview](https://allr.work/docs/user-guide/messaging/index): Chat with Allr from Telegram, Discord, Slack, WhatsApp, Signal, SMS, Email, Home Assistant, Mattermost, Matrix, DingTalk, Yuanbao, Microsoft Teams, LINE, Raft, Webhooks, or any OpenAI-compatible frontend via the API server — architecture and setup overview
+- [Telegram](https://allr.work/docs/user-guide/messaging/telegram): Set up Allr as a Telegram bot
+- [Discord](https://allr.work/docs/user-guide/messaging/discord): Set up Allr as a Discord bot
+- [Slack](https://allr.work/docs/user-guide/messaging/slack): Set up Allr as a Slack bot using Socket Mode
+- [WhatsApp](https://allr.work/docs/user-guide/messaging/whatsapp): Set up Allr as a WhatsApp bot via the built-in Baileys bridge
+- [Signal](https://allr.work/docs/user-guide/messaging/signal): Set up Allr as a Signal messenger bot via signal-cli daemon
+- [Email](https://allr.work/docs/user-guide/messaging/email): Set up Allr as an email assistant via IMAP/SMTP
+- [SMS](https://allr.work/docs/user-guide/messaging/sms): Set up Allr as an SMS chatbot via Twilio
+- [Matrix](https://allr.work/docs/user-guide/messaging/matrix): Set up Allr as a Matrix bot
+- [Mattermost](https://allr.work/docs/user-guide/messaging/mattermost): Set up Allr as a Mattermost bot
+- [Home Assistant](https://allr.work/docs/user-guide/messaging/homeassistant)
+- [Webhooks](https://allr.work/docs/user-guide/messaging/webhooks): Receive events from GitHub, GitLab, and other services to trigger Allr agent runs
+
+## Integrations
+
+- [Integrations Overview](https://allr.work/docs/integrations/index): Index of Allr integrations — inference providers, MCP tool servers, web search, browser, voice, memory, messaging platforms, and plugins
+- [Providers](https://allr.work/docs/integrations/providers): Configuring inference providers for Allr — cloud APIs, OAuth logins, self-hosted endpoints, named custom providers, routing, and fallbacks
+- [MCP (Model Context Protocol)](https://allr.work/docs/user-guide/features/mcp): Connect Allr to external tool servers via MCP — and control exactly which MCP tools Allr loads
+- [ACP (Agent Context Protocol)](https://allr.work/docs/user-guide/features/acp): Use Allr inside ACP-compatible editors and collaboration platforms
+- [API Server](https://allr.work/docs/user-guide/features/api-server): Expose allr-agent as an OpenAI-compatible API for any frontend
+- [Honcho Memory](https://allr.work/docs/user-guide/features/honcho): AI-native persistent memory via Honcho — dialectic reasoning, multi-agent user modeling, and deep personalization
+- [Provider Routing](https://allr.work/docs/user-guide/features/provider-routing)
+- [Fallback Providers](https://allr.work/docs/user-guide/features/fallback-providers)
+- [Credential Pools](https://allr.work/docs/user-guide/features/credential-pools)
+
+## Guides & Tutorials
+
+- [Tips & Best Practices](https://allr.work/docs/guides/tips): Practical advice to get the most out of Allr — prompt tips, CLI shortcuts, context files, memory, cost optimization, and security
+- [Local LLMs on Mac](https://allr.work/docs/guides/local-llm-on-mac): Set up a local OpenAI-compatible LLM server on macOS with llama.cpp or MLX, including model selection, memory optimization, and real benchmarks on Apple Silicon
+- [Daily Briefing Bot](https://allr.work/docs/guides/daily-briefing-bot): Build an automated daily briefing bot that researches topics, summarizes findings, and delivers them to Telegram or Discord every morning
+- [Team Telegram Assistant](https://allr.work/docs/guides/team-telegram-assistant): Step-by-step guide to setting up a Telegram bot that your whole team can use for code help, research, system admin, and more
+- [Use Allr as a Python Library](https://allr.work/docs/guides/python-library): Embed AIAgent in your own Python scripts, web apps, or automation pipelines — no CLI required
+- [Use MCP with Allr](https://allr.work/docs/guides/use-mcp-with-allr): A practical guide to connecting MCP servers to Allr, filtering their tools, and using them safely in real workflows
+- [Use Voice Mode with Allr](https://allr.work/docs/guides/use-voice-mode-with-allr): A practical guide to setting up and using Allr voice mode across CLI, Telegram, Discord, and Discord voice channels
+- [Use SOUL.md with Allr](https://allr.work/docs/guides/use-soul-with-allr): How to use SOUL.md to shape Allr's default voice, what belongs there, and how it differs from AGENTS.md and /personality
+- [Build an Allr Plugin](https://allr.work/docs/guides/build-a-hermes-plugin)
+- [Automate with Cron](https://allr.work/docs/guides/automate-with-cron): Real-world automation patterns using Allr cron — monitoring, reports, pipelines, and multi-skill workflows
+- [Work with Skills](https://allr.work/docs/guides/work-with-skills): Find, install, use, and create skills — on-demand knowledge that teaches Allr new workflows
+- [Delegation Patterns](https://allr.work/docs/guides/delegation-patterns): When and how to use subagent delegation — patterns for parallel research, code review, and multi-file work
+- [GitHub PR Review Agent](https://allr.work/docs/guides/github-pr-review-agent): Build an automated AI code reviewer that monitors your repos, reviews pull requests, and delivers feedback — hands-free
+
+## Developer Guide
+
+- [Contributing](https://allr.work/docs/developer-guide/contributing): How to contribute to Allr — dev setup, code style, PR process
+- [Architecture](https://allr.work/docs/developer-guide/architecture): Allr internals — major subsystems, execution paths, data flow, and where to read next
+- [Agent Loop](https://allr.work/docs/developer-guide/agent-loop): Detailed walkthrough of AIAgent execution, API modes, tools, callbacks, and fallback behavior
+- [Prompt Assembly](https://allr.work/docs/developer-guide/prompt-assembly): How Allr builds the system prompt, preserves cache stability, and injects ephemeral layers
+- [Context Compression & Caching](https://allr.work/docs/developer-guide/context-compression-and-caching): The pluggable context engine, gateway and agent compression thresholds, summary generation, and Anthropic prompt cache markers
+- [Gateway Internals](https://allr.work/docs/developer-guide/gateway-internals): How the messaging gateway boots, authorizes users, routes sessions, and delivers messages
+- [Session Storage](https://allr.work/docs/developer-guide/session-storage): The SQLite state database behind Allr sessions — schema, FTS5 search, migrations, write contention, lineage, and export
+- [Provider Runtime](https://allr.work/docs/developer-guide/provider-runtime): How Allr resolves providers, credentials, API modes, and auxiliary models at runtime
+- [Adding Tools](https://allr.work/docs/developer-guide/adding-tools): How to add a new tool to Allr — schemas, handlers, registration, and toolsets
+- [Adding Providers](https://allr.work/docs/developer-guide/adding-providers): How to add a new inference provider to Allr — auth, runtime resolution, CLI flows, adapters, tests, and docs
+- [Adding Platform Adapters](https://allr.work/docs/developer-guide/adding-platform-adapters): How to add a messaging platform to the Allr gateway — plugin adapters, the built-in checklist, config bridging, and cron delivery
+- [Creating Skills](https://allr.work/docs/developer-guide/creating-skills): How to create skills for Allr — SKILL.md format, guidelines, and publishing
+- [Extending the CLI](https://allr.work/docs/developer-guide/extending-the-cli): Build wrapper CLIs that extend the Allr TUI with custom widgets, keybindings, and layout changes
+
+## Reference
+
+- [CLI Commands](https://allr.work/docs/reference/cli-commands): Authoritative reference for Allr terminal commands and command families
+- [Slash Commands](https://allr.work/docs/reference/slash-commands): Complete reference for interactive CLI and messaging slash commands
+- [Profile Commands](https://allr.work/docs/reference/profile-commands): Reference for every allr profile subcommand — create, use, describe, alias, rename, export/import, and distribution install/update
+- [Environment Variables](https://allr.work/docs/reference/environment-variables): Complete reference of all environment variables used by Allr
+- [Tools Reference](https://allr.work/docs/reference/tools-reference): Authoritative reference for Allr built-in tools, grouped by toolset
+- [Toolsets Reference](https://allr.work/docs/reference/toolsets-reference): Reference for Allr core, composite, platform, and dynamic toolsets
+- [MCP Config Reference](https://allr.work/docs/reference/mcp-config-reference): Reference for Allr MCP configuration keys, filtering semantics, and utility-tool policy
+- [Model Catalog](https://allr.work/docs/reference/model-catalog)
+- [Bundled Skills Catalog](https://allr.work/docs/reference/skills-catalog): Table of all ~90 skills bundled with Allr
+- [Optional Skills Catalog](https://allr.work/docs/reference/optional-skills-catalog): Table of ~60 additional installable skills
+- [FAQ & Troubleshooting](https://allr.work/docs/reference/faq): Frequently asked questions and solutions to common issues with Allr
