@@ -1,0 +1,42 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/release",
+      "destination": "https://github.com/allr-ajmx/allr-agent/releases",
+      "permanent": false
+    },
+    {
+      "source": "/release/",
+      "destination": "https://github.com/allr-ajmx/allr-agent/releases",
+      "permanent": false
+    },
+    {
+      "source": "/release/latest",
+      "destination": "https://github.com/allr-ajmx/allr-agent/releases/latest",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/docs",
+      "destination": "https://allr-ajmx.github.io/allr-agent/docs/"
+    },
+    {
+      "source": "/docs/",
+      "destination": "https://allr-ajmx.github.io/allr-agent/docs/"
+    },
+    {
+      "source": "/docs/:path*",
+      "destination": "https://allr-ajmx.github.io/allr-agent/docs/:path*"
+    },
+    {
+      "source": "/llms.txt",
+      "destination": "https://allr-ajmx.github.io/allr-agent/llms.txt"
+    },
+    {
+      "source": "/llms-full.txt",
+      "destination": "https://allr-ajmx.github.io/allr-agent/llms-full.txt"
+    }
+  ]
+}
