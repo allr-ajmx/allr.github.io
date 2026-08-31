@@ -7,11 +7,17 @@ import { rotationToPoint } from "@/lib/petals";
 import { CTA, WORDMARK } from "@/lib/brand";
 import { cx } from "@/lib/cx";
 
+/**
+ * The header rides on `/app` and `/download` as well as the landing, so every
+ * section link is written from the site root. A bare `#publish` resolves
+ * against the current page — on `/app` it becomes `/app#publish`, an anchor
+ * that does not exist there, and the click does nothing at all.
+ */
 const NAV_LINKS = [
-  { href: "#publish", label: "It's live" },
-  { href: "#how", label: "How it works" },
-  { href: "#makes", label: "What it makes" },
-  { href: "#phone", label: "On your phone" },
+  { href: "/#publish", label: "It's live" },
+  { href: "/#how", label: "How it works" },
+  { href: "/#makes", label: "What it makes" },
+  { href: "/#phone", label: "On your phone" },
   { href: "/app", label: "The app" },
 ];
 
