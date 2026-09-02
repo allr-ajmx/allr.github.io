@@ -1,5 +1,8 @@
 rules_version = '2';
 
+// Deployed by .github/workflows/deploy-firestore-rules.yml on every push to
+// main that touches this file — this is the live rule set, not a copy of it.
+//
 // Waitlist: the website may add one document per email; nobody can read,
 // list, change or delete from the browser. Everything else is denied.
 service cloud.firestore {

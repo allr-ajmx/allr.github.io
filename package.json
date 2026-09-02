@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/check-waitlist-env.mjs",
     "build": "next build",
     "postbuild": "node scripts/copy-social-assets.mjs",
     "generate-og": "node scripts/generate-og.mjs",
