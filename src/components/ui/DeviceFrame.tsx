@@ -100,13 +100,23 @@ export function DeviceFrame({
     );
   }
 
+  // An even bezel with a slightly deeper chin, and nothing above the screen.
+  // The old frame put a 14px speaker strip on top of a 9px bezel, so the top
+  // rail was nearly three times the bottom — which read as a phone held upside
+  // down, especially against a capture that carries its own status bar.
   if (variant === "phone") {
     return (
-      <div className={cx("rounded-phone bg-ink p-[9px] shadow-lift", className)}>
-        <div className="flex h-3.5 items-center justify-center">
-          <span className="h-1 w-9 rounded-full bg-white/25" />
-        </div>
-        {screen("rounded-[calc(var(--radius-phone)-12px)] bg-card")}
+      <div
+        className={cx(
+          "rounded-phone bg-ink px-[7px] pt-[7px] pb-[11px] shadow-lift",
+          className,
+        )}
+      >
+        {screen("rounded-[calc(var(--radius-phone)-9px)] bg-card")}
+        <span
+          className="mx-auto mt-[5px] block h-[3px] w-1/3 rounded-full bg-white/30"
+          aria-hidden="true"
+        />
       </div>
     );
   }
