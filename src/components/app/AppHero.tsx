@@ -78,6 +78,7 @@ export function AppHero({ version }: { version: string | null }) {
               alt="The Allr workspace — sessions, the work in progress, and the files it produced"
               width={1280}
               height={978}
+              bleed={0}
               priority
               sizes="(min-width: 1024px) 52vw, 100vw"
             />
@@ -93,6 +94,7 @@ export function AppHero({ version }: { version: string | null }) {
               alt="Allr on a phone, mid-conversation"
               width={1170}
               height={2532}
+              bleed={0}
               sizes="112px"
             />
           </Reveal>
