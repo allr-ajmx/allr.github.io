@@ -100,23 +100,25 @@ export function DeviceFrame({
     );
   }
 
-  // An even bezel with a slightly deeper chin, and nothing above the screen.
-  // The old frame put a 14px speaker strip on top of a 9px bezel, so the top
-  // rail was nearly three times the bottom — which read as a phone held upside
-  // down, especially against a capture that carries its own status bar.
+  // A modern iPhone: titanium rail, an even black bezel on all four sides, and
+  // the buttons where they actually sit. Every dimension is a percentage of the
+  // frame's own width, because this renders at 112px in the app hero and could
+  // render at 400px elsewhere — the fixed 36px --radius-phone was a 32% corner
+  // at hero size, which is what made it read as a blob rather than a phone.
+  //
+  // Note the bezel is even top and bottom. Phones since the X have no chin;
+  // giving one a deeper bottom rail is what makes it look like the wrong phone.
   if (variant === "phone") {
     return (
-      <div
-        className={cx(
-          "rounded-phone bg-ink px-[7px] pt-[7px] pb-[11px] shadow-lift",
-          className,
-        )}
-      >
-        {screen("rounded-[calc(var(--radius-phone)-9px)] bg-card")}
-        <span
-          className="mx-auto mt-[5px] block h-[3px] w-1/3 rounded-full bg-white/30"
-          aria-hidden="true"
-        />
+      <div className={cx("relative", className)}>
+        <SideButtons />
+        {/* rail */}
+        <div className="rounded-[13%/6%] bg-[linear-gradient(150deg,#9C968E,#6B655F_38%,#8B857D_68%,#5A554F)] p-[1.6%] shadow-lift">
+          {/* bezel */}
+          <div className="rounded-[12%/5.6%] bg-ink p-[2.6%]">
+            {screen("rounded-[10.6%/4.9%] bg-card")}
+          </div>
+        </div>
       </div>
     );
   }
@@ -167,5 +169,23 @@ function Placeholder({ variant }: { variant: FrameVariant }) {
         <path d="M21 16l-5-5-6 6" />
       </svg>
     </div>
+  );
+}
+
+/**
+ * Volume rocker and action button on the left, power on the right. Sized in
+ * percentages so they stay proportional at any frame width, and drawn behind
+ * the rail's own gradient so they read as part of the same machined edge.
+ */
+function SideButtons() {
+  const rail =
+    "absolute w-[1.5%] min-w-[1.5px] rounded-full bg-[linear-gradient(180deg,#8D877F,#615C57)]";
+  return (
+    <span aria-hidden="true">
+      <span className={cx(rail, "top-[16%] left-[-1%] h-[4.5%] rounded-r-none")} />
+      <span className={cx(rail, "top-[24%] left-[-1%] h-[8%] rounded-r-none")} />
+      <span className={cx(rail, "top-[34%] left-[-1%] h-[8%] rounded-r-none")} />
+      <span className={cx(rail, "top-[27%] right-[-1%] h-[11%] rounded-l-none")} />
+    </span>
   );
 }
