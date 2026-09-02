@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { DeckMock } from "@/components/mocks/Mocks";
 import { Parallax } from "@/components/motion/Parallax";
 import { Reveal } from "@/components/Reveal";
@@ -94,6 +95,19 @@ export function OnYourPhone() {
             </Reveal>
           </Parallax>
         </div>
+
+        {/*
+          A phone ask belongs on the mobile beta list, not the general one
+          (DESIGN.md §16) — so this goes to /app#get, never #early-access.
+        */}
+        <Reveal className="mt-2 text-center" delay={120}>
+          <Link
+            href="/app#get"
+            className="text-[.98rem] font-bold text-honey-deep no-underline underline-offset-[3px] hover:underline"
+          >
+            {PHONE.cta} →
+          </Link>
+        </Reveal>
 
       </div>
     </section>

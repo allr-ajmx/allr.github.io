@@ -121,7 +121,7 @@ export function DownloadPage({ release: initial }: { release: Release | null }) 
               <h2 className="mb-1 text-[1.25rem]">{DOWNLOAD.mobileTitle}</h2>
               <p className="text-[.98rem] text-ink-soft">{DOWNLOAD.mobileBody}</p>
             </div>
-            <Link href="/#early-access" className="inline-flex shrink-0 items-center justify-center rounded-full bg-green px-5 py-2.5 text-[.95rem] font-bold text-white no-underline shadow-[0_8px_20px_rgba(46,158,99,.28)] transition-[transform,background-color] duration-150 hover:-translate-y-0.5 hover:bg-green-deep">
+            <Link href="/app#get" className="inline-flex shrink-0 items-center justify-center rounded-full bg-green px-5 py-2.5 text-[.95rem] font-bold text-white no-underline shadow-[0_8px_20px_rgba(46,158,99,.28)] transition-[transform,background-color] duration-150 hover:-translate-y-0.5 hover:bg-green-deep">
               {DOWNLOAD.mobileCta}
             </Link>
           </Reveal>

@@ -287,6 +287,8 @@ export const PHONE = {
   eyebrow: "On your phone",
   title: "The same workspace, in your pocket.",
   sub: "Ask from the bus. It’s live before you get off. Every project, every link, every version — the same workspace on desktop, phone and tablet.",
+  /** Into the mobile closed beta on /app — never the general early-access list. */
+  cta: "Join the mobile beta",
   ask: "Turn the Northwind deck into a one-page summary for the investor I’m meeting at 3.",
   reply: "Done. One page, same numbers, and it’s live at the link below.",
   notif: { app: "Allr", title: "Your summary is ready", body: "northwind-onepager · tap to open" },
