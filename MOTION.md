@@ -224,7 +224,9 @@ The only section here that is not on the homepage. Same four verbs, nothing new.
 
 Below the hero: `Reveal` only — `left`/`fade`/`right` across the one-window row (the module grid staggers on `--i` via `stagger-child`), a 60ms stagger down the six capability cards, and `scale` on the two bands. The honey and green bands reuse `band-blob`; no new drift.
 
-Both device screens are **drawn UI** (`src/components/app/mocks.tsx`), per §5's rule that no photograph appears on the site. `DeviceFrame` keeps an image path for the day a real capture ships, but the page does not use it.
+Both device screens are **real captures** of the shipped app — `public/desktop_screenshot.png` in the laptop and `public/mobile_screenshot.png` in the phone. This is the exception §5's no-photograph rule always anticipated: the rule exists so generated pictures are never trusted with "Allr" or `allr.app/your-launch`, and a screenshot of the real product is the one image that cannot get those wrong. It applies to the app page only — the homepage stays entirely drawn.
+
+The drawn mocks in `src/components/app/mocks.tsx` are kept, unrendered, as the fallback if a capture is ever pulled. `DeviceFrame` crops `bleed` pixels off every edge, so a raw capture needs no retouching before it ships.
 
 ### 5.6 What we refuse
 

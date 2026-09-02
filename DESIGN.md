@@ -305,7 +305,7 @@ Campaign pages may cut sections. They may not reorder the six outputs, swap the 
 | `src/lib/site.ts` | Canonical URL + re-exports |
 | `src/app/globals.css` | Tokens, atmosphere, motion |
 | `src/components/ui/` | Primitives |
-| `src/components/app/` | The `/app` page sections and its two drawn screens |
+| `src/components/app/` | The `/app` page sections. Its hero shows real captures (`public/*_screenshot.png`); the drawn screens in `mocks.tsx` are the kept fallback |
 | `src/lib/releases.ts` | The latest desktop release — the only source of download links |
 | `public/docs/` | The built docs, copied in from `allr-agent/website` by `scripts/sync-docs.mjs`. Generated — never hand-edit a page here |
 | `vercel.json` | Host routing on allr.work: `/release` sends people to GitHub Releases |

@@ -1,5 +1,4 @@
 import { DownloadRow } from "@/components/app/DownloadRow";
-import { PhoneChatMock, WorkspaceMock } from "@/components/app/mocks";
 import { Reveal } from "@/components/Reveal";
 import { DeviceFrame } from "@/components/ui/DeviceFrame";
 import { PlatformIcon } from "@/components/ui/PlatformIcon";
@@ -66,17 +65,22 @@ export function AppHero({ version }: { version: string | null }) {
           The laptop carries the scene and the phone tucks under its corner,
           clear of the screen. The size gap is what tells you at a glance that
           this is one app on two very different devices.
+
+          Both screens are real captures rather than the drawn mocks in
+          `app/mocks.tsx` — the frames crop their own edges, so the raw files
+          need no retouching. See MOTION.md §5.
         */}
         <div className="relative pb-12 sm:pb-8">
           <Reveal variant="scale" delay={80}>
             <DeviceFrame
               variant="laptop"
-              alt="The Allr workspace — files, the work in progress, and Allr beside it"
-              width={1600}
-              height={1000}
-            >
-              <WorkspaceMock />
-            </DeviceFrame>
+              src="/desktop_screenshot.png"
+              alt="The Allr workspace — sessions, the work in progress, and the files it produced"
+              width={1280}
+              height={978}
+              priority
+              sizes="(min-width: 1024px) 52vw, 100vw"
+            />
           </Reveal>
           <Reveal
             variant="up"
@@ -85,12 +89,12 @@ export function AppHero({ version }: { version: string | null }) {
           >
             <DeviceFrame
               variant="phone"
+              src="/mobile_screenshot.png"
               alt="Allr on a phone, mid-conversation"
               width={1170}
               height={2532}
-            >
-              <PhoneChatMock />
-            </DeviceFrame>
+              sizes="112px"
+            />
           </Reveal>
         </div>
       </div>
