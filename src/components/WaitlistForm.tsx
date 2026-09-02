@@ -2,107 +2,24 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { CTA, WAITLIST_DONE } from "@/lib/brand";
+import { CTA, WAITLIST_DONE, WAITLIST_ERRORS } from "@/lib/brand";
 import { cx } from "@/lib/cx";
+import {
+  AlreadyOnList,
+  joinList,
+  ListUnavailable,
+  type ListId,
+  type Platform,
+} from "@/lib/waitlist";
 
 type Variant = "inline" | "onGreen";
 
-/** Firestore collection to create in. Each has its own rule block. */
-type Collection = "waitlist" | "beta_signups";
-
-export type PlatformOption = { id: string; label: string };
-
-const FIREBASE_PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-const FIREBASE_API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-const WAITLIST_URL = process.env.NEXT_PUBLIC_WAITLIST_URL;
-const WAITLIST_EMAIL = process.env.NEXT_PUBLIC_WAITLIST_EMAIL;
-
-/** Thrown when the address is already on the list. */
-export class AlreadyOnList extends Error {}
-
-async function sha256Hex(text: string) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-/** Which deployment the signup came from, e.g. "https://allr.work". */
-const source = () => (typeof location !== "undefined" ? location.origin : "unknown").slice(0, 64);
-
-async function submitEmail(
-  email: string,
-  collection: Collection,
-  platform?: string,
-) {
-  // 1. Firestore, straight from the browser. Rules allow create only; the
-  //    document id is the hash of the email so duplicates are refused (409).
-  //    Each collection has its own id space, so someone already on the main
-  //    waitlist can still join the mobile beta.
-  if (FIREBASE_PROJECT_ID && FIREBASE_API_KEY) {
-    const id = await sha256Hex(email);
-    const url =
-      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}` +
-      `/databases/(default)/documents/${collection}?documentId=${id}&key=${FIREBASE_API_KEY}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fields: {
-          email: { stringValue: email },
-          source: { stringValue: source() },
-          userAgent: { stringValue: navigator.userAgent.slice(0, 512) },
-          createdAt: { timestampValue: new Date().toISOString() },
-          ...(platform ? { platform: { stringValue: platform } } : {}),
-        },
-      }),
-    });
-    if (res.status === 409) throw new AlreadyOnList();
-    if (!res.ok) throw new Error("waitlist");
-    return;
-  }
-
-  if (WAITLIST_URL) {
-    const res = await fetch(WAITLIST_URL, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, source: source(), platform }),
-    });
-    if (!res.ok) throw new Error("waitlist");
-    return;
-  }
-
-  if (WAITLIST_EMAIL) {
-    const res = await fetch(`https://formsubmit.co/ajax/${WAITLIST_EMAIL}`, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-        _subject: "Allr early access",
-      }),
-    });
-    if (!res.ok) throw new Error("waitlist");
-    return;
-  }
-
-  const key = "allr.waitlist";
-  const prev: { email: string; at: number }[] = JSON.parse(
-    localStorage.getItem(key) || "[]",
-  );
-  localStorage.setItem(
-    key,
-    JSON.stringify([...prev, { email, at: Date.now() }]),
-  );
-}
+export type PlatformOption = { id: Platform; label: string };
 
 export function WaitlistForm({
   variant = "inline",
   id,
-  collection = "waitlist",
+  list = "early",
   platforms,
   platformLegend,
   submitLabel = CTA.primary,
@@ -111,7 +28,7 @@ export function WaitlistForm({
   variant?: Variant;
   id?: string;
   /** Which list this form joins. */
-  collection?: Collection;
+  list?: ListId;
   /** Show a platform chooser and record the choice with the signup. */
   platforms?: readonly PlatformOption[];
   platformLegend?: string;
@@ -121,9 +38,9 @@ export function WaitlistForm({
 }) {
   const [email, setEmail] = useState("");
   const [platform, setPlatform] = useState(platforms?.[0]?.id);
-  const [status, setStatus] = useState<"idle" | "sending" | "ok" | "dup" | "err">(
-    "idle",
-  );
+  const [status, setStatus] = useState<
+    "idle" | "sending" | "ok" | "dup" | "err" | "unavailable"
+  >("idle");
   const [shared, setShared] = useState(false);
 
   const onGreen = variant === "onGreen";
@@ -137,10 +54,17 @@ export function WaitlistForm({
     }
     setStatus("sending");
     try {
-      await submitEmail(value, collection, platform);
+      // The overloads keep the mobile beta from posting without a platform.
+      if (list === "beta") {
+        await joinList("beta", { email: value, platform: platform ?? "either" });
+      } else {
+        await joinList("early", { email: value });
+      }
       setStatus("ok");
     } catch (e) {
-      setStatus(e instanceof AlreadyOnList ? "dup" : "err");
+      if (e instanceof AlreadyOnList) setStatus("dup");
+      else if (e instanceof ListUnavailable) setStatus("unavailable");
+      else setStatus("err");
     }
   }
 
@@ -219,7 +143,7 @@ export function WaitlistForm({
         value={email}
         onChange={(e) => {
           setEmail(e.target.value);
-          if (status === "err") setStatus("idle");
+          if (status === "err" || status === "unavailable") setStatus("idle");
         }}
         className={cx(
           "allr-field min-w-0 flex-1",
@@ -235,7 +159,7 @@ export function WaitlistForm({
       >
         {status === "sending" ? "Joining\u2026" : submitLabel}
       </Button>
-      {status === "err" ? (
+      {status === "err" || status === "unavailable" ? (
         <p
           className={cx(
             "sm:absolute sm:top-full sm:mt-2 text-[.88rem] font-semibold",
@@ -243,7 +167,9 @@ export function WaitlistForm({
           )}
           role="alert"
         >
-          Try that email again?
+          {status === "unavailable"
+            ? WAITLIST_ERRORS.unavailable
+            : WAITLIST_ERRORS.invalid}
         </p>
       ) : null}
     </>

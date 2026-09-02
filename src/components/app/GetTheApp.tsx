@@ -55,7 +55,7 @@ export function GetTheApp() {
               <WaitlistForm
                 id="beta"
                 variant="onGreen"
-                collection="beta_signups"
+                list="beta"
                 platforms={APP.get.betaPlatforms}
                 platformLegend={APP.get.betaLegend}
                 submitLabel={APP.get.betaCta}

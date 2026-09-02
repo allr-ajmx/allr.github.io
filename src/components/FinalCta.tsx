@@ -30,7 +30,7 @@ export function FinalCta() {
             {CTA.finalSub}
           </p>
           <div className="relative z-10">
-            <WaitlistForm variant="onGreen" id="final-waitlist" />
+            <WaitlistForm variant="onGreen" id="final-waitlist" list="early" />
           </div>
           <p className="relative z-10 mt-4 text-[.95rem] opacity-85">
             {CTA.reassurance}

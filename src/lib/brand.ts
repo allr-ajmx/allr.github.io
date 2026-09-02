@@ -267,6 +267,13 @@ export const PRICING = {
   sub: "The waitlist hears first, and your first project is on us.",
 } as const;
 
+/** Shown under the field when a signup could not be taken. */
+export const WAITLIST_ERRORS = {
+  invalid: "Try that email again?",
+  /** No backend configured — nothing was saved, so never say it was. */
+  unavailable: "The list isn’t reachable just now. Try again in a minute?",
+} as const;
+
 export const WAITLIST_DONE = {
   headline: "You’re on the list.",
   already: "You’re already on the list.",
