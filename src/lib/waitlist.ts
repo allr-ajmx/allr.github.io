@@ -33,6 +33,35 @@ const FIREBASE_API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 const WAITLIST_URL = process.env.NEXT_PUBLIC_WAITLIST_URL;
 const WAITLIST_EMAIL = process.env.NEXT_PUBLIC_WAITLIST_EMAIL;
 
+/**
+ * Which mobile platform the visitor is on.
+ *
+ * "either" is the honest answer when we cannot tell — a desktop browser, or a
+ * user agent that says nothing useful. It is never a guess: filing an iPhone
+ * under Android because Android happened to be the first chip is worse than
+ * saying we do not know.
+ *
+ * iOS covers iPad and Android covers Android tablets. A tablet runs the same
+ * build as the phone, so the beta does not track the two apart.
+ */
+export function detectMobilePlatform(): Platform {
+  if (typeof navigator === "undefined") return "either";
+  const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
+  const raw = (
+    nav.userAgentData?.platform ||
+    nav.platform ||
+    nav.userAgent ||
+    ""
+  ).toLowerCase();
+  // Android first: an Android user agent also contains "linux".
+  if (raw.includes("android")) return "android";
+  if (/iphone|ipad|ipod/.test(raw)) return "ios";
+  // iPadOS 13+ reports itself as desktop Safari on a Mac; the touch points are
+  // what give an iPad away.
+  if (raw.includes("mac") && nav.maxTouchPoints > 1) return "ios";
+  return "either";
+}
+
 /** Thrown when the address is already on that list. Firestore path only. */
 export class AlreadyOnList extends Error {}
 

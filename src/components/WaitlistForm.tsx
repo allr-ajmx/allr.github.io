@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/Button";
 import { CTA, WAITLIST_DONE, WAITLIST_ERRORS } from "@/lib/brand";
 import { cx } from "@/lib/cx";
 import {
   AlreadyOnList,
+  detectMobilePlatform,
   joinList,
   ListUnavailable,
   type ListId,
@@ -13,6 +14,9 @@ import {
 } from "@/lib/waitlist";
 
 type Variant = "inline" | "onGreen";
+
+/** The device never changes during a session, so there is nothing to watch. */
+const noopSubscribe = () => () => {};
 
 export type PlatformOption = { id: Platform; label: string };
 
@@ -37,7 +41,29 @@ export function WaitlistForm({
   done?: { headline: string; sub: string };
 }) {
   const [email, setEmail] = useState("");
-  const [platform, setPlatform] = useState(platforms?.[0]?.id);
+  // Only set once someone taps a chip. Until then the device decides, so an
+  // iPhone is never filed as Android just because Android is the first chip.
+  const [chosen, setChosen] = useState<Platform | undefined>(undefined);
+
+  // Reading `navigator` is browser-only, so it goes through
+  // useSyncExternalStore rather than an effect: the server snapshot is
+  // undefined, which keeps the prerendered markup and the first client render
+  // identical. Same pattern as DownloadRow.
+  const detected = useSyncExternalStore(
+    noopSubscribe,
+    () => detectMobilePlatform(),
+    () => undefined,
+  );
+
+  const offers = (id: Platform | undefined) =>
+    Boolean(id && platforms?.some((option) => option.id === id));
+
+  // Explicit tap wins; then the detected device; then the neutral option, which
+  // is what the server rendered.
+  const platform =
+    chosen ??
+    (offers(detected) ? detected : undefined) ??
+    (offers("either") ? "either" : platforms?.[0]?.id);
   const [status, setStatus] = useState<
     "idle" | "sending" | "ok" | "dup" | "err" | "unavailable"
   >("idle");
@@ -196,7 +222,7 @@ export function WaitlistForm({
             <button
               key={option.id}
               type="button"
-              onClick={() => setPlatform(option.id)}
+              onClick={() => setChosen(option.id)}
               aria-pressed={platform === option.id}
               className={cx(
                 "cursor-pointer rounded-chip border px-3.5 py-1.5 text-[.85rem] font-bold transition-colors duration-200",
