@@ -86,7 +86,7 @@ Prefer the words in `SAY` (`src/lib/brand.ts`). Never use the words in `NEVER_SA
 
 ### Calls to action (2026-08-25)
 
-The hero shows two: **Download** (dark pill, macOS · Windows · Linux glyphs) → `/download`, and **Get early access** (light pill, phone glyph) → the waitlist. Desktop gets the app; phones get on the list. `/download` links only real assets from the current GitHub release (`src/lib/downloads.ts`) — no other links.
+The hero shows two: **Download** (dark pill, macOS · Windows · Linux glyphs) → `/download`, and **Get early access** (light pill, phone glyph) → the waitlist. Desktop gets the app; phones get on the list. `/download` links only real assets from the current GitHub release (`src/lib/releases.ts`) — no other links.
 
 ---
 
@@ -328,11 +328,14 @@ Answered while this vocabulary was written. Do not reopen on a later page.
 | The app page | **`/app`, in the nav** | Ported from the primary-website `/client` page and rewritten into this voice. Copy lives in `APP` in `src/lib/brand.ts`. `/download` stays as its own page; both read the same release data |
 | Where a download button goes | **`/download`, always** | Only `/download` links at a release asset. Every download button elsewhere — the homepage hero, both on `/app` — navigates there first, so the formats, sizes and requirements are read before anything is fetched |
 | Download links | **Live from GitHub Releases** | `src/lib/releases.ts` is the only source. Fetched at build time so the static export works with no JS, re-fetched on mount so a new release reaches visitors before the next site build. Targets the `Allr_*` full bundles. Never hand-write a version or an asset URL |
-| Mobile beta list | **Separate Firestore collection** | `beta_signups`, not `waitlist`, so someone already on the early-access list can still join the mobile beta. Rules in `firebase/firestore.rules` |
+| Two lists, never one | **Early access and the mobile beta are separate** | `waitlist` holds the general early-access list (`/#early-access`); `beta_signups` holds the mobile closed beta (`/app#get`) and carries a `platform` field. Separate so someone already on the early-access list can still join the beta — both use the email hash as the document id, so one shared collection would refuse the second signup. The lists are declared once in `src/lib/waitlist.ts`; a page never names a collection |
+| Which mobile platform | **The device answers, the person can override** | The beta chips start on the neutral "Either" — which is also what the server renders — and `detectMobilePlatform()` in `src/lib/waitlist.ts` moves them to Android or iOS on mount. Never default to the first chip: that filed every iPhone under Android. **iOS covers iPad and Android covers Android tablets** — a tablet runs the same build as the phone, so the beta does not track them apart and there is no tablet field |
+| Where a signup goes | **The ask decides the list** | Anything phone- or tablet-shaped routes to `/app#get` — the `/download` "On your phone" card and the homepage "On your phone" section included. Everything else routes to `/#early-access`. The one exception is the homepage hero's phone-glyph pill, which is the general list by design (§3) |
+| Waitlist backend | **Firestore, create-only, straight from the browser** | The site is a static export, so there is no server to post to. `src/lib/waitlist.ts` is the only transport; the rules in `firebase/firestore.rules` are the whole security boundary and are deployed by CI, not pasted into a console. A production build with no backend configured fails rather than shipping a form that pretends to have saved an address |
 | Where the docs live | **Written in `allr-agent`, shipped from `public/docs`** | The Docusaurus source stays in the product repo (`website/`, `baseUrl: '/docs/'`); its finished build is copied into `public/docs` by `pnpm sync-docs` and committed, so allr.work serves the docs from this one deployment with no proxy or second host. The cost is that the snapshot is only as fresh as the last sync: after a docs change, re-run the sync and commit. Never edit a page under `public/docs` — the edit belongs upstream and the next sync would overwrite it. `/llms.txt` and `/llms-full.txt` are copied to the site root the same way |
 | `/release` | **A redirect, not a page** | `allr.work/release` sends visitors to the GitHub Releases page for `allr-ajmx/allr-agent`; `/release/latest` to the latest one. A temporary redirect, so the destination can move. Marketing download buttons still go to `/download` — this is the raw-artifact door for links shared in issues and chat |
 
 ## 17. Still open
 
 1. **Helix chrome.** How much of this vocabulary should the Helix dashboard inherit versus remaining a product UI?
-2. **Waitlist destination.** The form is live on the landing (`WaitlistForm`, `#early-access`). Set `NEXT_PUBLIC_WAITLIST_URL` (JSON POST) or `NEXT_PUBLIC_WAITLIST_EMAIL` (FormSubmit). Until one is set, emails stay in the browser (`localStorage` key `allr.waitlist`).
+
