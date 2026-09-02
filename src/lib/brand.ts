@@ -261,6 +261,16 @@ export const WORKSPACE = {
 } as const;
 
 /** Pre-launch pricing. One line, no math. */
+/**
+ * The agent workspace, not the client.
+ *
+ * Two products with two pricing stories: the desktop and mobile apps are free
+ * to download and stay free ("beta · free forever" under the download button),
+ * and the agent workspace they connect to is what carries a plan. Never let a
+ * line here imply the app costs money, or a line on /download imply the
+ * workspace is free. Nothing renders PRICING today — Pricing.tsx has been
+ * unimported since 725b69b — so this is the copy bank for when it returns.
+ */
 export const PRICING = {
   eyebrow: "Pricing",
   line: "One plan. Priced when we launch.",
@@ -478,7 +488,7 @@ export const APP = {
 
   download: {
     /** Under the buttons, next to the version. */
-    free: "free while in beta",
+    free: "beta · free forever",
     version: (v: string) => `Version ${v}`,
     versionUnknown: "Latest release",
     forPlatform: (name: string) => `Download for ${name}`,
