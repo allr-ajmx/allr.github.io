@@ -9,7 +9,7 @@ type Status = (typeof APP.one.legend)[number]["status"];
 
 /** Colour carries the state, so a tile reads before it is read. */
 const TILE: Record<Status, string> = {
-  planned: "border-line bg-white/55 text-ink-soft",
+  planned: "border-line bg-paper text-ink-soft",
   progress: "border-honey-line bg-honey-tint text-honey-deep",
   working: "border-green-line bg-green-tint text-green-deep",
 };
@@ -26,7 +26,7 @@ const DOT: Record<Status, string> = {
  */
 export function OnePlatform() {
   return (
-    <section id="one" className="section-wash relative pt-11 pb-28" data-petal="0">
+    <section id="one" className="relative pt-11 pb-28" data-petal="0">
       <div className="wrap relative">
         <SectionHead eyebrow={APP.one.eyebrow} title={APP.one.title}>
           {APP.one.body}

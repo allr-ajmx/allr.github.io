@@ -4,7 +4,7 @@ import { AUDIENCES } from "@/lib/brand";
 
 export function WhoItsFor() {
   return (
-    <section id="who" className="section-wash relative pt-10 pb-22">
+    <section id="who" className="relative pt-10 pb-22">
       <div className="wrap relative">
         <SectionHead
           eyebrow="Who it's for"

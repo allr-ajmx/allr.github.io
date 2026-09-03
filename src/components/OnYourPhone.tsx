@@ -8,8 +8,14 @@ import { SectionHead } from "@/components/ui/SectionHead";
 import { PHONE } from "@/lib/brand";
 
 export function OnYourPhone() {
+  // The phones carry a `0 40px 90px` shadow and are parallaxed, so their glow
+  // reaches ~130px past them and that reach moves as you scroll. The section's
+  // `overflow-hidden` sliced it off at its own edge — a hard line that slid up
+  // the page. `body` already sets `overflow-x: hidden` (globals.css), so
+  // nothing here needed to clip; the deeper bottom padding then lets the
+  // shadow finish inside the section rather than at its border.
   return (
-    <section id="phone" className="section-wash relative overflow-hidden py-22">
+    <section id="phone" className="relative pt-22 pb-[168px]">
       <div className="wrap relative">
         <SectionHead eyebrow={PHONE.eyebrow} tone="green" title={PHONE.title}>
           {PHONE.sub}
@@ -23,7 +29,7 @@ export function OnYourPhone() {
                 <div className="flex h-full flex-col bg-[linear-gradient(180deg,#e9efe6,#d9e3d6)] px-4 pt-14">
                   <p className="text-center font-serif text-[2.6rem] leading-none text-ink">3:02</p>
                   <p className="mt-1 text-center text-[.78rem] text-ink-soft">Thursday, 12 September</p>
-                  <div className="mt-8 rounded-card bg-card/90 p-3 shadow-soft backdrop-blur">
+                  <div className="mt-8 rounded-card bg-card p-3 shadow-soft backdrop-blur">
                     <div className="mb-1.5 flex items-center gap-1.5 text-[.7rem] font-bold"><AllrMark size={14} /> {PHONE.notif.app} <span className="ml-auto font-medium text-ink-soft">now</span></div>
                     <p className="text-[.85rem] font-bold">{PHONE.notif.title}</p>
                     <p className="text-[.8rem] text-ink-soft">{PHONE.notif.body}</p>

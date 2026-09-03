@@ -209,8 +209,7 @@ export function WaitlistForm({
         id={id}
         onSubmit={onSubmit}
         className={cx(
-          "flex w-full max-w-[520px] flex-col items-center gap-3.5",
-          onGreen && "mx-auto",
+          "mx-auto flex w-full max-w-[520px] flex-col items-center gap-3.5",
         )}
       >
         <div className="relative flex w-full flex-col gap-2.5 sm:flex-row sm:items-center">
@@ -248,8 +247,7 @@ export function WaitlistForm({
       id={id}
       onSubmit={onSubmit}
       className={cx(
-        "relative flex w-full max-w-[520px] flex-col gap-2.5 sm:flex-row sm:items-center",
-        onGreen && "mx-auto",
+        "relative mx-auto flex w-full max-w-[520px] flex-col gap-2.5 sm:flex-row sm:items-center",
       )}
     >
       {row}

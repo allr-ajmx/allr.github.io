@@ -5,7 +5,7 @@ import { OUTPUTS } from "@/lib/brand";
 
 export function WhatAllrMakes() {
   return (
-    <section id="makes" className="section-wash relative pt-5 pb-22">
+    <section id="makes" className="relative pt-5 pb-22">
       <div className="wrap relative">
         <SectionHead
           eyebrow="What Allr makes"
@@ -30,7 +30,7 @@ export function WhatAllrMakes() {
         </div>
 
         <Reveal
-          className="mx-auto mt-[42px] max-w-[700px] rounded-card border border-dashed border-[#E3D6BC] bg-card/90 px-7 py-5 text-center text-[1.02rem] text-ink-soft shadow-soft backdrop-blur-[2px]"
+          className="mx-auto mt-[42px] max-w-[700px] rounded-card border border-dashed border-[#E3D6BC] bg-card px-7 py-5 text-center text-[1.02rem] text-ink-soft shadow-soft"
           delay={100}
         >
           Every asset lives in your project, next to everything else

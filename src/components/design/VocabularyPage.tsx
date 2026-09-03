@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AmbientBackground } from "@/components/AmbientBackground";
+import { AmbientShader } from "@/components/AmbientShader";
 import { Swatch } from "@/components/design/Swatch";
 import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
@@ -60,7 +60,7 @@ const RADII = [
 export function VocabularyPage() {
   return (
     <>
-      <AmbientBackground />
+      <AmbientShader />
       <header className="sticky top-0 z-50 border-b-[1.5px] border-line-soft bg-paper/80 backdrop-blur-[14px]">
         <div className="wrap flex h-[74px] items-center justify-between">
           <Link
@@ -109,7 +109,7 @@ export function VocabularyPage() {
           </p>
         </section>
 
-        <section id="product" className="section-wash pb-22">
+        <section id="product" className="pb-22">
           <div className="wrap">
             <SectionHead
               eyebrow="Product"
@@ -118,7 +118,7 @@ export function VocabularyPage() {
               Not a chatbot. Not a copilot. You describe the thing. Allr makes
               the thing. You share a link.
             </SectionHead>
-            <Reveal className="mx-auto max-w-[720px] rounded-panel border border-line bg-card/95 px-7 py-8 text-center shadow-soft">
+            <Reveal className="mx-auto max-w-[720px] rounded-panel border border-line bg-card px-7 py-8 text-center shadow-soft">
               <p className="font-serif text-[clamp(1.35rem,2.8vw,1.8rem)] leading-[1.45]">
                 {PROMISE}
               </p>
@@ -190,7 +190,7 @@ export function VocabularyPage() {
           </div>
         </section>
 
-        <section id="color" className="section-wash pb-22">
+        <section id="color" className="pb-22">
           <div className="wrap">
             <SectionHead eyebrow="Color" title="Green is done. Honey is warmth.">
               Semantic, not decorative. No fourth hue. No zinc, no black ink, no
@@ -255,7 +255,7 @@ export function VocabularyPage() {
           </div>
         </section>
 
-        <section id="shape" className="section-wash pb-22">
+        <section id="shape" className="pb-22">
           <div className="wrap">
             <SectionHead
               eyebrow="Shape"
@@ -357,7 +357,7 @@ export function VocabularyPage() {
               <li>
                 Import copy from <code className="rounded-chip bg-honey-tint px-1.5 py-0.5 font-semibold text-ink">src/lib/brand.ts</code> — do not rewrite the tagline.
               </li>
-              <li>Use Header, Footer, AmbientBackground unless the page is a legal stub.</li>
+              <li>Use Header, Footer, AmbientShader unless the page is a legal stub.</li>
               <li>Reach for SectionHead, Card, Button, Pill before inventing a block.</li>
               <li>Wrap is 1080px. Prose is 640px. Headings are Young Serif 400.</li>
               <li>Primary CTA is green. Secondary is ghost. Status has no href.</li>

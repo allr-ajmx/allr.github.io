@@ -22,10 +22,10 @@ const ITEMS = [
 
 export function Faq() {
   return (
-    <section id="faq" className="section-wash relative pt-5 pb-22">
+    <section id="faq" className="relative pt-5 pb-22">
       <div className="wrap">
         <SectionHead eyebrow="Questions" tone="honey" title="Straight answers." />
-        <div className="mx-auto max-w-[720px] divide-y divide-line rounded-card border border-line bg-card/95 shadow-soft">
+        <div className="mx-auto max-w-[720px] divide-y divide-line-soft rounded-card bg-card shadow-soft">
           {ITEMS.map((item, i) => (
             <Reveal key={item.q} delay={i * 50} className="px-6 py-5 sm:px-7">
               <h3 className="mb-2 text-[1.15rem]">{item.q}</h3>

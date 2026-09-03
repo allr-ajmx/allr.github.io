@@ -5,7 +5,7 @@ import { PROBLEM_STACK } from "@/lib/brand";
 
 export function Problem() {
   return (
-    <section id="problem" className="section-wash relative pt-[60px] pb-22">
+    <section id="problem" className="relative pt-[60px] pb-22">
       <div className="wrap relative">
         <SectionHead
           eyebrow="The problem"
