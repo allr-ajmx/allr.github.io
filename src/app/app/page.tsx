@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AmbientBackground } from "@/components/AmbientBackground";
+import { AmbientShader } from "@/components/AmbientShader";
 import { AppHero } from "@/components/app/AppHero";
 import { GetTheApp } from "@/components/app/GetTheApp";
 import { Growing } from "@/components/app/Growing";
@@ -35,7 +35,7 @@ export default async function AppPage() {
 
   return (
     <>
-      <AmbientBackground />
+      <AmbientShader />
       <Header />
       <main id="top" className="relative">
         <AppHero version={release?.version ?? null} />

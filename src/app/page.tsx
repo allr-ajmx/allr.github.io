@@ -1,4 +1,4 @@
-import { AmbientBackground } from "@/components/AmbientBackground";
+import { AmbientShader } from "@/components/AmbientShader";
 import { AllrPromise } from "@/components/AllrPromise";
 import { Faq } from "@/components/Faq";
 import { FinalCta } from "@/components/FinalCta";
@@ -14,7 +14,7 @@ import { BloomJourney } from "@/components/BloomJourney";
 export default function Home() {
   return (
     <>
-      <AmbientBackground />
+      <AmbientShader />
       <Header />
       <main id="top" className="relative">
         <Hero />
