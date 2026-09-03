@@ -134,6 +134,15 @@ The signature. One Allr window: the ask on the left, the thing it made on the ri
 
 **Reduced motion:** artifact visible with the resting glow (no breathing), no line, no rings.
 
+### 5.1a The header mark
+
+The mark in the header turns and lights a petal to follow the section under the
+middle of the screen. **This happens on the landing page only.** It is tracking
+the Bloom, and on a page with no Bloom a logo that turns as you scroll is just
+a logo that will not sit still — `/app` sets `data-petal` on four of its
+sections and would otherwise drive it. `Header.tsx` gates the whole behaviour
+on `usePathname() === "/"`.
+
 ### 5.1b The mark (`M-BLOOM`)
 
 The hero mark is inline SVG (`AllrMark.tsx`). On load its six petals bloom in order (scale 0 → 1.22 → 1, 100ms stagger) — the loader's intro from the logo package, ported to CSS on the light brand. Plays once; nowhere else does the mark move.
@@ -142,7 +151,7 @@ The hero mark is inline SVG (`AllrMark.tsx`). On load its six petals bloom in or
 
 Two scroll behaviours, both transform-only and both off under reduced motion:
 
-- **Parallax** (`motion/Parallax.tsx`) — an element drifts a fraction of the distance it scrolls, relative to the viewport centre. Positive `speed` = further away (slower), negative = nearer (faster). Used on: hero mark (0.22), hero window (−0.05), the Versions panel (0.1), the two phones (0.16 / −0.06 / 0.12). Offsets are clamped; the observer watches a static wrapper, never the moving element.
+- **Parallax** (`motion/Parallax.tsx`) — a scrubbed ScrollTrigger drifts an element a fraction of the distance it scrolls, relative to the viewport centre. Positive `speed` = further away (slower), negative = nearer (faster). Used on: hero mark (0.22), hero window (−0.05), the Versions panel (0.1), the two phones (0.16 / −0.06 / 0.12). Offsets are clamped; the trigger watches a static wrapper, never the moving element.
 - **Reveal variants** — `blur` for section headlines (come into focus: blur 10px → 0, 0.9s) and `wipe` for the promise (mask sweeps left→right like ink being laid down, 1.1s). Everything else keeps `up`/`scale`.
 
 ### 5.1d How it works — scrollytelling (`M-STORY`)
@@ -187,7 +196,7 @@ Three steps. Each card owns a miniature of the verb.
 
 ### 5.4 It's live — the hosting scene (`M-HOSTED`)
 
-One direction, left to right. The scene fills the section; the copy sits on top of its left half, and the web is masked so petals **fade out as they travel under the text and fade back in** on the other side (`#fade-mask`, `lg` and up). (`HostingScene.tsx`): the **web glyph drawn in petals** — outer ring, meridian, equator and two parallels, each line a stream of tiny petals travelling along it at its own pace, so the internet looks alive . Wires leave the globe's edge to four devices stacked on the right — phone, laptop, tablet, desktop — and **petals themselves travel the wires** (SMIL `animateMotion`, `rotate="auto"`), each landing on its device as the screen lights — every device shows a different thing (app, deck, doc, site), in that petal's colour. A *You · deploy v4* chip above feeds a honey petal down into the globe. Hosting is ongoing, so it loops slowly. It also *reacts*: scrolling stirs the web (wobble amplitude scales with scroll speed and decays back to calm) and the pointer nudges petals within ~110px away by a few pixels (`motion/Agitator.tsx`). Off-screen, SMIL and CSS both pause, so the rest of the page pays nothing for it. Under reduced motion nothing flies, nothing reacts, and every screen is lit. Below `lg` the stage keeps a 520px minimum inside a horizontal scroller.
+One direction, left to right. The scene fills the section; the copy sits on top of its left half, and the web is masked so petals **fade out as they travel under the text and fade back in** on the other side (`#fade-mask`, `lg` and up). (`HostingScene.tsx`): the **web glyph drawn in petals** — outer ring, meridian, equator and two parallels, each line a stream of tiny petals travelling along it at its own pace, so the internet looks alive . Wires leave the globe's edge to four devices stacked on the right — phone, laptop, tablet, desktop — and **petals themselves travel the wires** (GSAP `MotionPathPlugin`, tangent-aligned), each landing on its device as the screen lights — every device shows a different thing (app, deck, doc, site), in that petal's colour. A *You · deploy v4* chip above feeds a honey petal down into the globe. Hosting is ongoing, so it loops slowly. It also *reacts*: scrolling stirs the web (wobble amplitude scales with scroll speed and decays back to calm) and the pointer nudges petals within ~110px away by a few pixels (`motion/Agitator.tsx`). The 606 stream petals share **one clock per stream** — nine tweens sampling a path measured once, not one timeline each; that is why this section is affordable at all. Off-screen everything stops, so the rest of the page pays nothing for it. Under reduced motion nothing flies, nothing reacts, and every screen is lit. Below `lg` the stage keeps a 520px minimum inside a horizontal scroller.
 
 ### 5.4b Legacy publishing band (`M-DESK`, retired)
 
@@ -201,13 +210,55 @@ On reveal:
 
 This is the “one body of work” proof. Do not collage six separate files here; use the ensemble.
 
-### 5.5 Atmosphere (already shipping)
+### 5.5 Atmosphere — the shader (`M-AMBIENT`)
 
-Keep. Do not add a second ambient system.
+**This is *the* ambient system. Do not add a second one, and no section may
+carry a background of its own** (`DESIGN.md` §7). A section that paints its own
+scrolls against a fixed backdrop, and its clipped edge reads as a seam.
 
-- Paper mesh, lamplight orbs, grain, slow drift (22–30s)
-- Hero letterpress stamp settle (1.25s)
-- `surface-lift` on cards: 3px, 300ms, `--ease-out-soft`
+One fullscreen quad running one fragment program (`AmbientShader.tsx`,
+`ambient.frag.ts`) sits fixed behind the whole page. The mesh, ribbons, four
+lamplight orbs, conic beams, soft grid, five rings, twenty motes and the
+vignette are all analytic maths in that one shader, ported stop-for-stop from
+the CSS it replaced.
+
+- **No grain. None.** The page wants clear, smooth visuals. The only thing
+  applied at the end is a ±1/255 ordered dither, which is the *opposite* of
+  grain: it is sub-perceptual and exists solely to stop these very wide, very
+  soft gradients collapsing into contour rings on an 8-bit display. Remove it
+  and "smooth" bands. Do not re-add a noise or fibre layer.
+- **Twenty motes. Not twenty-one.** §5.6 refuses particle fields.
+- **Colour lives at the edges.** The centre column stays clean paper. This is
+  what keeps body copy readable over the atmosphere — not decoration.
+- **Full device resolution.** A shader costs the same at 1× and 3×, so there is
+  no resolution compromise to make and nothing that behaves differently by DPR.
+  Capped at `min(devicePixelRatio, 2)` and throttled to 30fps — the orbs drift
+  on 22–30s periods and the rings turn once every 120s, so nothing here moves
+  fast enough to need more.
+- **Scroll:** neutral at the very top (the hero must match its designed frame
+  exactly), cooling and drifting up as you descend, plus a stir that decays
+  back to calm. Honey and green only.
+- **The drifting shadow.** One soft honey-deep blob traces a closed
+  figure-eight, one circuit every 46s. It is deliberately the slowest thing on
+  the page — a few pixels a second. Its falloff is concentrated (`pow`) so it
+  reads as a defined shadow passing over paper rather than a haze. One blob;
+  a second would make this a lava lamp.
+- **Five fireflies.** Warm orange points drifting toward and away from the
+  camera. Position comes from three incommensurate sines per axis, so they
+  wander smoothly with no visible period and no state on the CPU. A depth term
+  drives size, brightness and focus *together* — near ones are large, bright
+  and soft-edged, far ones small, dim and crisp — which is what makes the third
+  axis read as depth rather than as scale. **Five. Not fifteen:** §5.6 refuses
+  particle fields, and the line between "a few fireflies" and "a particle
+  field" is exactly the count. They do not blink.
+- **Reduced motion:** one frame with time frozen. No loop at all.
+- **Fallbacks:** a static `.ambient-mesh` div sits under the canvas. It is what
+  a no-JS visitor sees, what shows when WebGL is unavailable, and what covers
+  the gap before the first frame. The renderer is only constructed after a
+  successful `getContext` probe, because a throw here would take down the page
+  over decoration.
+
+Also still shipping: `surface-lift` on cards, 3px, 300ms, `--ease-out-soft`.
 
 ### 5.7 The app page (`M-APP`, `/app`)
 
@@ -247,6 +298,12 @@ The drawn mocks in `src/components/app/mocks.tsx` are kept, unrendered, as the f
 | Piece | File |
 |-------|------|
 | Spec | `MOTION.md` (this file) |
+| **Motion authority** (plugins, named eases, timing constants, `matchMedia`) | `src/lib/motion.ts` |
+| Page atmosphere | `src/components/AmbientShader.tsx`, `src/components/ambient.frag.ts` |
+| Reveal trigger | `src/components/motion/revealQueue.ts` |
+| Hero entrance driver | `src/components/motion/HeroEnter.tsx` |
+| Hosting flights + reaction | `src/components/motion/Agitator.tsx` |
+| Petal the header lights | `src/lib/petalFocus.ts` |
 | Still registry | `src/lib/visuals.ts` |
 | Still + states | `src/components/visuals/ArtifactStill.tsx` |
 | App page sequence | `src/components/app/AppHero.tsx` |
@@ -264,8 +321,79 @@ The drawn mocks in `src/components/app/mocks.tsx` are kept, unrendered, as the f
 | Make cards | `src/components/WhatAllrMakes.tsx`, `src/components/ui/Card.tsx` |
 | How-it-works miniatures | `src/components/HowItWorks.tsx` |
 | Desk ensemble | `src/components/PublishingBand.tsx` |
-| Keyframes | `src/app/globals.css` (`.artifact-ink`, `.artifact-live`, `.light-sweep`) |
-| Binaries | `public/visuals/*.jpg` |
+| Remaining CSS keyframes | `src/app/globals.css` — see §9 |
+
+
+---
+
+## 9. Where motion lives
+
+Motion is **GSAP** (`gsap` + `@gsap/react`, registered once in `src/lib/motion.ts`).
+Everything imperative goes there: sequences, entrances, scroll-driven motion,
+and the hosting flights. One clock, and one place — `gsap.matchMedia()` — that
+decides what `prefers-reduced-motion` means.
+
+That last point is not a style preference. The global CSS kill-switch in
+`globals.css` (`animation: none !important`) **cannot stop GSAP**, because GSAP
+writes inline styles. Any new tween must therefore be created inside
+`gsap.matchMedia()`, and its `still` branch must place things at the done/live
+frame per §2 — never simply do nothing.
+
+The named eases are registered with `CustomEase` under the names in §2, so a
+tween reads like this file. They are not interchangeable with GSAP's built-ins:
+`power3.out` is **not** `cubic-bezier(0.22, 1, 0.36, 1)`.
+
+### Two traps that have already broken this site
+
+**1. GSAP cannot see `transform-box`.** It renders SVG transforms by baking the
+origin into the matrix and writing `transform-origin: 0px 0px` to stop the
+browser applying it twice — correct only under the SVG default `view-box`.
+Under `transform-box: fill-box` that zero means the fill box's top-left, and
+the element lands a bounding box away from where it should be. On the mark that
+threw the petals clean off the disc.
+
+> **Never tween `scale`/`rotation`/`x`/`y` with GSAP on an element whose CSS
+> sets `transform-box: fill-box`.** Tween a registered custom property instead
+> and let CSS apply the transform with its own origin — `--turn` and `--pop` on
+> the mark, `--wipe` on the reveal. Grep for `transform-box` before adding any
+> SVG tween.
+
+**2. A one-shot scroll trigger needs live layout.** `ScrollTrigger` caches
+positions at refresh and they go stale when layout settles afterwards (late
+fonts, slow first paint), silently stranding whole pages of reveals.
+`IntersectionObserver` reads live layout but delivers asynchronously, so under
+slow frames an element can enter *and leave* between deliveries and be skipped
+for good. Reveals therefore use `motion/revealQueue.ts` — one shared passive
+scroll listener, rAF-coalesced, re-measuring only the elements still waiting.
+ScrollTrigger stays where it belongs: scrubbed motion (Parallax, the Bloom
+gear, the sticky story), where a continuously updated value hides staleness.
+
+**3. `overflow-hidden` on a section clips the glow of anything inside it.**
+The phones in `OnYourPhone` carry a `0 40px 90px` shadow and are parallaxed, so
+their glow reaches ~130px past them and that reach *moves* as you scroll. The
+section clipped it at its own border, producing a hard line that slid up the
+page — the seam that was reported. `body` already sets `overflow-x: hidden`, so
+a section almost never needs its own clip.
+
+> **Before putting `overflow-hidden` on a section, check what casts a shadow
+> inside it.** Give the shadow room in the padding instead. The same applies to
+> translucent surfaces: a card at `bg-card/95` lets the background through at
+> 5%, which is invisible as light but very visible as a hard edge where a glow
+> crosses the card's border. Cards over the shader are opaque.
+
+### What is deliberately still CSS
+
+Not everything belongs in JS. These stay as stylesheet rules on purpose:
+
+| Kept in CSS | Why |
+|---|---|
+| Hover / focus transitions (`surface-lift`, buttons, focus rings) | GSAP would need a pointer listener on every card to do what one CSS rule does. |
+| The first frame of a reveal or hero entrance (`.js [data-reveal="hidden"]`, `.hero-enter`) | Applied by a blocking script *before* first paint. Any JS runs after it, so setting it in GSAP would flash the content in and back out on every load. |
+| Declarative state glows — `live-glow`, `dot-breathe`, `screen-on` | A class React toggles. CSS is the right tool for "while this class is present"; GSAP would mean an effect per component for no gain. |
+| Ambient loops on always-present decoration — `band-blob`, `pulse-glow` | Infinite, no sequencing, no JS ticker needed. |
+| `swash-in` (`::before`), `ring-out` (`::after`) | GSAP cannot target pseudo-elements. |
+| `mote-wobble` | Runs on 606 SVG nodes. Measured: CSS is cheaper here than any JS driver. |
+| The mark's rotate/scale, the reveal's wipe | GSAP drives `--turn` / `--pop` / `--wipe`; CSS owns the transform. See trap 1 above. |
 
 ---
 

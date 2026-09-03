@@ -136,7 +136,7 @@ Color is semantic, not decorative. Green means done. Honey means warmth and in-p
 | `sage-line` | `#DCE8DD` | Quiet green edge | Handled chips |
 | `clay-tint` | `#F6EDE2` | Warm clay | Card stickers |
 
-Ambient orbs and grains are honey + green on paper. Never introduce a fourth hue (blue, purple, neon) on a welcome surface.
+Ambient orbs are honey + green on paper. Never introduce a fourth hue (blue, purple, neon) on a welcome surface.
 
 **Forbidden:** generic Tailwind gray (`zinc`, `slate`, `neutral`) as text or background. Forbidden: black `#000` as ink. Forbidden: using green for anything that is not success / live / primary CTA.
 
@@ -188,7 +188,7 @@ We used to be pill-round (`999px`, `24px` cards) in the HTML prototype. Producti
 
 Surfaces lift `3px` on hover (`surface-lift`). Buttons lift `2px`. Never a hard drop-shadow or glow halo except the live-console green ring.
 
-**Wrap:** `max-width: 1080px`, inline padding `24px`. Prose measure: `640px`. Section vertical rhythm: `pt-5 / pb-22` with occasional `section-wash`.
+**Wrap:** `max-width: 1080px`, inline padding `24px`. Prose measure: `640px`. Section vertical rhythm: `pt-5 / pb-22`. **Sections carry no background of their own** — not a wash, not a tint, not a colour band. The shader is the only background on the page; a section that paints its own scrolls against a fixed backdrop and shows as a seam. Closing CTAs are copy on paper with a green button, not a filled panel. Separate blocks with space, not rules — a hairline across a continuous background reads as a scar.
 
 Focus: `3px solid honey`, offset `3px`. Selection: honey-tint on ink.
 
@@ -204,6 +204,7 @@ Motion is encouragement, not spectacle. Things *settle onto paper* and *turn gre
 - Hero: rise in ~0.9s; swash underlines from the left; letterpress stamp settles
 - Console: tiles idle → honey working → green done → confetti + live pulse
 - Reduced motion: **all of it off**. Content visible without JS (`js` class gate)
+- Motion is GSAP, registered once in `src/lib/motion.ts`. New tweens go inside `gsap.matchMedia()` — the CSS reduced-motion kill-switch has no power over inline styles. See `MOTION.md` §9 for what stays CSS and why
 
 Do not add bounce-on-every-card, typewriter heroes, or looped gradient text.
 
@@ -234,7 +235,7 @@ OG image: `public/og.png`. Bump `?v=` in `layout.tsx` when it changes.
 | `Logo` | `ui/Logo.tsx` | The mark |
 | `Reveal` | `Reveal.tsx` | Scroll entrance |
 | `LaunchConsole` | `LaunchConsole.tsx` | Signature product demo. One per page, hero only |
-| `AmbientBackground` | `AmbientBackground.tsx` | Site-wide paper atmosphere |
+| `AmbientShader` | `AmbientShader.tsx` | Site-wide atmosphere, one fullscreen fragment shader (see `MOTION.md` §5.5) |
 
 New UI belongs in `src/components/ui/` and must use existing tokens. If a new component needs a new color, the vocabulary is wrong — change this file first, not the component.
 
@@ -261,7 +262,8 @@ Campaign pages may cut sections. They may not reorder the six outputs, swap the 
 
 ## 12. Imagery & illustration
 
-- Paper, lamplight, letterpress, grain, soft orbs
+- Paper, lamplight, letterpress, soft orbs
+- **No grain, and no paper texture.** The page wants clear, smooth visuals. The atmosphere is a single fragment shader (`MOTION.md` §5.5) and the only thing applied on top of it is a sub-perceptual dither that stops wide gradients banding. Do not re-add a noise or fibre layer
 - The console *is* the product shot — artifact stills from `public/visuals/`, motion in `MOTION.md`
 - Emoji stickers are a fallback when a still is not available; make-cards use photographed artifacts
 - No 3D robots, no neon grids, no purple-blue AI gradients, no screenshot of a terminal on the homepage
