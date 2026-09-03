@@ -34,7 +34,7 @@ export function Card({
   return (
     <Reveal
       delay={delay}
-      className="surface-lift flex flex-col gap-3.5 rounded-card border border-line bg-card/95 p-6 shadow-soft backdrop-blur-[2px]"
+      className="surface-lift flex flex-col gap-3.5 rounded-card border border-line bg-card p-6 shadow-soft"
     >
       {visual ? (
         <MockFrame id={visual} className="mb-0.5 shadow-soft" />

@@ -36,7 +36,7 @@ export function Solution() {
 
         {/* The mentor's job: quietly removing the technical stuff */}
         <Reveal
-          className="surface-lift mx-auto mt-13 max-w-[860px] rounded-panel border border-line bg-card/95 px-7 py-10 text-center shadow-soft backdrop-blur-[2px] sm:px-8"
+          className="surface-lift mx-auto mt-13 max-w-[860px] rounded-panel border border-line bg-card px-7 py-10 text-center shadow-soft sm:px-8"
           delay={120}
           variant="scale"
         >

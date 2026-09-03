@@ -2,33 +2,26 @@ import { DownloadRow } from "@/components/app/DownloadRow";
 import { Reveal } from "@/components/Reveal";
 import { DeviceFrame } from "@/components/ui/DeviceFrame";
 import { PlatformIcon } from "@/components/ui/PlatformIcon";
+import { HeroEnter } from "@/components/motion/HeroEnter";
 import { APP } from "@/lib/brand";
 
 export function AppHero({ version }: { version: string | null }) {
   return (
     <section className="relative overflow-hidden" data-petal="5">
-      {/* lamplight, anchored to the graphic side on wide screens */}
-      <div
-        aria-hidden="true"
-        className="hero-glow pointer-events-none absolute -top-44 left-1/2 h-[540px] w-[860px] -translate-x-1/2 rounded-[50%] bg-[radial-gradient(closest-side,rgba(233,168,62,.20),transparent_70%)] lg:right-0 lg:left-auto lg:translate-x-1/4"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute top-[48%] right-[-6%] hidden h-[360px] w-[480px] rounded-full bg-[radial-gradient(closest-side,rgba(46,158,99,.10),transparent_72%)] lg:block"
-      />
+      <HeroEnter />
 
       <div className="wrap relative z-10 grid items-center gap-14 py-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.02fr)] lg:py-24">
         <div className="flex flex-col items-start">
           <h1
             className="hero-enter mb-6 text-[clamp(2.3rem,4.8vw,3.35rem)] tracking-[-0.015em] text-balance"
-            style={{ animationDelay: "0.05s" }}
+            data-enter="0.05"
           >
             {APP.hero.headline}
           </h1>
 
           <p
             className="hero-enter mb-10 max-w-[38ch] text-[clamp(1.05rem,1.5vw,1.2rem)] text-pretty text-ink-soft"
-            style={{ animationDelay: "0.12s" }}
+            data-enter="0.12"
           >
             {APP.hero.subLead}
             <span className="hero-swash relative font-bold whitespace-nowrap text-ink before:absolute before:-inset-x-[2%] before:bottom-[.05em] before:-z-10 before:h-[.34em] before:rounded-full before:bg-green-tint before:content-['']">
@@ -37,13 +30,15 @@ export function AppHero({ version }: { version: string | null }) {
             {APP.hero.subRest}
           </p>
 
-          <div className="hero-enter" style={{ animationDelay: "0.19s" }}>
+          <div className="hero-enter" data-enter="0.19">
             <DownloadRow version={version} />
           </div>
 
+          {/* mt-[76px] = the old mt-9 (36px) + 40px: the phone mock tucks under
+              the laptop's corner and was reaching into this strip. */}
           <div
-            className="hero-enter mt-9 flex w-full max-w-[480px] flex-wrap items-center gap-x-4 gap-y-4 border-t border-line pt-7"
-            style={{ animationDelay: "0.26s" }}
+            className="hero-enter mt-[76px] flex w-full max-w-[480px] flex-wrap items-center gap-x-4 gap-y-4"
+            data-enter="0.26"
           >
             <span className="shrink-0 text-ink-soft">
               <PlatformIcon platform="mobile" size={20} />

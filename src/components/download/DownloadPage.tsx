@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { AmbientBackground } from "@/components/AmbientBackground";
+import { AmbientShader } from "@/components/AmbientShader";
+import { HeroEnter } from "@/components/motion/HeroEnter";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { Reveal } from "@/components/Reveal";
@@ -48,18 +49,19 @@ export function DownloadPage({ release: initial }: { release: Release | null }) 
 
   return (
     <>
-      <AmbientBackground />
+      <AmbientShader />
       <Header />
       <main id="top" className="relative">
         <section className="wrap flex flex-col items-center pt-20 pb-10 text-center sm:pt-28">
+          <HeroEnter />
           <div className="hero-enter mb-6"><AllrMark size={56} bloom /></div>
-          <h1 className="hero-enter mb-5 max-w-[16ch] text-[clamp(2.2rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.015em]" style={{ animationDelay: "0.1s" }}>
+          <h1 className="hero-enter mb-5 max-w-[16ch] text-[clamp(2.2rem,5vw,3.6rem)] leading-[1.05] tracking-[-0.015em]" data-enter="0.1">
             {DOWNLOAD.title}
           </h1>
-          <p className="hero-enter max-w-[44ch] text-[clamp(1.02rem,1.4vw,1.2rem)] leading-snug text-ink-soft" style={{ animationDelay: "0.2s" }}>
+          <p className="hero-enter max-w-[44ch] text-[clamp(1.02rem,1.4vw,1.2rem)] leading-snug text-ink-soft" data-enter="0.2">
             {DOWNLOAD.sub}
           </p>
-          <p className="hero-enter mt-6 rounded-chip border border-line bg-card/80 px-3 py-1.5 font-mono text-[.78rem] text-ink-soft" style={{ animationDelay: "0.3s" }}>
+          <p className="hero-enter mt-6 rounded-chip border border-line bg-card px-3 py-1.5 font-mono text-[.78rem] text-ink-soft" data-enter="0.3">
             {release
               ? DOWNLOAD.version(release.version, formatReleaseDate(release.publishedAt))
               : DOWNLOAD.versionUnknown}
@@ -76,7 +78,7 @@ export function DownloadPage({ release: initial }: { release: Release | null }) 
                   key={id}
                   delay={i * 80}
                   className={cx(
-                    "relative flex flex-col rounded-panel border bg-card/95 p-7 shadow-soft backdrop-blur-[2px] transition-[border-color,box-shadow] duration-500",
+                    "relative flex flex-col rounded-panel border bg-card p-7 shadow-soft transition-[border-color,box-shadow] duration-500",
                     yours ? "live-glow" : "border-line",
                   )}
                 >
@@ -115,7 +117,7 @@ export function DownloadPage({ release: initial }: { release: Release | null }) 
         </section>
 
         <section className="wrap pb-24">
-          <Reveal className="mx-auto flex max-w-[720px] flex-col items-center gap-4 rounded-panel border border-line bg-card/95 px-7 py-10 text-center shadow-soft backdrop-blur-[2px] sm:flex-row sm:text-left" variant="scale">
+          <Reveal className="mx-auto flex max-w-[720px] flex-col items-center gap-4 rounded-panel border border-line bg-card px-7 py-10 text-center shadow-soft sm:flex-row sm:text-left" variant="scale">
             <span className="flex size-12 shrink-0 items-center justify-center rounded-control bg-honey-tint text-honey-deep"><PlatformIcon platform="mobile" size={24} /></span>
             <div className="flex-1">
               <h2 className="mb-1 text-[1.25rem]">{DOWNLOAD.mobileTitle}</h2>

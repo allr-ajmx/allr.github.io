@@ -56,7 +56,7 @@ export function InsideTheApp() {
             <Reveal
               key={capability.title}
               delay={i * 60}
-              className="surface-lift flex flex-col gap-3.5 rounded-card border border-line bg-card/95 p-7 shadow-soft backdrop-blur-[2px]"
+              className="surface-lift flex flex-col gap-3.5 rounded-card border border-line bg-card p-7 shadow-soft"
             >
               <div
                 className={cx(
