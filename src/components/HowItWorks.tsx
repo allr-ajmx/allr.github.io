@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useGSAP } from "@gsap/react";
 import { MockFor } from "@/components/mocks/Mocks";
 import { Reveal } from "@/components/Reveal";
 import { SectionHead } from "@/components/ui/SectionHead";
@@ -8,6 +9,7 @@ import { STORY } from "@/lib/brand";
 import { cx } from "@/lib/cx";
 import { PETALS } from "@/lib/petals";
 import { PetalShape } from "@/components/ui/PetalShape";
+import { ScrollTrigger } from "@/lib/motion";
 
 /** Step numerals sit on petals: honey (ask), sage (make), deep green (live). */
 const NUM_PETALS = [PETALS[1], PETALS[0], PETALS[4]];
@@ -18,25 +20,32 @@ const NUM_PETALS = [PETALS[1], PETALS[0], PETALS[4]];
  */
 export function HowItWorks() {
   const [active, setActive] = useState(0);
+  const scope = useRef<HTMLElement>(null);
   const refs = useRef<(HTMLLIElement | null)[]>([]);
 
-  useEffect(() => {
-    if (!("IntersectionObserver" in window)) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) setActive(Number((e.target as HTMLElement).dataset.step));
-        }
-      },
-      // A band across the middle of the viewport decides the active step.
-      { rootMargin: "-45% 0px -45% 0px", threshold: 0 },
-    );
-    refs.current.forEach((el) => el && io.observe(el));
-    return () => io.disconnect();
-  }, []);
+  useGSAP(
+    () => {
+      // A band across the middle of the viewport decides the active step —
+      // the same 45%/45% band the observer used, expressed as a trigger.
+      // The stage stays CSS `sticky`: no `pin`, so no pin-spacer is inserted
+      // and the layout is exactly what it was.
+      const triggers = refs.current.map((el, i) =>
+        el
+          ? ScrollTrigger.create({
+              trigger: el,
+              start: "top 55%",
+              end: "bottom 45%",
+              onToggle: (self) => { if (self.isActive) setActive(i); },
+            })
+          : null,
+      );
+      return () => triggers.forEach((t) => t?.kill());
+    },
+    { scope },
+  );
 
   return (
-    <section id="how" className="relative py-22">
+    <section id="how" ref={scope} className="relative py-22">
       <div className="wrap">
         <SectionHead eyebrow="How it works" title="Three steps. No stitching." />
 
@@ -49,7 +58,7 @@ export function HowItWorks() {
                 ref={(el) => { refs.current[i] = el; }}
                 data-step={i}
                 className={cx(
-                  "story-step rounded-card border bg-card/95 px-6 py-7 shadow-soft backdrop-blur-[2px] transition-[opacity,transform,border-color] duration-500",
+                  "story-step rounded-card border bg-card px-6 py-7 shadow-soft transition-[opacity,transform,border-color] duration-500",
                   active === i ? "border-honey-line opacity-100 lg:-translate-x-1" : "border-line lg:opacity-45",
                 )}
               >

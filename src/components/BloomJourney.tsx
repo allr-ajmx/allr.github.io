@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useGSAP } from "@gsap/react";
 import { MockFrame } from "@/components/mocks/Mocks";
 import { Reveal } from "@/components/Reveal";
 import { AllrMark } from "@/components/ui/AllrMark";
@@ -9,6 +10,8 @@ import { Pill } from "@/components/ui/Pill";
 import { BLOOM, OUTPUTS } from "@/lib/brand";
 import { cx } from "@/lib/cx";
 import { PETALS, rotationToPoint } from "@/lib/petals";
+import { gsap, ScrollTrigger } from "@/lib/motion";
+import { setFocusedPetal } from "@/lib/petalFocus";
 
 /** Journey order = petal order around the mark, so the gear turns one way. */
 const STEPS = PETALS.map((petal) => ({
@@ -18,8 +21,6 @@ const STEPS = PETALS.map((petal) => ({
   rot: rotationToPoint(petal.i, 0),
 }));
 
-const MOTION_QUERY = "(prefers-reduced-motion: reduce)";
-
 /**
  * The Bloom. A large mark stays pinned on the left and turns as you scroll,
  * so the petal for the current thing points at it; that petal's colour
@@ -28,75 +29,115 @@ const MOTION_QUERY = "(prefers-reduced-motion: reduce)";
  */
 export function BloomJourney() {
   const ref = useRef<HTMLDivElement>(null);
+  const gear = useRef<HTMLDivElement>(null);
   const panels = useRef<(HTMLElement | null)[]>([]);
-  const [t, setT] = useState(0); // continuous 0 … 5
-  const active = Math.max(0, Math.min(STEPS.length - 1, Math.round(t)));
+  const [active, setActive] = useState(0);
   const step = STEPS[active];
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const reduced = window.matchMedia(MOTION_QUERY).matches;
-    let frame = 0;
+  useGSAP(
+    () => {
+      const el = ref.current;
+      if (!el) return;
+      // GSAP writes the rotation straight onto the petal group. Routing a
+      // scroll-rate value through React state would re-render the whole
+      // section on every frame for a transform React does not own.
+      const petals = gear.current?.querySelector<SVGGElement>(".mark__petals") ?? null;
 
-    const update = () => {
-      frame = 0;
-      const vh = window.innerHeight;
-      const line = vh * 0.5;
-      // Progress is measured between panel *centres*: the gear settles on a
-      // petal exactly when that panel sits in the middle of the screen, and
-      // turns smoothly between one centred panel and the next.
-      const centres = panels.current.map((p) => {
-        if (!p) return Infinity;
-        const r = p.getBoundingClientRect();
-        return r.top + r.height / 2;
-      });
-      let value = 0;
-      if (line <= centres[0]) value = 0;
-      else if (line >= centres[centres.length - 1]) value = centres.length - 1;
-      else {
-        for (let i = 0; i < centres.length - 1; i++) {
-          if (line >= centres[i] && line < centres[i + 1]) {
-            value = i + (line - centres[i]) / (centres[i + 1] - centres[i]);
-            break;
-          }
-        }
-      }
-      setT(reduced ? Math.round(value) : value);
-    };
-    const onScroll = () => {
-      if (frame) return;
-      frame = window.requestAnimationFrame(update);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    update();
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      if (frame) window.cancelAnimationFrame(frame);
-    };
-  }, []);
+      const mm = gsap.matchMedia();
+      // Two plain queries rather than a conditions object: the object form
+      // proved unreliable, occasionally running neither branch.
+      const build = (snap: boolean) => () => {
+          // Panel centres in document space, measured once per refresh rather
+          // than once per scroll event — the old listener read six rects a
+          // frame to learn something that only changes on resize.
+          let centres: number[] = [];
+          const measure = () => {
+            centres = panels.current.map((p) => {
+              if (!p) return Infinity;
+              const r = p.getBoundingClientRect();
+              return r.top + window.scrollY + r.height / 2;
+            });
+          };
 
-  // Interpolate rotation between neighbouring petals so the gear turns
-  // continuously with the scroll, settling exactly on each petal.
-  const lo = Math.floor(t);
-  const hi = Math.min(STEPS.length - 1, lo + 1);
-  const f = t - lo;
-  const ease = f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2;
-  const rot = STEPS[lo].rot + (STEPS[hi].rot - STEPS[lo].rot) * ease;
+          let inBand = false;
+          let published: number | undefined;
+          const apply = () => {
+            const line = window.scrollY + window.innerHeight * 0.5;
+            let t = 0;
+            if (!centres.length || line <= centres[0]) t = 0;
+            else if (line >= centres[centres.length - 1]) t = centres.length - 1;
+            else {
+              for (let i = 0; i < centres.length - 1; i++) {
+                if (line >= centres[i] && line < centres[i + 1]) {
+                  t = i + (line - centres[i]) / (centres[i + 1] - centres[i]);
+                  break;
+                }
+              }
+            }
+            if (snap) t = Math.round(t);
+
+            const idx = Math.max(0, Math.min(STEPS.length - 1, Math.round(t)));
+            setActive((cur) => (cur === idx ? cur : idx));
+            const next = inBand ? idx : undefined;
+            if (next !== published) {
+              published = next;
+              setFocusedPetal(next);
+            }
+
+            // Interpolate between neighbouring petals so the gear turns
+            // continuously with the scroll, settling exactly on each petal.
+            const lo = Math.floor(t);
+            const hi = Math.min(STEPS.length - 1, lo + 1);
+            const f = t - lo;
+            const ease = f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2;
+            const rot = STEPS[lo].rot + (STEPS[hi].rot - STEPS[lo].rot) * ease;
+            if (petals) gsap.set(petals, { "--turn": `${rot.toFixed(2)}deg` });
+          };
+
+          const st = ScrollTrigger.create({
+            trigger: el,
+            start: "top bottom",
+            end: "bottom top",
+            onRefresh: () => { measure(); apply(); },
+            onUpdate: apply,
+          });
+
+          // The header lights the same petal. Telling it directly is what
+          // retires the MutationObserver that used to watch `data-petal`.
+          const focus = ScrollTrigger.create({
+            trigger: el,
+            start: "top 60%",
+            end: "bottom 40%",
+            onToggle: (self) => { inBand = self.isActive; apply(); },
+          });
+
+          measure();
+          apply();
+
+          return () => {
+            st.kill();
+            focus.kill();
+            setFocusedPetal(undefined);
+            if (petals) gsap.set(petals, { clearProps: "--turn" });
+          };
+      };
+
+      // Reduced motion snaps the gear petal to petal instead of interpolating.
+      mm.add("(prefers-reduced-motion: reduce)", build(true));
+      mm.add("(prefers-reduced-motion: no-preference)", build(false));
+
+      return () => mm.revert();
+    },
+    { scope: ref },
+  );
 
   return (
     <section
       id="makes"
       ref={ref}
-      data-petal={step.petal.i}
       className="bloom relative py-22"
       style={{ ["--petal" as string]: step.petal.color }}
     >
-      {/* the wash — the active petal's colour, at the edges */}
-      <div aria-hidden="true" className="bloom-wash pointer-events-none absolute inset-0 -z-10" />
-
       <div className="wrap">
         <Reveal className="mx-auto mb-14 max-w-[720px] text-center" variant="blur">
           <Pill tone="honey" className="mb-5">{BLOOM.eyebrow}</Pill>
@@ -108,12 +149,8 @@ export function BloomJourney() {
           {/* the gear */}
           <div className="hidden lg:block">
             <div className="sticky top-[calc(50vh-11.25rem)] flex flex-col items-center gap-7 lg:-translate-x-20 xl:-translate-x-28">
-              <div className="relative">
-                <span
-                  aria-hidden="true"
-                  className="bloom-halo absolute inset-[-18%] -z-10 rounded-full"
-                />
-                <AllrMark size={360} rotate={rot} highlight={step.petal.i} instant />
+              <div className="relative" ref={gear}>
+                <AllrMark size={360} highlight={step.petal.i} />
               </div>
               <div className="flex items-center gap-2.5" aria-hidden="true">
                 {STEPS.map((s, i) => (

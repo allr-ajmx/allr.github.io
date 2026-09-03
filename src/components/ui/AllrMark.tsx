@@ -1,4 +1,9 @@
+"use client";
+
+import { useRef } from "react";
+import { useGSAP } from "@gsap/react";
 import { cx } from "@/lib/cx";
+import { gsap, EASE } from "@/lib/motion";
 
 /**
  * The Allr mark as inline SVG — six petals on a sand disc, exactly the
@@ -28,13 +33,61 @@ export function AllrMark({
   instant?: boolean;
   className?: string;
 }) {
+  const ref = useRef<SVGSVGElement>(null);
+
+  useGSAP(
+    () => {
+      const svg = ref.current;
+      if (!svg || (!bloom && !spin)) return;
+
+      const mm = gsap.matchMedia();
+      // Reduced motion renders the resting mark: MOTION.md §2 wants the
+      // finished frame, and §5.1b says the bloom plays once and nowhere else
+      // does the mark move.
+      mm.add("(prefers-reduced-motion: no-preference)", () => {
+        const tl = gsap.timeline();
+        if (bloom) {
+          const disc = svg.querySelector(".mark__disc");
+          const petals = svg.querySelectorAll<SVGPathElement>(".mark__petal");
+          if (disc) tl.fromTo(disc, { opacity: 0 }, { opacity: 1, duration: 0.8, ease: EASE.soft }, 0);
+          // `--pop`, not `scale`: CSS applies it about each petal's own centre.
+          // The spring ease overshoots and settles — the 0 → 1.22 → 1 the
+          // keyframe spelled out by hand.
+          tl.fromTo(petals,
+            { "--pop": 0, opacity: 0 },
+            {
+              "--pop": 1, opacity: 1, duration: 0.85,
+              ease: EASE.spring, stagger: 0.1,
+              // Release opacity so `.mark--focus` can dim the other five; a
+              // stuck inline `opacity: 1` outranks the stylesheet forever.
+              onComplete: () => gsap.set(petals, { clearProps: "opacity" }),
+            }, 0.15);
+        }
+        let turn: gsap.core.Tween | undefined;
+        if (spin) {
+          const group = svg.querySelector(".mark__petals");
+          if (group) {
+            turn = gsap.fromTo(group,
+              { "--turn": "0deg" },
+              { "--turn": "360deg", duration: 40, ease: "none", repeat: -1 });
+          }
+        }
+        return () => { tl.kill(); turn?.kill(); };
+      });
+
+      return () => mm.revert();
+    },
+    { scope: ref, dependencies: [bloom, spin] },
+  );
+
   return (
     <svg
+      ref={ref}
       width={size}
       height={size}
       viewBox="0 0 67.186 67.186"
       aria-hidden="true"
-      className={cx("mark", bloom && "mark--bloom", spin && "mark--spin", highlight !== undefined && "mark--focus", className)}
+      className={cx("mark", highlight !== undefined && "mark--focus", className)}
       style={highlight !== undefined ? ({ ["--focus" as string]: highlight } as React.CSSProperties) : undefined}
     >
       <g transform="translate(-107.68542,-80.168747)">
@@ -42,7 +95,7 @@ export function AllrMark({
         <g transform="translate(4.9724772,4.9939355)">
         <g
           className={cx("mark__petals", rotate !== undefined && !instant && "mark__petals--eased")}
-          style={rotate !== undefined ? { transform: `rotate(${rotate}deg)` } : undefined}
+          style={rotate !== undefined ? ({ ["--turn" as string]: `${rotate}deg` } as React.CSSProperties) : undefined}
         >
           <path className="mark__petal" data-petal="0" style={{ ["--n" as string]: 0 }} fill="#74926b" d="m 114.51276,94.26887 c 3.89132,-5.66186 10.64797,-10.09602 15.25668,-11.09926 1.52085,-0.25236 3.80718,-0.49722 3.68969,1.11549 -0.48624,5.52377 -0.97247,11.537445 -1.45871,12.871003 -1.82182,4.825317 -4.18703,4.683557 -6.4355,4.290337 -4.87441,-1.10857 -7.48031,-2.44398 -10.1252,-3.775496 -1.77053,-1.017281 -1.5627,-2.396164 -0.92696,-3.402074 z" />
           <path className="mark__petal" data-petal="1" style={{ ["--n" as string]: 1 }} fill="#f7c14c" d="m 137.9658,82.64489 c 6.84898,0.53905 14.0674,4.1734 17.24058,7.66304 0.97898,1.19092 2.3342,3.04851 0.8788,3.75311 -5.02684,2.340792 -10.47795,4.926542 -11.87597,5.172225 -5.08976,0.834915 -6.14959,-1.284294 -6.93329,-3.428139 C 135.79876,91.02948 135.65232,88.105 135.483,85.1487 c -0.004,-2.04197 1.29379,-2.55142 2.4828,-2.50381 z" />

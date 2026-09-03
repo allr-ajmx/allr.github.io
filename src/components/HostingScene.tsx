@@ -107,12 +107,12 @@ export function HostingScene() {
         {/* the internet — the web glyph, every line a stream of tiny petals */}
         <circle cx={G.x} cy={G.y} r={GLOBE_R} fill="url(#globe-fill)" opacity="0.6" />
         {GLYPH.map((g, ri) => (
-          <g key={ri} className="hosting__stream">
+          <g key={ri} className="hosting__stream" data-path={g.d} data-dur={g.dur}>
             {Array.from({ length: g.n }, (_, k) => {
               // Deterministic per-petal wobble so no two move alike.
               const seed = (k * 7 + ri * 13) % 11;
               return (
-                <g key={k}>
+                <g key={k} data-phase={k / g.n}>
                   <g className="hosting__push">
                   <g
                     className={k % 2 ? "hosting__mote hosting__mote--still" : "hosting__mote"}
@@ -131,7 +131,6 @@ export function HostingScene() {
                     />
                   </g>
                   </g>
-                  <animateMotion dur={`${g.dur}s`} begin={`${-(k / g.n) * g.dur}s`} repeatCount="indefinite" rotate="auto" path={g.d} />
                 </g>
               );
             })}
@@ -149,14 +148,12 @@ export function HostingScene() {
 
         {/* petals in flight — one per wire, landing on its device */}
         {links.map((l) => (
-          <g key={`fly-${l.i}`} className="hosting__flyer">
+          <g key={`fly-${l.i}`} className="hosting__flyer" data-path={l.path} data-dur={3.6} data-begin={l.i * 0.9}>
             <path d={PETAL_PATH} transform="translate(-9 -6) scale(18 12)" fill={l.p.color} />
-            <animateMotion dur="3.6s" begin={`${l.i * 0.9}s`} repeatCount="indefinite" rotate="auto" path={l.path} />
           </g>
         ))}
-        <g className="hosting__flyer">
+        <g className="hosting__flyer" data-path={inbound} data-dur={3} data-begin={0.4}>
           <path d={PETAL_PATH} transform="translate(-8 -5.5) scale(16 11)" fill="#f7c14c" />
-          <animateMotion dur="3s" begin="0.4s" repeatCount="indefinite" rotate="auto" path={inbound} />
         </g>
       </svg>
 

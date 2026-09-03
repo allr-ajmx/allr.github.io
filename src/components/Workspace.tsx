@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { useGSAP } from "@gsap/react";
 import { MockFor } from "@/components/mocks/Mocks";
 import { AllrMark } from "@/components/ui/AllrMark";
 import { SHOWCASE, WORKSPACE } from "@/lib/brand";
 import { cx } from "@/lib/cx";
 import { PETAL_BY_ID, rotationToPoint } from "@/lib/petals";
+import { gsap, ScrollTrigger, EASE } from "@/lib/motion";
 
-const MAKING_MS = 1150;
-const STAMP_MS = 320;
+/** MOTION.md §5.1: the artifact settles at 1150ms and seals live at 1470ms. */
+const MAKING = 1.15;
+const STAMP = 0.32;
 const MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 function subscribe(onChange: () => void) {
@@ -28,6 +31,7 @@ type Phase = "idle" | "making" | "done" | "live";
  * short beat — making → done → sealed live. First play on scroll-in.
  */
 export function Workspace() {
+  const root = useRef<HTMLDivElement>(null);
   const ref = useRef<HTMLDivElement>(null);
   const shouldAnimate = useShouldAnimate();
   const [active, setActive] = useState(0);
@@ -45,33 +49,85 @@ export function Workspace() {
     setRun((n) => n + 1);
   }, []);
 
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || !shouldAnimate || !("IntersectionObserver" in window)) return;
-    const io = new IntersectionObserver(
-      (entries) => entries.forEach((e) => { if (e.isIntersecting) { setPhase("making"); setRun((n) => n + 1); io.disconnect(); } }),
-      { threshold: 0.2 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [shouldAnimate]);
-
-  useEffect(() => {
-    if (run === 0 || !shouldAnimate) return;
-    const a = window.setTimeout(() => setPhase("done"), MAKING_MS);
-    const b = window.setTimeout(() => setPhase("live"), MAKING_MS + STAMP_MS);
-    return () => { clearTimeout(a); clearTimeout(b); };
-  }, [run, shouldAnimate]);
-
   const p: Phase = shouldAnimate ? phase : "live";
   const made = p === "done" || p === "live";
   const live = p === "live";
 
+  // First play when the window scrolls in. One shot — the tabs are the only
+  // way to see it again.
+  useGSAP(
+    () => {
+      if (!shouldAnimate) return;
+      const st = ScrollTrigger.create({
+        trigger: ref.current,
+        start: "top 80%",
+        once: true,
+        onEnter: () => { setPhase("making"); setRun((n) => n + 1); },
+      });
+      return () => st.kill();
+    },
+    { scope: ref, dependencies: [shouldAnimate] },
+  );
+
+  // The beats, on GSAP's clock rather than two loose timers. A timeline can be
+  // killed as one thing, so a fast tab switch cannot leave a stale phase
+  // change in flight.
+  useGSAP(
+    () => {
+      if (run === 0 || !shouldAnimate) return;
+      const el = root.current;
+      if (!el) return;
+      const q = <T extends Element>(sel: string) => Array.from(el.querySelectorAll<T>(sel));
+
+      const tl = gsap.timeline();
+
+      // The caption and the reply lines settle in.
+      const caption = q<HTMLElement>(".ws-caption");
+      if (caption.length) tl.from(caption, { opacity: 0, y: 14, duration: 0.45, ease: EASE.soft }, 0);
+      const steps = q<HTMLElement>(".ws-step");
+      if (steps.length) tl.from(steps, { opacity: 0, y: 14, duration: 0.4, stagger: 0.09, ease: EASE.soft }, 0);
+
+      // The deploy line along the top edge and the ink bar under the artifact
+      // both fill across exactly the making beat — one constant, not three.
+      const bars = [...q<HTMLElement>(".ws-line"), ...q<HTMLElement>(".ws-inkbar")];
+      if (bars.length) {
+        tl.fromTo(bars, { scaleX: 0 }, { scaleX: 0.9, duration: MAKING, ease: EASE.ink }, 0);
+      }
+
+      tl.call(() => setPhase("done"), undefined, MAKING);
+      tl.call(() => setPhase("live"), undefined, MAKING + STAMP);
+      return () => { tl.kill(); };
+    },
+    { dependencies: [run, shouldAnimate] },
+  );
+
+  // Going live: the line completes, turns green and fades; the checkmark draws
+  // itself. Keyed on `live` because both elements only exist by then.
+  useGSAP(
+    () => {
+      if (!live || !shouldAnimate) return;
+      const el = root.current;
+      if (!el) return;
+      const tl = gsap.timeline();
+      const line = el.querySelector<HTMLElement>(".ws-line");
+      if (line) {
+        tl.to(line, { scaleX: 1, duration: 0.35, ease: EASE.soft }, 0)
+          .to(line, { opacity: 0, duration: 1.05, ease: EASE.soft }, 0.35);
+      }
+      const ring = el.querySelector<SVGCircleElement>(".live-check__ring");
+      const tick = el.querySelector<SVGPathElement>(".live-check__tick");
+      if (ring) tl.fromTo(ring, { strokeDashoffset: 44 }, { strokeDashoffset: 0, duration: 0.5, ease: EASE.soft }, 0);
+      if (tick) tl.fromTo(tick, { strokeDashoffset: 12 }, { strokeDashoffset: 0, duration: 0.35, ease: EASE.soft }, 0.35);
+      return () => { tl.kill(); };
+    },
+    { dependencies: [live, shouldAnimate] },
+  );
+
   return (
-    <div className="w-full">
+    <div ref={root} className="w-full">
       {/* tabs + caption — one row, like a caption under a photograph */}
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap gap-1 rounded-control border border-line bg-card/80 p-1 shadow-soft backdrop-blur-[2px]" role="tablist" aria-label="What Allr makes">
+        <div className="flex flex-wrap gap-1 rounded-control border border-line bg-card p-1 shadow-soft" role="tablist" aria-label="What Allr makes">
           {SHOWCASE.map((s, i) => {
             const on = i === active;
             return (
