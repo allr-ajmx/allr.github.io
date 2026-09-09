@@ -12,6 +12,15 @@
  * early-access list would be turned away from the mobile beta.
  */
 
+// `firebase/env.ts` imports nothing, so reading the config from there costs
+// this page nothing — importing from `firebase/app.ts` instead would drag the
+// whole Firebase SDK into the homepage bundle.
+import {
+  FIREBASE_API_KEY,
+  FIREBASE_PROJECT_ID,
+  FIRESTORE_HOST,
+} from "@/lib/firebase/env";
+
 export type ListId = "early" | "beta";
 export type Platform = "android" | "ios" | "either";
 
@@ -28,8 +37,6 @@ const LISTS: Record<ListId, ListSpec> = {
   beta: { collection: "beta_signups", subject: "Allr mobile beta" },
 };
 
-const FIREBASE_PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-const FIREBASE_API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 const WAITLIST_URL = process.env.NEXT_PUBLIC_WAITLIST_URL;
 const WAITLIST_EMAIL = process.env.NEXT_PUBLIC_WAITLIST_EMAIL;
 
@@ -106,8 +113,10 @@ export async function joinList(
   //    document id is the hash of the email so duplicates are refused (409).
   if (FIREBASE_PROJECT_ID && FIREBASE_API_KEY) {
     const id = await sha256Hex(email);
+    // FIRESTORE_HOST is the emulator under `pnpm dev:emulated`, so a local test
+    // signup can never land in the production list.
     const url =
-      `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}` +
+      `${FIRESTORE_HOST}/v1/projects/${FIREBASE_PROJECT_ID}` +
       `/databases/(default)/documents/${collection}?documentId=${id}&key=${FIREBASE_API_KEY}`;
     const res = await fetch(url, {
       method: "POST",
