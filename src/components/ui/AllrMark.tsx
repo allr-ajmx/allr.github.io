@@ -15,6 +15,7 @@ export function AllrMark({
   size,
   bloom = false,
   spin = false,
+  spinSeconds = 40,
   rotate,
   highlight,
   instant = false,
@@ -23,8 +24,15 @@ export function AllrMark({
   /** Pixel size, or a CSS length such as "0.9em" to sit inside text. */
   size: number | string;
   bloom?: boolean;
-  /** After blooming, the petals keep turning — one revolution every 40s. */
+  /** After blooming, the petals keep turning. */
   spin?: boolean;
+  /**
+   * Seconds per revolution. The default 40 is the homepage's ambient drift —
+   * barely perceptible, which is the point there. A spinner that says "we are
+   * waiting on something" needs to be visibly moving, so `Waiting` asks for a
+   * couple of seconds instead. Same mark, different job.
+   */
+  spinSeconds?: number;
   /** Turn the petal group by this many degrees (eases unless `instant`). */
   rotate?: number;
   /** Petal index to light up; the other five dim. */
@@ -69,7 +77,7 @@ export function AllrMark({
           if (group) {
             turn = gsap.fromTo(group,
               { "--turn": "0deg" },
-              { "--turn": "360deg", duration: 40, ease: "none", repeat: -1 });
+              { "--turn": "360deg", duration: spinSeconds, ease: "none", repeat: -1 });
           }
         }
         return () => { tl.kill(); turn?.kill(); };
@@ -77,7 +85,7 @@ export function AllrMark({
 
       return () => mm.revert();
     },
-    { scope: ref, dependencies: [bloom, spin] },
+    { scope: ref, dependencies: [bloom, spin, spinSeconds] },
   );
 
   return (
