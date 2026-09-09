@@ -118,7 +118,7 @@ Color is semantic, not decorative. Green means done. Honey means warmth and in-p
 
 | Token | Hex | Meaning | Use |
 |---|---|---|---|
-| `paper` | `#FBF8F2` | Evening paper | Page wash, sticky header |
+| `paper` | `#FDFCF9` | Evening paper | Page wash, sticky header |
 | `card` | `#FFFFFF` | A sheet on the desk | Surfaces, buttons (ghost) |
 | `ink` | `#223B33` | Deep pine — steady | Headlines, body emphasis |
 | `ink-soft` | `#5C7168` | Quiet pine | Body, captions, nav |
@@ -135,8 +135,16 @@ Color is semantic, not decorative. Green means done. Honey means warmth and in-p
 | `sage-tint` | `#ECF2EC` | Quiet green | Card stickers, handled chips |
 | `sage-line` | `#DCE8DD` | Quiet green edge | Handled chips |
 | `clay-tint` | `#F6EDE2` | Warm clay | Card stickers |
+| `alert` | `#A6543C` | Something needs fixing | Form error text, invalid field border |
+| `alert-tint` | `#F9E9E4` | Error wash | The struck-through `NEVER_SAY` chips on `/design` |
+| `alert-line` | `#EFCFC4` | Error edge | Those chips' border |
 
 Ambient orbs are honey + green on paper. Never introduce a fourth hue (blue, purple, neon) on a welcome surface.
+
+`alert` is the one exception, and it is a correction rather than an expansion: the same red was already
+hardcoded twice — in `WaitlistForm.tsx` and on `/design` — before it had a name. It is a *state*, not a
+brand hue: it may only say that something the person typed needs fixing. It never decorates, never fills a
+surface, never appears on a page with no form on it, and never becomes a fourth accent.
 
 **Forbidden:** generic Tailwind gray (`zinc`, `slate`, `neutral`) as text or background. Forbidden: black `#000` as ink. Forbidden: using green for anything that is not success / live / primary CTA.
 
@@ -278,7 +286,8 @@ Campaign pages may cut sections. They may not reorder the six outputs, swap the 
 | `allr.github.io` landing | Full. Source of truth |
 | Campaign / waitlist / OG | Full |
 | `allr-agent/website` docs | **One Allr.** Same faces, hues, and paper wash as the landing — migrate off the dark-navy theme. Layout may be denser; code may use JetBrains Mono. Never GitHub gray |
-| Allr.OS Dex / dashboard login | Same hues and wordmark. Controls may be denser |
+| `/login` | Full. It is still a welcome surface: the shader, the wordmark, the paper wash |
+| `/account` (the signed-in shell) | Same hues, wordmark, faces and type scale. **No shader** — flat paper. Sidebar chrome instead of the marketing page rhythm; controls are denser and forms carry visible labels |
 | Helix admin | Product chrome; do not force letterpress. Steal tokens, not the landing layout |
 | TUI / desktop app | Out of scope for this vocabulary |
 
@@ -309,6 +318,13 @@ Campaign pages may cut sections. They may not reorder the six outputs, swap the 
 | `src/components/ui/` | Primitives |
 | `src/components/app/` | The `/app` page sections. Its hero shows real captures (`public/*_screenshot.png`); the drawn screens in `mocks.tsx` are the kept fallback |
 | `src/lib/releases.ts` | The latest desktop release — the only source of download links |
+| `src/lib/legal.ts` | Terms/Privacy versions and the contact address. The stored consent and the rendered page read the same constants |
+| `src/lib/age.ts` | The 18+ gate. Imports nothing, so it can be tested on its own — `tests/age.test.mjs` |
+| `src/lib/firebase/env.ts` | Firebase config with **no** Firebase import, so `waitlist.ts` can read it without dragging the SDK onto the homepage |
+| `src/lib/firebase/` | The SDK, Google sign-in, and the `users/{uid}` profile. Only `/login` and `/account` may import from here |
+| `src/components/account/` | The signed-in shell, its gate, and registration |
+| `firebase/firestore.rules` | The whole security boundary — there is no server. Tested by `firebase/*.test.mjs` |
+| `scripts/check-bundle-isolation.mjs` | Proves the marketing pages still ship without the Firebase SDK |
 | `public/docs/` | The built docs, copied in from `allr-agent/website` by `scripts/sync-docs.mjs`. Generated — never hand-edit a page here |
 | `vercel.json` | Host routing on allr.work: `/release` sends people to GitHub Releases |
 | `MOTION.md` | Homepage motion & stills contract |
@@ -337,6 +353,9 @@ Answered while this vocabulary was written. Do not reopen on a later page.
 | Waitlist backend | **Firestore, create-only, straight from the browser** | The site is a static export, so there is no server to post to. `src/lib/waitlist.ts` is the only transport; the rules in `firebase/firestore.rules` are the whole security boundary and are deployed by CI, not pasted into a console. A production build with no backend configured fails rather than shipping a form that pretends to have saved an address |
 | Where the docs live | **Written in `allr-agent`, shipped from `public/docs`** | The Docusaurus source stays in the product repo (`website/`, `baseUrl: '/docs/'`); its finished build is copied into `public/docs` by `pnpm sync-docs` and committed, so allr.work serves the docs from this one deployment with no proxy or second host. The cost is that the snapshot is only as fresh as the last sync: after a docs change, re-run the sync and commit. Never edit a page under `public/docs` — the edit belongs upstream and the next sync would overwrite it. `/llms.txt` and `/llms-full.txt` are copied to the site root the same way |
 | `/release` | **A redirect, not a page** | `allr.work/release` sends visitors to the GitHub Releases page for `allr-ajmx/allr-agent`; `/release/latest` to the latest one. A temporary redirect, so the destination can move. Marketing download buttons still go to `/download` — this is the raw-artifact door for links shared in issues and chat |
+| Sign-in | **Google only** | One provider, no password, no magic link, no second button. The site is a static export: there is no server, so there is no password we could store safely and no session cookie we could set. Firebase Auth in the browser holds the session; `firebase/firestore.rules` is the whole security boundary, exactly as it already is for the waitlist. `signInWithPopup`, never `signInWithRedirect` — the redirect flow needs third-party storage on the `authDomain`, which browsers now partition, and it breaks wherever the app is not served from the auth handler's own origin |
+| The signed-in shell | **`/account`, sidebar, no shader** | `/login` keeps `AmbientShader`, because it is still a welcome surface. `/account` does not: the shader is one fixed full-viewport WebGL canvas and behind a dense, card-heavy dashboard it fights the content and holds a GPU context on every navigation. `/account` is flat `bg-paper` with a left rail. Everything else is inherited — same hues, same wordmark, same two faces, `Reveal` and nothing louder. Neither route is indexed and neither is in the sitemap, the same treatment `/design` gets; the only public door is a plain "Sign in" text link in the header, which never displaces the green "Get early access" button |
+| Age and legal data | **18+, asked at registration** | Allr is strictly an above-contract-age product. Date of birth is asked in the first-time registration form, not at checkout, and an under-18 answer is refused twice: by the form and again by the Firestore rules, so a forged client gets nowhere. The date is stored, because the stored date is the evidence the age assertion rests on. Registration otherwise collects only the legal minimum needed to sell to someone later — legal name, country of residence, individual or business, and the entity name if business. **Postal address and tax ID are deliberately deferred to checkout** and are never asked at signup. Terms and Privacy are two separate ticks and the marketing opt-in is a third, unticked one: bundling consent is exactly what makes it invalid |
 
 ## 17. Still open
 
