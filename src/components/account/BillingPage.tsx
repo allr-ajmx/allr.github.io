@@ -1,4 +1,6 @@
 import { ComingSoon, PageHeader } from "./PageHeader";
+import { CONTACT_EMAIL } from "@/lib/legal";
+import { Button } from "@/components/ui/Button";
 
 /**
  * Nothing to bill yet, and the page says exactly that.
@@ -10,15 +12,29 @@ import { ComingSoon, PageHeader } from "./PageHeader";
 export function BillingPage() {
   return (
     <>
-      <PageHeader eyebrow="Billing" title="Nothing to pay">
-        The Allr app is free and stays free. When the workspace opens, this is
-        where its plan and receipts will live.
+      <PageHeader eyebrow="Billing" title="Paying for your workspace">
+        The Allr app is free and stays free. The workspace it connects to is the
+        plan — and this is where it will be paid for.
       </PageHeader>
 
-      <ComingSoon what="Your plan">
-        We will ask for a billing address and payment details at checkout — not
-        before. Until then there is nothing here to manage.
+      <ComingSoon what="Checkout isn’t open yet">
+        There is no payment page to send you to, so rather than a button that
+        goes nowhere: your workspace stays exactly as you left it, and nothing
+        is deleted while we get this ready. We will email you the moment you can
+        pay.
       </ComingSoon>
+
+      <div className="mt-5">
+        <p className="mb-3 text-[.96rem] leading-[1.7] text-ink-soft">
+          Need it sooner, or want to sort it out by hand?
+        </p>
+        <Button
+          href={`mailto:${CONTACT_EMAIL}?subject=Paying%20for%20my%20workspace`}
+          variant="ghost"
+        >
+          Write to us
+        </Button>
+      </div>
     </>
   );
 }
