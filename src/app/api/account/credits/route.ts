@@ -1,5 +1,5 @@
 import { deriveState, trialDaysLeft } from "@/lib/account/state";
-import { ensureTrial, readProfile } from "@/lib/server/profiles";
+import { ensureTrial, readOrAdoptProfile } from "@/lib/server/profiles";
 import { requireUser } from "@/lib/server/session";
 import { toResponse } from "@/lib/server/errors";
 import { TRIAL_CREDIT_USD } from "@/lib/account/model";
@@ -16,7 +16,7 @@ import { TRIAL_CREDIT_USD } from "@/lib/account/model";
 export async function GET(request: Request) {
   try {
     const caller = await requireUser(request);
-    let profile = await readProfile(caller.uid);
+    let profile = await readOrAdoptProfile(caller);
     if (profile) profile = await ensureTrial(profile);
 
     if (!profile?.trial) {

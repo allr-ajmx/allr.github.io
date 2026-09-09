@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { adminDb } from "./admin";
+import { adminAuth, adminDb } from "./admin";
 import { badRequest, conflict } from "./errors";
 import type { Caller } from "./session";
 import { parseBirthDate } from "@/lib/age";
@@ -80,6 +80,80 @@ export async function readProfile(uid: string): Promise<UserProfile | null> {
 }
 
 /**
+ * Whether the uid on a claim still belongs to anybody.
+ *
+ * A Firebase account can be deleted and the person can sign in again with the
+ * same Google address, getting a *new* uid. When that happens the old claim
+ * outlives the identity it named.
+ */
+async function identityExists(uid: string): Promise<boolean> {
+  try {
+    await adminAuth().getUser(uid);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The caller's profile, adopting one stranded under a dead uid.
+ *
+ * Keying profiles by uid and claiming addresses separately left a trap: delete
+ * the Firebase account and sign in again, and you arrive with a new uid that
+ * has no profile — so you are shown the signup form — while the claim still
+ * points at the old uid, so signing up is refused as a duplicate. Locked out of
+ * an account that plainly exists, with no way forward.
+ *
+ * The address is the person, not the uid. So when a claim names a uid that Auth
+ * no longer knows, the profile is moved to whoever proves control of that
+ * verified address — which, because `requireUser` has already checked the token
+ * came from Google and the address is verified, is them.
+ *
+ * A claim whose uid *does* still exist is never touched: that is somebody
+ * else's account and refusing is correct.
+ */
+export async function readOrAdoptProfile(caller: Caller): Promise<UserProfile | null> {
+  const own = await readProfile(caller.uid);
+  if (own) return own;
+
+  const db = adminDb();
+  const claimRef = db.collection(EMAIL_CLAIMS).doc(emailKey(caller.email));
+  const claim = await claimRef.get();
+  if (!claim.exists) return null;
+
+  const strandedUid = claim.data()?.uid as string | undefined;
+  if (!strandedUid || strandedUid === caller.uid) return null;
+  if (await identityExists(strandedUid)) return null;
+
+  const strandedRef = db.collection(USERS).doc(strandedUid);
+  const stranded = await strandedRef.get();
+  if (!stranded.exists) {
+    // A claim with no profile behind it is just litter; let registration reuse
+    // the address rather than refusing forever.
+    await claimRef.delete();
+    return null;
+  }
+
+  const userRef = db.collection(USERS).doc(caller.uid);
+  await db.runTransaction(async (tx) => {
+    tx.set(userRef, {
+      ...stranded.data(),
+      uid: caller.uid,
+      email: caller.email,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.delete(strandedRef);
+    tx.set(claimRef, { uid: caller.uid, email: caller.email, adoptedAt: FieldValue.serverTimestamp() }, { merge: true });
+  });
+
+  console.warn(
+    `[account] adopted ${caller.email}: ${strandedUid} no longer exists in Auth, moved to ${caller.uid}`,
+  );
+
+  return readProfile(caller.uid);
+}
+
+/**
  * Create the profile and claim the email address, or do neither.
  *
  * The claim lives in its own document keyed by the hash of the address, so a
@@ -99,6 +173,13 @@ export async function createProfile(
 
   const birth = parseBirthDate(draft.dateOfBirth);
   if (!birth) throw badRequest("invalid", "That is not a date we can read.");
+
+  // Somebody whose old identity was deleted has an account already; give it
+  // back rather than turning them away from an address that is theirs.
+  const adopted = await readOrAdoptProfile(caller);
+  if (adopted) {
+    throw conflict("already-registered", "You already have an Allr account.");
+  }
 
   const db = adminDb();
   const userRef = db.collection(USERS).doc(caller.uid);

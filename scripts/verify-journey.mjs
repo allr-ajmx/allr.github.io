@@ -166,14 +166,27 @@ await fetch(`http://${AUTH}/emulator/v1/projects/${PROJECT}/accounts`, { method:
 const second = await signIn("google-journey-2");
 {
   ok("the uid really did change", second.uid !== first.uid, `${first.uid} → ${second.uid}`);
-  const { status, body } = await api("/account/register/", {
+
+  // The address is the person, not the uid. The old identity no longer exists,
+  // so the account comes back rather than the person being locked out between
+  // a signup form that refuses them and a profile they cannot reach.
+  const { body } = await api("/account/me/");
+  ok("the stranded account is adopted", Boolean(body?.profile), body?.state);
+  ok(
+    "it is the same account, not a new one",
+    body?.profile?.email === EMAIL && body?.profile?.uid === second.uid,
+    body?.profile?.uid,
+  );
+  ok("its workspace survived the move", Boolean(body?.profile?.workspace_username));
+
+  const { status, body: reg } = await api("/account/register/", {
     method: "POST",
     body: JSON.stringify(draft),
   });
   ok(
-    "a second account for one address is refused",
-    status === 409 && body?.error?.code === "email-taken",
-    `HTTP ${status} ${body?.error?.code ?? ""}`,
+    "registering again is still refused",
+    status === 409,
+    `HTTP ${status} ${reg?.error?.code ?? ""}`,
   );
 }
 
