@@ -48,7 +48,6 @@ export function ProfilePage() {
             accountType: profile.accountType,
             entityName: profile.entityName,
             marketingOptIn: profile.marketingOptIn,
-            mobilePlatforms: profile.mobilePlatforms,
           }
         : null,
     [profile],
@@ -58,6 +57,18 @@ export function ProfilePage() {
   const [submitted, setSubmitted] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [failure, setFailure] = useState<string | null>(null);
+
+  // Tester tracks save on their own: they are a toggle, not part of the form
+  // you submit, and making somebody press Save to change one would be odd.
+  const savePlatforms = async (next: MobilePlatform[]) => {
+    try {
+      await patchProfile({ mobilePlatforms: next });
+      await refresh();
+    } catch {
+      setStatus("error");
+      setFailure("That didn’t save. Try again?");
+    }
+  };
 
   // The provider resolves the profile after this component first renders.
   const current = draft ?? initial;
@@ -217,14 +228,10 @@ export function ProfilePage() {
           <ChoiceChipsMulti
             legend="Mobile testing"
             options={MOBILE_PLATFORMS}
-            values={current.mobilePlatforms}
-            onChange={(v) => set("mobilePlatforms", v as MobilePlatform[])}
+            values={profile.mobilePlatforms}
+            onChange={(v) => void savePlatforms(v as MobilePlatform[])}
           />
-          {errors.mobilePlatforms && (
-            <p role="alert" className="text-[.86rem] font-semibold text-alert">
-              {errors.mobilePlatforms}
-            </p>
-          )}
+
         </div>
 
         <div className="flex items-center gap-4">

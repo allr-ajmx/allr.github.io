@@ -7,26 +7,24 @@ import { useAuth } from "./AuthProvider";
 import { AllrMark } from "@/components/ui/AllrMark";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
-import { ChoiceChips, ChoiceChipsMulti } from "@/components/ui/ChoiceChips";
+import { ChoiceChips } from "@/components/ui/ChoiceChips";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { COUNTRIES } from "@/lib/countries";
 import { latestEligibleBirthDate } from "@/lib/age";
 import { ApiCallFailed, registerAccount } from "@/lib/firebase/api";
-import {
-  MOBILE_PLATFORMS,
-  type AccountType,
-  type MobilePlatform,
-  type ProfileDraft,
-} from "@/lib/account/model";
+import { type AccountType, type ProfileDraft } from "@/lib/account/model";
 import { validateDraft, type DraftErrors } from "@/lib/account/validate";
 import { WORDMARK } from "@/lib/brand";
 
 /**
- * Asking for early access.
+ * Making an account.
  *
- * This is a *request*, not a signup — filling it in does not hand anybody a
- * workspace (DESIGN.md §16). It asks for the legal minimum needed to sell to
+ * An account is for anybody; early access is a separate thing you then ask for
+ * (DESIGN.md §16). Merging the two put everyone who signed up into a queue
+ * whether they meant to be or not, so this form asks only who you are.
+ *
+ * It asks for the legal minimum needed to sell to
  * this person later and nothing beyond it: postal address and tax ID are
  * checkout questions, and collecting them now would mean holding data we have
  * no use for, which is what a privacy policy has to justify.
@@ -59,7 +57,6 @@ export function RegisterForm() {
     accountType: "individual",
     entityName: "",
     marketingOptIn: false,
-    mobilePlatforms: [],
   });
   const [terms, setTerms] = useState(false);
   const [privacy, setPrivacy] = useState(false);
@@ -123,7 +120,7 @@ export function RegisterForm() {
       </Link>
 
       <h1 className="mb-2 font-serif text-[1.85rem] leading-[1.18] text-ink">
-        Ask for early access
+        Make your account
       </h1>
       <p className="mb-8 text-[1.02rem] leading-[1.7] text-ink-soft">
         A few details, once, so that nothing has to stop later. Signed in as{" "}
@@ -208,27 +205,6 @@ export function RegisterForm() {
           </Field>
         )}
 
-        <div className="flex flex-col gap-2">
-          <p className="text-[.92rem] font-bold text-ink">
-            Which phone do you want to test on?
-          </p>
-          <p className="text-[.86rem] leading-snug text-ink-soft">
-            iOS and Android are both open to testers, and early access puts you
-            in the testing build automatically. Pick both if you use both.
-          </p>
-          <ChoiceChipsMulti
-            legend="Which phone do you want to test on?"
-            options={MOBILE_PLATFORMS}
-            values={draft.mobilePlatforms}
-            onChange={(v) => set("mobilePlatforms", v as MobilePlatform[])}
-          />
-          {fieldErrors.mobilePlatforms && (
-            <p role="alert" className="text-[.86rem] font-semibold text-alert">
-              {fieldErrors.mobilePlatforms}
-            </p>
-          )}
-        </div>
-
         <div className="flex flex-col gap-4 border-t border-line pt-6">
           <Checkbox
             checked={terms}
@@ -287,7 +263,7 @@ export function RegisterForm() {
             disabled={saving || !consented}
             busy={saving}
           >
-            {saving ? "Sending your request…" : "Request early access"}
+            {saving ? "Setting things up…" : "Create my account"}
           </Button>
         </div>
       </form>

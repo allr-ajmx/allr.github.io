@@ -5,6 +5,7 @@ import { useAuth } from "./AuthProvider";
 import { CreditBar } from "./CreditBar";
 import { WorkspaceAccess } from "./WorkspaceAccess";
 import { ComingSoon, PageHeader } from "./PageHeader";
+import { RequestEarlyAccess } from "./RequestEarlyAccess";
 import { Button } from "@/components/ui/Button";
 import { Pill } from "@/components/ui/Pill";
 import { fetchCredits, type CreditResponse } from "@/lib/firebase/api";
@@ -19,6 +20,10 @@ import { fetchCredits, type CreditResponse } from "@/lib/firebase/api";
 export function Overview() {
   const { profile, status } = useAuth();
   const firstName = profile?.name.trim().split(/\s+/)[0];
+
+  // A brand-new account has not asked for anything yet, and being shown a
+  // waiting screen for a queue you never joined would be a lie.
+  if (status === "registered") return <RequestEarlyAccess />;
 
   if (status === "requested") {
     return (

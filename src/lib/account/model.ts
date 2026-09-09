@@ -42,7 +42,16 @@ export type UserProfile = {
   /** "" for an individual. */
   entityName: string;
   marketingOptIn: boolean;
+  /** Which tester tracks they joined. Chosen when asking for early access. */
   mobilePlatforms: MobilePlatform[];
+  /**
+   * When they asked for early access, or null if they have not.
+   *
+   * Signing up and asking are two acts: an account is for everyone, early
+   * access is a queue. Merging them meant anyone who made an account was in the
+   * queue whether they meant to be or not.
+   */
+  earlyAccessRequestedAt: string | null;
   termsVersion: string;
   privacyVersion: string;
   /** ISO 8601. */
@@ -61,7 +70,13 @@ export type UserProfile = {
   trial: Trial | null;
 };
 
-/** What the registration form sends. */
+/**
+ * What the registration form sends.
+ *
+ * Everything here is about *who you are*. Which phone you want to test on is
+ * not — it only means anything once you are asking for early access, so it is
+ * asked there instead.
+ */
 export type ProfileDraft = {
   name: string;
   dateOfBirth: string;
@@ -69,12 +84,16 @@ export type ProfileDraft = {
   accountType: AccountType;
   entityName: string;
   marketingOptIn: boolean;
+};
+
+/** What asking for early access sends. */
+export type EarlyAccessRequest = {
   mobilePlatforms: MobilePlatform[];
 };
 
 /** The subset a person may change afterwards. Never email, never workspace. */
-export type ProfilePatch = Partial<Omit<ProfileDraft, "dateOfBirth">> & {
-  dateOfBirth?: string;
+export type ProfilePatch = Partial<ProfileDraft> & {
+  mobilePlatforms?: MobilePlatform[];
 };
 
 export const MAX_NAME = 120;

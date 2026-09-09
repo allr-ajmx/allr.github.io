@@ -11,6 +11,8 @@ import type { UserProfile } from "./model";
 export type JourneyState =
   /** Signed in with Google, but no profile yet. */
   | "needsProfile"
+  /** Has an account, but has not asked for early access. */
+  | "registered"
   /** Asked for early access; no workspace handed over yet. */
   | "requested"
   /** Workspace is live and the promotional week is running. */
@@ -37,7 +39,11 @@ export function deriveState(
   now: Date = new Date(),
 ): JourneyState {
   if (!profile) return "needsProfile";
-  if (!hasWorkspace(profile)) return "requested";
+  // Having an account and being in the queue are different things, and the
+  // difference is the whole point of asking.
+  if (!hasWorkspace(profile)) {
+    return profile.earlyAccessRequestedAt ? "requested" : "registered";
+  }
   // A workspace with no trial recorded has simply not been stamped yet; the
   // server does that on first read. Treat it as running rather than expired —
   // locking someone out over our own bookkeeping would be the worse mistake.

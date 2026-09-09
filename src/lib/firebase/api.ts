@@ -2,6 +2,7 @@
 
 import { getAllrAuth } from "./app";
 import type {
+  EarlyAccessRequest,
   ProfileDraft,
   ProfilePatch,
   PublishedUrl,
@@ -66,16 +67,22 @@ async function call<T>(
 
 export type MeResponse = { profile: UserProfile | null; state: JourneyState };
 
-export const fetchMe = () => call<MeResponse>("/account/me");
+export const fetchMe = () => call<MeResponse>("/account/me/");
 
 export const registerAccount = (draft: ProfileDraft) =>
-  call<{ profile: UserProfile }>("/account/register", {
+  call<{ profile: UserProfile }>("/account/register/", {
     method: "POST",
     body: JSON.stringify(draft),
   });
 
+export const requestEarlyAccess = (request: EarlyAccessRequest) =>
+  call<{ profile: UserProfile }>("/account/early-access/", {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+
 export const patchProfile = (patch: ProfilePatch) =>
-  call<{ profile: UserProfile }>("/account/profile", {
+  call<{ profile: UserProfile }>("/account/profile/", {
     method: "PATCH",
     body: JSON.stringify(patch),
   });
@@ -94,6 +101,6 @@ export type CreditResponse = {
   mocked: boolean;
 };
 
-export const fetchCredits = () => call<CreditResponse>("/account/credits");
+export const fetchCredits = () => call<CreditResponse>("/account/credits/");
 
-export const fetchUrls = () => call<{ urls: PublishedUrl[] }>("/account/urls");
+export const fetchUrls = () => call<{ urls: PublishedUrl[] }>("/account/urls/");

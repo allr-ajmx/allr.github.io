@@ -10,13 +10,14 @@ import { PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
 import {
   TRIAL_CREDIT_USD,
   TRIAL_DAYS,
+  type EarlyAccessRequest,
   type ProfileDraft,
   type ProfilePatch,
   type PublishedUrl,
   type UserProfile,
 } from "@/lib/account/model";
 import { hasWorkspace } from "@/lib/account/state";
-import { validateDraft } from "@/lib/account/validate";
+import { validateDraft, validateEarlyAccess } from "@/lib/account/validate";
 
 /**
  * Everything that writes a profile.
@@ -56,6 +57,9 @@ function toProfile(data: FirebaseFirestore.DocumentData): UserProfile {
     entityName: data.entityName ?? "",
     marketingOptIn: Boolean(data.marketingOptIn),
     mobilePlatforms: Array.isArray(data.mobilePlatforms) ? data.mobilePlatforms : [],
+    earlyAccessRequestedAt: data.earlyAccessRequestedAt
+      ? iso(data.earlyAccessRequestedAt)
+      : null,
     termsVersion: data.termsVersion ?? "",
     privacyVersion: data.privacyVersion ?? "",
     createdAt: iso(data.createdAt),
@@ -209,7 +213,8 @@ export async function createProfile(
       entityName:
         draft.accountType === "business" ? draft.entityName.trim() : "",
       marketingOptIn: Boolean(draft.marketingOptIn),
-      mobilePlatforms: [...new Set(draft.mobilePlatforms)],
+      mobilePlatforms: [],
+      earlyAccessRequestedAt: null,
       termsVersion: TERMS_VERSION,
       privacyVersion: PRIVACY_VERSION,
       createdAt: FieldValue.serverTimestamp(),
@@ -247,8 +252,8 @@ export async function updateProfile(
     accountType: patch.accountType ?? current.accountType,
     entityName: patch.entityName ?? current.entityName,
     marketingOptIn: patch.marketingOptIn ?? current.marketingOptIn,
-    mobilePlatforms: patch.mobilePlatforms ?? current.mobilePlatforms,
   };
+  const mobilePlatforms = patch.mobilePlatforms ?? current.mobilePlatforms;
 
   const errors = validateDraft(merged);
   if (Object.keys(errors).length > 0) {
@@ -269,7 +274,7 @@ export async function updateProfile(
       entityName:
         merged.accountType === "business" ? merged.entityName.trim() : "",
       marketingOptIn: Boolean(merged.marketingOptIn),
-      mobilePlatforms: [...new Set(merged.mobilePlatforms)],
+      mobilePlatforms: [...new Set(mobilePlatforms)],
       updatedAt: FieldValue.serverTimestamp(),
     });
 
@@ -326,4 +331,41 @@ export async function readUrls(uid: string): Promise<PublishedUrl[]> {
       createdAt: iso(data.createdAt),
     };
   });
+}
+
+/**
+ * Ask for early access.
+ *
+ * Separate from registration because they are separate acts: an account is for
+ * anyone, the queue is a choice. It is idempotent — asking twice keeps the
+ * original timestamp, so a double-click does not quietly move somebody to the
+ * back of a queue ordered by when they asked.
+ */
+export async function requestEarlyAccess(
+  caller: Caller,
+  request: EarlyAccessRequest,
+): Promise<UserProfile> {
+  const profile = await readOrAdoptProfile(caller);
+  if (!profile) {
+    throw badRequest("no-profile", "Make an account before asking for access.");
+  }
+
+  const errors = validateEarlyAccess(request);
+  if (errors.mobilePlatforms) {
+    throw badRequest("invalid", errors.mobilePlatforms);
+  }
+
+  await adminDb()
+    .collection(USERS)
+    .doc(caller.uid)
+    .update({
+      mobilePlatforms: [...new Set(request.mobilePlatforms)],
+      earlyAccessRequestedAt:
+        profile.earlyAccessRequestedAt
+          ? Timestamp.fromDate(new Date(profile.earlyAccessRequestedAt))
+          : FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+  return (await readProfile(caller.uid))!;
 }

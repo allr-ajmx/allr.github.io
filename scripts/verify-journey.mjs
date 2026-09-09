@@ -74,7 +74,6 @@ const draft = {
   accountType: "individual",
   entityName: "",
   marketingOptIn: false,
-  mobilePlatforms: ["ios", "android"],
 };
 
 /** Admin-side writes, the way the provisioning program would make them. */
@@ -112,7 +111,37 @@ const first = await signIn("google-journey-1");
 }
 {
   const { body } = await api("/account/me/");
-  ok("state is `requested`", body?.state === "requested", body?.state);
+  ok("state is `registered`, not queued", body?.state === "registered", body?.state);
+  ok("no tester track chosen yet", (body?.profile?.mobilePlatforms ?? []).length === 0);
+}
+
+console.log("\n1b. Asking for early access");
+{
+  const { status } = await api("/account/early-access/", {
+    method: "POST",
+    body: JSON.stringify({ mobilePlatforms: [] }),
+  });
+  ok("an empty tester track is refused", status === 400, `HTTP ${status}`);
+}
+{
+  const { status } = await api("/account/early-access/", {
+    method: "POST",
+    body: JSON.stringify({ mobilePlatforms: ["ios", "android"] }),
+  });
+  ok("the request is accepted", status === 200, `HTTP ${status}`);
+  const { body } = await api("/account/me/");
+  ok("state becomes `requested`", body?.state === "requested", body?.state);
+  ok("both tracks were recorded", (body?.profile?.mobilePlatforms ?? []).length === 2);
+  const first = body?.profile?.earlyAccessRequestedAt;
+  await api("/account/early-access/", {
+    method: "POST",
+    body: JSON.stringify({ mobilePlatforms: ["ios"] }),
+  });
+  const { body: again } = await api("/account/me/");
+  ok(
+    "asking twice keeps the original place in the queue",
+    again?.profile?.earlyAccessRequestedAt === first,
+  );
 }
 
 console.log("\n2. Registering twice");

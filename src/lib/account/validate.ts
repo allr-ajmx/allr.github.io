@@ -3,6 +3,8 @@ import { isOldEnough, MINIMUM_AGE, parseBirthDate } from "@/lib/age";
 import {
   MAX_ENTITY_NAME,
   MAX_NAME,
+  type EarlyAccessRequest,
+  type MobilePlatform,
   type ProfileDraft,
 } from "./model";
 
@@ -52,19 +54,29 @@ export function validateDraft(draft: ProfileDraft): DraftErrors {
       errors.entityName = `Keep it under ${MAX_ENTITY_NAME} characters.`;
   }
 
-  // Early access enrols people in mobile testing, so we have to know which
-  // track — but both is a real answer, not a fallback.
-  const platforms = draft.mobilePlatforms ?? [];
-  if (!Array.isArray(platforms) || platforms.length === 0) {
-    errors.mobilePlatforms = "Pick at least one — you can change it later.";
-  } else if (platforms.some((p) => !PLATFORMS.has(p))) {
-    errors.mobilePlatforms = "That is not a platform we test on.";
-  }
-
   return errors;
 }
 
 /** True when nothing is wrong. */
 export function isValidDraft(draft: ProfileDraft): boolean {
   return Object.keys(validateDraft(draft)).length === 0;
+}
+
+/**
+ * Asking for early access.
+ *
+ * Early access enrols people in mobile testing, so the track has to be known —
+ * but both is a real answer, not a fallback for indecision.
+ */
+export function validateEarlyAccess(
+  request: EarlyAccessRequest,
+): { mobilePlatforms?: string } {
+  const platforms = request.mobilePlatforms ?? [];
+  if (!Array.isArray(platforms) || platforms.length === 0) {
+    return { mobilePlatforms: "Pick at least one — you can change it later." };
+  }
+  if (platforms.some((p: MobilePlatform) => !PLATFORMS.has(p))) {
+    return { mobilePlatforms: "That is not a platform we test on." };
+  }
+  return {};
 }
