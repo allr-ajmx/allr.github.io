@@ -10,6 +10,7 @@
     "build": "next build",
     "generate-og": "node scripts/generate-og.mjs",
     "generate-icons": "node scripts/generate-icons.mjs",
+    "seed:app-config": "node scripts/seed-app-config.mjs",
     "sync-docs": "node scripts/sync-docs.mjs",
     "start": "next start",
     "lint": "eslint",

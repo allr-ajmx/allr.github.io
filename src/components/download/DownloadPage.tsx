@@ -22,12 +22,32 @@ import {
   type Platform,
   type Release,
 } from "@/lib/releases";
+import type { AppConfig } from "@/lib/account/app-config";
 
 /** The detected platform never changes during a session, so nothing to watch. */
 const noopSubscribe = () => () => {};
 
-export function DownloadPage({ release: initial }: { release: Release | null }) {
+/**
+ * `config` is authoritative when `app_configuration` has been populated
+ * (DESIGN.md §16): it names one link per platform and can be rolled back from
+ * the database, which the GitHub Releases API cannot do — it only ever knows
+ * what is latest.
+ *
+ * The GitHub path is kept underneath rather than replaced, because it carries
+ * what app_configuration does not: every asset for a platform, its format and
+ * its size. So a configured platform overrides the link and keeps the page's
+ * shape, and an unconfigured one behaves exactly as it always has.
+ */
+export function DownloadPage({
+  release: initial,
+  config,
+}: {
+  release: Release | null;
+  config?: AppConfig | null;
+}) {
   const [release, setRelease] = useState(initial);
+  const managed = config?.source === "app_configuration";
+  const overrides = managed ? (config?.current?.downloads ?? {}) : {};
 
   // Detected once on the client; the server renders no "your platform" badge.
   const mine = useSyncExternalStore<Platform | undefined>(
@@ -36,8 +56,11 @@ export function DownloadPage({ release: initial }: { release: Release | null }) 
     () => undefined,
   );
 
-  // Catch a release published since the last site build.
+  // Catch a release published since the last render. Skipped when
+  // app_configuration is in charge: refreshing from GitHub there would quietly
+  // undo a rollback, which is the one thing app_configuration exists to do.
   useEffect(() => {
+    if (managed) return;
     let live = true;
     fetchLatestRelease().then((fresh) => {
       if (live && fresh) setRelease(fresh);
@@ -45,7 +68,7 @@ export function DownloadPage({ release: initial }: { release: Release | null }) 
     return () => {
       live = false;
     };
-  }, []);
+  }, [managed]);
 
   return (
     <>
@@ -62,16 +85,34 @@ export function DownloadPage({ release: initial }: { release: Release | null }) 
             {DOWNLOAD.sub}
           </p>
           <p className="hero-enter mt-6 rounded-chip border border-line bg-card px-3 py-1.5 font-mono text-[.78rem] text-ink-soft" data-enter="0.3">
-            {release
-              ? DOWNLOAD.version(release.version, formatReleaseDate(release.publishedAt))
-              : DOWNLOAD.versionUnknown}
+            {managed && config?.current
+              ? DOWNLOAD.version(
+                  config.current.version,
+                  formatReleaseDate(config.current.publishedAt ?? ""),
+                )
+              : release
+                ? DOWNLOAD.version(release.version, formatReleaseDate(release.publishedAt))
+                : DOWNLOAD.versionUnknown}
           </p>
         </section>
 
         <section className="wrap pb-16">
           <div className="grid gap-5 md:grid-cols-3">
             {PLATFORM_ORDER.map((id, i) => {
-              const builds = resolveDownloads(release, id);
+              const override = overrides[id];
+              const builds = override
+                ? [
+                    {
+                      id: `${id}-managed`,
+                      label: config?.current?.version
+                        ? `Version ${config.current.version}`
+                        : "Latest build",
+                      hint: "",
+                      href: override,
+                      size: 0,
+                    },
+                  ]
+                : resolveDownloads(release, id);
               const yours = mine === id;
               return (
                 <Reveal
