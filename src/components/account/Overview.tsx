@@ -8,7 +8,7 @@ export function Overview() {
   const { profile } = useAuth();
   // The legal name is the one we hold; the first word of it is the one to
   // greet somebody by.
-  const firstName = profile?.legalName.trim().split(/\s+/)[0];
+  const firstName = profile?.name.trim().split(/\s+/)[0];
 
   return (
     <>

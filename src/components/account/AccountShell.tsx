@@ -100,7 +100,7 @@ function Rail() {
             <Avatar />
             <div className="min-w-0">
               <p className="truncate text-[.9rem] font-bold text-ink">
-                {profile?.legalName || user?.displayName || "Signed in"}
+                {profile?.name || user?.displayName || "Signed in"}
               </p>
               <p className="truncate text-[.8rem] font-semibold text-ink-soft">
                 {user?.email}
@@ -187,8 +187,9 @@ function Gate({ children }: { children: React.ReactNode }) {
     if (status === "signedOut") router.replace("/login/");
     else if (status === "needsProfile" && !onWelcome) {
       router.replace("/account/welcome/");
-    } else if (status === "ready" && onWelcome) {
-      // Registered already — the form has nothing left to ask.
+    } else if (status !== "needsProfile" && status !== "loading" && status !== "error" && onWelcome) {
+      // Registered already — the form has nothing left to ask. This is the bug
+      // that sent somebody who already had an account back to signup.
       router.replace("/account/");
     }
   }, [status, onWelcome, router]);

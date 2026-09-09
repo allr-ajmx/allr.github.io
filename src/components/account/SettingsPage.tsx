@@ -8,7 +8,7 @@ import { PageHeader } from "./PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { signOutOfAllr } from "@/lib/firebase/auth";
-import { saveProfile } from "@/lib/firebase/profile";
+import { patchProfile } from "@/lib/firebase/api";
 import { CONTACT_EMAIL, PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
 
 type Status = "idle" | "saving" | "error";
@@ -22,7 +22,7 @@ export function SettingsPage() {
     if (!user) return;
     setStatus("saving");
     try {
-      await saveProfile(user.uid, { marketingOptIn: next });
+      await patchProfile({ marketingOptIn: next });
       await refresh();
       setStatus("idle");
     } catch {

@@ -8,16 +8,16 @@ import { ChoiceChips } from "@/components/ui/ChoiceChips";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { COUNTRIES, countryName } from "@/lib/countries";
-import { MINIMUM_AGE } from "@/lib/legal";
+import { MINIMUM_AGE, latestEligibleBirthDate } from "@/lib/age";
+import { ApiCallFailed, patchProfile } from "@/lib/firebase/api";
 import {
-  birthDateInputValue,
-  latestEligibleBirthDate,
-  saveProfile,
-  validateDraft,
+  MOBILE_PLATFORMS,
   type AccountType,
-  type DraftErrors,
+  type MobilePlatform,
   type ProfileDraft,
-} from "@/lib/firebase/profile";
+} from "@/lib/account/model";
+import { validateDraft, type DraftErrors } from "@/lib/account/validate";
+import { ChoiceChipsMulti } from "@/components/ui/ChoiceChips";
 
 /**
  * Read and correct what we hold.
@@ -42,12 +42,13 @@ export function ProfilePage() {
     () =>
       profile
         ? {
-            legalName: profile.legalName,
-            dateOfBirth: birthDateInputValue(profile.dateOfBirth),
+            name: profile.name,
+            dateOfBirth: profile.dateOfBirth,
             country: profile.country,
             accountType: profile.accountType,
             entityName: profile.entityName,
             marketingOptIn: profile.marketingOptIn,
+            mobilePlatforms: profile.mobilePlatforms,
           }
         : null,
     [profile],
@@ -56,6 +57,7 @@ export function ProfilePage() {
   const [draft, setDraft] = useState<ProfileDraft | null>(initial);
   const [submitted, setSubmitted] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
+  const [failure, setFailure] = useState<string | null>(null);
 
   // The provider resolves the profile after this component first renders.
   const current = draft ?? initial;
@@ -89,11 +91,16 @@ export function ProfilePage() {
 
     setStatus("saving");
     try {
-      await saveProfile(user.uid, current);
+      await patchProfile(current);
       await refresh();
       setStatus("saved");
-    } catch {
+    } catch (error) {
       setStatus("error");
+      setFailure(
+        error instanceof ApiCallFailed
+          ? error.message
+          : "That didn’t save. Try again?",
+      );
     }
   };
 
@@ -115,15 +122,15 @@ export function ProfilePage() {
           </p>
         </div>
 
-        <Field label="Legal name" error={errors.legalName} required>
+        <Field label="Name" error={errors.name} required>
           {(props) => (
             <input
               {...props}
               type="text"
               autoComplete="name"
               className="allr-field allr-field--dense"
-              value={current.legalName}
-              onChange={(e) => set("legalName", e.currentTarget.value)}
+              value={current.name}
+              onChange={(e) => set("name", e.currentTarget.value)}
             />
           )}
         </Field>
@@ -202,6 +209,24 @@ export function ProfilePage() {
           </Field>
         )}
 
+        <div className="flex flex-col gap-2">
+          <p className="text-[.92rem] font-bold text-ink">Mobile testing</p>
+          <p className="text-[.86rem] leading-snug text-ink-soft">
+            Which phone builds you are enrolled in. Both is a real answer.
+          </p>
+          <ChoiceChipsMulti
+            legend="Mobile testing"
+            options={MOBILE_PLATFORMS}
+            values={current.mobilePlatforms}
+            onChange={(v) => set("mobilePlatforms", v as MobilePlatform[])}
+          />
+          {errors.mobilePlatforms && (
+            <p role="alert" className="text-[.86rem] font-semibold text-alert">
+              {errors.mobilePlatforms}
+            </p>
+          )}
+        </div>
+
         <div className="flex items-center gap-4">
           <Button type="submit" disabled={status === "saving"}>
             {status === "saving" ? "Saving…" : "Save changes"}
@@ -213,7 +238,7 @@ export function ProfilePage() {
           )}
           {status === "error" && (
             <p role="alert" className="text-[.9rem] font-semibold text-alert">
-              That didn’t save. Try again?
+              {failure ?? "That didn’t save. Try again?"}
             </p>
           )}
         </div>

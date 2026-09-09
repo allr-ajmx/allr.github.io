@@ -9,42 +9,42 @@ import {
   useState,
 } from "react";
 import { onUser, type User } from "@/lib/firebase/auth";
-import { readProfile, type UserProfile } from "@/lib/firebase/profile";
+import { ApiCallFailed, fetchMe } from "@/lib/firebase/api";
+import type { UserProfile } from "@/lib/account/model";
+import type { JourneyState } from "@/lib/account/state";
 
 /**
- * Who is signed in, and have they finished registering.
+ * Who is signed in, and where they are in the early-access journey.
  *
- * There is no server and no session cookie, so this — plus the Firestore rules —
- * is the entire access story. Everything under `/account` is exported as a
- * static shell that knows nothing about the visitor; this provider is what
- * turns that shell into somebody's page once it reaches the browser.
+ * The profile and the journey state both come from `GET /api/account/me` rather
+ * than from Firestore directly. The browser could read its own document — the
+ * rules allow that much — but the state is derived on the server, and deriving
+ * it twice is how the two ends start disagreeing about whether somebody has a
+ * workspace.
  *
  * `needsProfile` is a real state rather than "signed in with no data": someone
- * who has authenticated with Google but never filled in the registration form
- * has an account with Firebase and no account with us, and the two must not be
- * confused.
+ * who has authenticated with Google but never asked for early access has an
+ * account with Firebase and no account with us.
  */
 
 export type AuthStatus =
   | "loading"
   | "signedOut"
-  | "needsProfile"
-  | "ready"
-  /** Signed in, but the profile could not be read (offline, rules, outage). */
-  | "error";
+  /** Signed in, but the account could not be loaded. */
+  | "error"
+  /** One of the journey states — the account loaded fine. */
+  | JourneyState;
 
 type AuthValue = {
   status: AuthStatus;
   user: User | null;
   profile: UserProfile | null;
   /**
-   * True when the profile read failed because the database could not be
-   * reached at all, rather than because it refused us. Worth separating: one
-   * is "your network, or our outage, try again", the other is a bug on our
-   * side and no amount of retrying will help.
+   * True when the account could not be reached at all, rather than refused.
+   * One is "your network, or our outage"; the other is a bug on our side and
+   * retrying will not help.
    */
   unreachable: boolean;
-  /** Re-read the profile — call after registering or editing, or to retry. */
   refresh: () => Promise<void>;
 };
 
@@ -63,15 +63,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      const found = await readProfile(current.uid);
+      const { profile: found, state } = await fetchMe();
       setProfile(found);
       setUnreachable(false);
-      setStatus(found ? "ready" : "needsProfile");
+      setStatus(state);
     } catch (error) {
-      // Firestore reports a backend it cannot talk to as "unavailable" — in
-      // development that is almost always the emulator not running.
-      const code = (error as { code?: string })?.code;
-      setUnreachable(code === "unavailable" || code === "deadline-exceeded");
+      // A refused call is a bug; a call that never landed is a connection.
+      setUnreachable(
+        !(error instanceof ApiCallFailed) || error.status >= 500 || error.status === 0,
+      );
       setProfile(null);
       setStatus("error");
     }
@@ -79,9 +79,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let live = true;
-    // Fires immediately with the persisted user, then on every change. In a
-    // build with no Firebase config it fires once with null, so the login page
-    // still renders rather than hanging on "loading" forever.
     const unsubscribe = onUser((next) => {
       if (!live) return;
       setUser(next);

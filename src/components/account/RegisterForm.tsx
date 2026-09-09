@@ -7,32 +7,38 @@ import { useAuth } from "./AuthProvider";
 import { AllrMark } from "@/components/ui/AllrMark";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
-import { ChoiceChips } from "@/components/ui/ChoiceChips";
+import { ChoiceChips, ChoiceChipsMulti } from "@/components/ui/ChoiceChips";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { COUNTRIES } from "@/lib/countries";
+import { latestEligibleBirthDate } from "@/lib/age";
+import { ApiCallFailed, registerAccount } from "@/lib/firebase/api";
 import {
-  createProfile,
-  latestEligibleBirthDate,
-  validateDraft,
+  MOBILE_PLATFORMS,
   type AccountType,
-  type DraftErrors,
+  type MobilePlatform,
   type ProfileDraft,
-} from "@/lib/firebase/profile";
+} from "@/lib/account/model";
+import { validateDraft, type DraftErrors } from "@/lib/account/validate";
 import { WORDMARK } from "@/lib/brand";
 
 /**
- * Registration — the one thing between a Google account and an Allr account.
+ * Asking for early access.
  *
- * What it asks for is the legal minimum needed to sell to this person later,
- * and nothing beyond it (DESIGN.md §16). Postal address and tax ID are checkout
- * questions: collecting them now would mean holding data we have no use for,
- * which is exactly what a privacy policy has to justify.
+ * This is a *request*, not a signup — filling it in does not hand anybody a
+ * workspace (DESIGN.md §16). It asks for the legal minimum needed to sell to
+ * this person later and nothing beyond it: postal address and tax ID are
+ * checkout questions, and collecting them now would mean holding data we have
+ * no use for, which is what a privacy policy has to justify.
  *
  * Date of birth is here rather than at checkout because Allr is strictly an
- * above-contract-age product, and an age gate that only fires at the moment
- * money changes hands has already let someone build a workspace they were never
+ * above-contract-age product, and an age gate that only fires when money
+ * changes hands has already let someone build a workspace they were never
  * allowed to have.
+ *
+ * The submit button and the server enforce the same rules. The button is the
+ * polite half: `POST /api/account/register` re-runs this exact validator, and
+ * the browser cannot write a profile at all.
  */
 
 const ACCOUNT_TYPES: readonly { id: AccountType; label: string }[] = [
@@ -47,19 +53,20 @@ export function RegisterForm() {
   const router = useRouter();
 
   const [draft, setDraft] = useState<ProfileDraft>({
-    legalName: user?.displayName ?? "",
+    name: user?.displayName ?? "",
     dateOfBirth: "",
     country: "",
     accountType: "individual",
     entityName: "",
     marketingOptIn: false,
+    mobilePlatforms: [],
   });
   const [terms, setTerms] = useState(false);
   const [privacy, setPrivacy] = useState(false);
 
   // Errors appear on submit, then track every keystroke — so the form never
-  // scolds you for a field you have not reached yet, and never keeps scolding
-  // you once you have fixed it.
+  // scolds you for a field you have not reached, and never keeps scolding you
+  // once you have fixed it.
   const [submitted, setSubmitted] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [failure, setFailure] = useState<string | null>(null);
@@ -82,29 +89,27 @@ export function RegisterForm() {
     setSubmitted(true);
     setFailure(null);
 
-    const errors = validateDraft(draft);
-    if (Object.keys(errors).length > 0 || !terms || !privacy) return;
-    if (!user) return;
+    if (Object.keys(validateDraft(draft)).length > 0) return;
+    if (!terms || !privacy || !user) return;
 
     setStatus("saving");
     try {
-      await createProfile(user, draft);
+      await registerAccount(draft);
       await refresh();
       router.replace("/account/");
-    } catch {
+    } catch (error) {
       setStatus("error");
-      // The rules are the second, non-negotiable check. If they refused, the
-      // honest thing is to say so rather than pretend the account exists.
       setFailure(
-        "We couldn’t save those details. Check them over and try again.",
+        error instanceof ApiCallFailed
+          ? error.message
+          : "We couldn’t save those details. Check them over and try again.",
       );
     }
   };
 
   const saving = status === "saving";
-  // Consent is not a validation error to discover on submit — an account
-  // cannot exist without it, so the button does not pretend otherwise. The
-  // Firestore rules refuse the write too; this is only the polite half.
+  // Consent is not an error to discover on submit — an account cannot exist
+  // without it, so the button does not pretend otherwise.
   const consented = terms && privacy;
 
   return (
@@ -118,32 +123,28 @@ export function RegisterForm() {
       </Link>
 
       <h1 className="mb-2 font-serif text-[1.85rem] leading-[1.18] text-ink">
-        A few details, once
+        Ask for early access
       </h1>
       <p className="mb-8 text-[1.02rem] leading-[1.7] text-ink-soft">
-        We ask for these now so that nothing has to stop later. Signed in as{" "}
+        A few details, once, so that nothing has to stop later. Signed in as{" "}
         <span className="font-bold text-ink">{user?.email}</span>.
       </p>
 
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">
-        <Field label="Name" error={fieldErrors.legalName} required>
+        <Field label="Name" error={fieldErrors.name} required>
           {(props) => (
             <input
               {...props}
               type="text"
               autoComplete="name"
               className="allr-field"
-              value={draft.legalName}
-              onChange={(e) => set("legalName", e.currentTarget.value)}
+              value={draft.name}
+              onChange={(e) => set("name", e.currentTarget.value)}
             />
           )}
         </Field>
 
-        <Field
-          label="Date of birth"
-          error={fieldErrors.dateOfBirth}
-          required
-        >
+        <Field label="Date of birth" error={fieldErrors.dateOfBirth} required>
           {(props) => (
             <input
               {...props}
@@ -207,6 +208,27 @@ export function RegisterForm() {
           </Field>
         )}
 
+        <div className="flex flex-col gap-2">
+          <p className="text-[.92rem] font-bold text-ink">
+            Which phone do you want to test on?
+          </p>
+          <p className="text-[.86rem] leading-snug text-ink-soft">
+            iOS and Android are both open to testers, and early access puts you
+            in the testing build automatically. Pick both if you use both.
+          </p>
+          <ChoiceChipsMulti
+            legend="Which phone do you want to test on?"
+            options={MOBILE_PLATFORMS}
+            values={draft.mobilePlatforms}
+            onChange={(v) => set("mobilePlatforms", v as MobilePlatform[])}
+          />
+          {fieldErrors.mobilePlatforms && (
+            <p role="alert" className="text-[.86rem] font-semibold text-alert">
+              {fieldErrors.mobilePlatforms}
+            </p>
+          )}
+        </div>
+
         <div className="flex flex-col gap-4 border-t border-line pt-6">
           <Checkbox
             checked={terms}
@@ -242,8 +264,8 @@ export function RegisterForm() {
               </>
             }
           />
-          {/* Deliberately separate and unticked. Consent that is bundled with
-              something you had to accept anyway is not consent. */}
+          {/* Deliberately separate and unticked. Consent bundled with something
+              you had to accept anyway is not consent. */}
           <Checkbox
             checked={draft.marketingOptIn}
             onChange={(v) => set("marketingOptIn", v)}
@@ -265,7 +287,7 @@ export function RegisterForm() {
             disabled={saving || !consented}
             busy={saving}
           >
-            {saving ? "Setting things up…" : "Create my account"}
+            {saving ? "Sending your request…" : "Request early access"}
           </Button>
         </div>
       </form>
