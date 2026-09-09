@@ -32,6 +32,25 @@ import {
 
 const RULES = path.resolve(import.meta.dirname, "firestore.rules");
 
+/**
+ * These tests destroy data: they empty the emulator so that fixed document ids
+ * can be rewritten on every run. That is safe against an emulator started *for*
+ * the tests and catastrophic against one somebody is using — it deletes their
+ * account, and their next sign-in mints a new uid with no profile behind it.
+ *
+ * So the clearing only happens when `pnpm test:rules` says so. Running
+ * `node --test firebase/*.test.mjs` by hand against a live emulator now stops
+ * here instead of quietly wiping it.
+ */
+function requireThrowawayEmulator() {
+  if (process.env.ALLR_TEST_EMULATOR === "1") return;
+  throw new Error(
+    "Refusing to run: these tests erase the emulator.\n" +
+      "  Use `pnpm test:rules`, which starts an emulator of its own.\n" +
+      "  (It sets ALLR_TEST_EMULATOR=1; nothing else should.)",
+  );
+}
+
 let env;
 
 /** A date `years` ago, as a Firestore Timestamp. */
@@ -65,6 +84,7 @@ const asUser = (uid, email, extra = {}) =>
     .firestore();
 
 before(async () => {
+  requireThrowawayEmulator();
   env = await initializeTestEnvironment({
     projectId: "demo-allr",
     firestore: { rules: readFileSync(RULES, "utf8") },

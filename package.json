@@ -14,7 +14,7 @@
     "sync-docs": "node scripts/sync-docs.mjs",
     "start": "next start",
     "lint": "eslint",
-    "test:rules": "firebase emulators:exec --project demo-allr --only firestore,auth \"node --test --test-concurrency=1 firebase/*.test.mjs\"",
+    "test:rules": "firebase emulators:exec --project demo-allr --only firestore,auth \"ALLR_TEST_EMULATOR=1 node --test --test-concurrency=1 firebase/*.test.mjs\"",
     "test:age": "node --test tests/age.test.mjs",
     "test": "pnpm test:age && pnpm test:rules"
   },
