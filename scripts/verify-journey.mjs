@@ -27,7 +27,15 @@ const BASE = process.argv[2] ?? "http://localhost:3000";
 const AUTH = "127.0.0.1:9099";
 const FIRESTORE = "127.0.0.1:8571";
 const PROJECT = "demo-allr";
-const EMAIL = "journey@example.com";
+/**
+ * A fresh address every run, so nothing has to be cleaned up.
+ *
+ * This used to empty the emulator first, which made it repeatable and also
+ * destroyed whatever anybody else was working on — I deleted a real test
+ * account that way. Unique identities cost nothing and touch nothing.
+ */
+const RUN = Date.now();
+const EMAIL = `journey+${RUN}@example.com`;
 
 let failures = 0;
 const ok = (label, pass, detail = "") => {
@@ -88,18 +96,21 @@ const patchUser = (uid, fields) =>
     },
   );
 
-// A clean slate, so the run is repeatable.
-await fetch(`http://${AUTH}/emulator/v1/projects/${PROJECT}/accounts`, { method: "DELETE" });
-// The emulator-only endpoint. The plain /v1/ path is the real API and will not
-// empty a database, so using it leaves the previous run's email claims behind
-// and the next registration is refused as a duplicate of itself.
-await fetch(
-  `http://${FIRESTORE}/emulator/v1/projects/${PROJECT}/databases/(default)/documents`,
-  { method: "DELETE" },
-);
+/** Remove one identity, never the whole emulator. */
+const deleteAccount = (localId) =>
+  fetch(
+    `http://${AUTH}/identitytoolkit.googleapis.com/v1/projects/${PROJECT}/accounts:delete`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer owner" },
+      body: JSON.stringify({ localId }),
+    },
+  );
+
+console.log(`Using ${EMAIL} — nothing else in the emulator is touched.`);
 
 console.log("\n1. Registering");
-const first = await signIn("google-journey-1");
+const first = await signIn(`google-${RUN}-1`);
 {
   const { status, body } = await api("/account/register/", {
     method: "POST",
@@ -159,7 +170,7 @@ await patchUser(first.uid, {
   workspace_email: { stringValue: "journey@allr.work" },
   workspace_address: { stringValue: "https://journey.allr.work" },
 });
-await signIn("google-journey-1");
+await signIn(`google-${RUN}-1`);
 {
   const { body } = await api("/account/me/");
   ok("state becomes `active`", body?.state === "active", body?.state);
@@ -191,8 +202,8 @@ await patchUser(first.uid, {
 }
 
 console.log("\n5. The bug: a new uid for the same address");
-await fetch(`http://${AUTH}/emulator/v1/projects/${PROJECT}/accounts`, { method: "DELETE" });
-const second = await signIn("google-journey-2");
+await deleteAccount(first.uid);
+const second = await signIn(`google-${RUN}-2`);
 {
   ok("the uid really did change", second.uid !== first.uid, `${first.uid} → ${second.uid}`);
 
