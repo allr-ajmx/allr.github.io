@@ -1,5 +1,14 @@
 packages:
   - "."
+# Which dependencies may run install scripts. The three added with the account
+# work all arrive under firebase / firebase-tools:
+#   @firebase/util — its script is a no-op for us.
+#   protobufjs     — pure-JS postinstall that google-gax needs at runtime.
+#   re2            — a native build (node-gyp). firebase-tools falls back to
+#                    plain RegExp without it, which is not worth a compiler in CI.
 allowBuilds:
+  '@firebase/util': false
+  protobufjs: true
+  re2: false
   sharp: true
   unrs-resolver: true

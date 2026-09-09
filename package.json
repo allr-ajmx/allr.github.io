@@ -4,16 +4,23 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:emulated": "NEXT_PUBLIC_FIREBASE_EMULATOR=1 NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-allr NEXT_PUBLIC_FIREBASE_API_KEY=demo-key next dev",
+    "emulate": "node scripts/emulate.mjs",
     "prebuild": "node scripts/check-waitlist-env.mjs",
     "build": "next build",
     "postbuild": "node scripts/copy-social-assets.mjs",
     "generate-og": "node scripts/generate-og.mjs",
+    "generate-icons": "node scripts/generate-icons.mjs",
     "sync-docs": "node scripts/sync-docs.mjs",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:rules": "firebase emulators:exec --project demo-allr --only firestore,auth \"node --test --test-concurrency=1 firebase/*.test.mjs\"",
+    "test:age": "node --test tests/age.test.mjs",
+    "test": "pnpm test:age && pnpm test:rules"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
+    "firebase": "^12.18.0",
     "gsap": "^3.15.0",
     "next": "16.2.11",
     "react": "19.2.4",
@@ -21,6 +28,7 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -28,6 +36,7 @@
     "@types/three": "^0.185.4",
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
+    "firebase-tools": "^13.35.1",
     "sharp": "^0.35.3",
     "tailwindcss": "^4",
     "typescript": "^5"
