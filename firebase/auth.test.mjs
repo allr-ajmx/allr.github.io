@@ -1,0 +1,225 @@
+/**
+ * The sign-in path, end to end, against the emulators.
+ *
+ * `rules.test.mjs` checks the rules with synthetic auth tokens it mints itself.
+ * That proves the rules are right; it does not prove that a *real* Google
+ * sign-in produces a token those rules accept. This does — it goes through the
+ * ordinary Firebase SDK, the same one the browser runs, with no test harness in
+ * between and with the rules the emulator loaded from firestore.rules.
+ *
+ * The one that matters most is `email_verified`. The create rule refuses a
+ * profile unless the token says the address is verified, so if Google's
+ * provider ever came back without that claim, registration would fail at the
+ * last step for everybody — and it would fail in production, not here.
+ *
+ * Run with `pnpm test:rules` (which starts Auth and Firestore around it).
+ */
+
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { after, before, describe, it } from "node:test";
+import { deleteApp, initializeApp } from "firebase/app";
+import {
+  GoogleAuthProvider,
+  connectAuthEmulator,
+  getAuth,
+  signInWithCredential,
+  signOut,
+} from "firebase/auth";
+import {
+  Timestamp,
+  connectFirestoreEmulator,
+  doc,
+  getDoc,
+  getFirestore,
+  serverTimestamp,
+  setDoc,
+} from "firebase/firestore";
+
+const PROJECT_ID = "demo-allr";
+// From firebase.json, so a port change in one place cannot strand the tests.
+const EMULATORS = JSON.parse(
+  readFileSync(path.resolve(import.meta.dirname, "..", "firebase.json"), "utf8"),
+).emulators;
+const FIRESTORE = `127.0.0.1:${EMULATORS.firestore.port}`;
+const AUTH = `127.0.0.1:${EMULATORS.auth.port}`;
+const RULES = path.resolve(import.meta.dirname, "firestore.rules");
+
+/**
+ * Load firestore.rules into the running emulator.
+ *
+ * This suite does it for itself rather than relying on the rules the emulator
+ * booted with, because `rules.test.mjs` installs and tears down its own copy
+ * through @firebase/rules-unit-testing. Whichever order the two run in, this
+ * one starts from the file on disk.
+ */
+async function installRules() {
+  const res = await fetch(
+    `http://${FIRESTORE}/emulator/v1/projects/${PROJECT_ID}:securityRules`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rules: { files: [{ name: "firestore.rules", content: readFileSync(RULES, "utf8") }] },
+      }),
+    },
+  );
+  if (!res.ok) {
+    throw new Error(`Could not load rules into the emulator: ${res.status}`);
+  }
+}
+
+/**
+ * A Google sign-in the emulator will accept.
+ *
+ * The Auth emulator takes a JSON string where a real Google ID token would go,
+ * which is how you exercise the provider without talking to Google.
+ */
+const googleCredential = (claims) =>
+  GoogleAuthProvider.credential(JSON.stringify(claims));
+
+/**
+ * Empty both emulators before the run.
+ *
+ * Registration is a create, and the rules refuse a create over a document that
+ * already exists — so a suite that registers "ada@example.com" passes once and
+ * fails every time after, unless it starts from nothing.
+ */
+async function clearEmulators() {
+  await fetch(
+    `http://${FIRESTORE}/emulator/v1/projects/${PROJECT_ID}/databases/(default)/documents`,
+    { method: "DELETE" },
+  );
+  await fetch(`http://${AUTH}/emulator/v1/projects/${PROJECT_ID}/accounts`, {
+    method: "DELETE",
+  });
+}
+
+const yearsAgo = (years) => {
+  const d = new Date();
+  d.setUTCFullYear(d.getUTCFullYear() - years);
+  return Timestamp.fromDate(d);
+};
+
+const profileFor = (user, overrides = {}) => ({
+  uid: user.uid,
+  email: user.email.toLowerCase(),
+  legalName: "Ada Lovelace",
+  dateOfBirth: yearsAgo(30),
+  country: "GB",
+  accountType: "individual",
+  entityName: "",
+  marketingOptIn: false,
+  termsVersion: "0.1-draft",
+  privacyVersion: "0.1-draft",
+  createdAt: serverTimestamp(),
+  updatedAt: serverTimestamp(),
+  ...overrides,
+});
+
+let app;
+let auth;
+let db;
+
+before(async () => {
+  await installRules();
+  await clearEmulators();
+  app = initializeApp(
+    { apiKey: "demo-key", projectId: PROJECT_ID, authDomain: `${PROJECT_ID}.firebaseapp.com` },
+    "auth-e2e",
+  );
+  auth = getAuth(app);
+  connectAuthEmulator(auth, `http://${AUTH}`, { disableWarnings: true });
+  db = getFirestore(app);
+  connectFirestoreEmulator(db, "127.0.0.1", EMULATORS.firestore.port);
+});
+
+after(async () => {
+  await signOut(auth).catch(() => {});
+  await deleteApp(app);
+});
+
+describe("signing in with Google", () => {
+  it("returns a token whose email is marked verified", async () => {
+    const { user } = await signInWithCredential(
+      auth,
+      googleCredential({
+        sub: "google-ada",
+        email: "ada@example.com",
+        email_verified: true,
+        name: "Ada Lovelace",
+      }),
+    );
+
+    const token = await user.getIdTokenResult();
+    // The create rule hangs on this claim. If it is ever missing or false,
+    // every registration fails on its last step.
+    assert.equal(
+      token.claims.email_verified,
+      true,
+      "Google sign-in must produce email_verified — firestore.rules requires it",
+    );
+    assert.equal(user.email, "ada@example.com");
+    assert.equal(user.emailVerified, true);
+  });
+
+  it("lets that person register, through the real rules", async () => {
+    const user = auth.currentUser;
+    assert.ok(user, "expected to still be signed in");
+    await setDoc(doc(db, "users", user.uid), profileFor(user));
+
+    const saved = await getDoc(doc(db, "users", user.uid));
+    assert.equal(saved.exists(), true);
+    assert.equal(saved.data().legalName, "Ada Lovelace");
+    assert.equal(saved.data().email, "ada@example.com");
+  });
+
+  it("refuses to register somebody under 18, even with a valid sign-in", async () => {
+    const { user } = await signInWithCredential(
+      auth,
+      googleCredential({
+        sub: "google-kid",
+        email: "kid@example.com",
+        email_verified: true,
+        name: "Too Young",
+      }),
+    );
+
+    await assert.rejects(
+      setDoc(
+        doc(db, "users", user.uid),
+        profileFor(user, { dateOfBirth: yearsAgo(15) }),
+      ),
+      (err) => err.code === "permission-denied",
+      "the age gate must hold without the form in front of it",
+    );
+  });
+
+  it("refuses to read somebody else's profile after switching accounts", async () => {
+    const { user } = await signInWithCredential(
+      auth,
+      googleCredential({
+        sub: "google-mallory",
+        email: "mallory@example.com",
+        email_verified: true,
+        name: "Mallory",
+      }),
+    );
+    assert.notEqual(user.email, "ada@example.com");
+
+    await assert.rejects(
+      getDoc(doc(db, "users", "google-ada")),
+      (err) => err.code === "permission-denied",
+    );
+  });
+
+  it("stops seeing anything once signed out", async () => {
+    await signOut(auth);
+    assert.equal(auth.currentUser, null);
+    await assert.rejects(
+      getDoc(doc(db, "users", "google-ada")),
+      (err) => err.code === "permission-denied",
+    );
+  });
+});

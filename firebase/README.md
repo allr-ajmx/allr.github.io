@@ -1,4 +1,4 @@
-# The waitlist on Firebase (Firestore)
+# Firebase: the waitlist, and accounts
 
 Signups from the site go straight into Firestore, one document per email. The
 browser can only **create**; it can never read or list a collection, so the
@@ -111,3 +111,108 @@ firebase firestore:export ./waitlist-export --collection-ids waitlist,beta_signu
   once enabled.
 - A Cloud Function on `waitlist/{id}` create can send the welcome email and
   compute a position (needs the Blaze plan).
+
+---
+
+# Accounts
+
+Sign-in is Google and nothing else (DESIGN.md §16). The site is a static export,
+so there is no server, no session cookie, and nothing to protect a page with —
+the redirect on `/account` is a courtesy, and
+[`firestore.rules`](./firestore.rules) is the actual boundary.
+
+One document per person at `users/{uid}`, keyed by the Firebase Auth uid, which
+is what lets the rules say "your own and nobody else's" without a query. It
+holds the legal minimum needed to sell to that person later: legal name, date of
+birth, country of residence, individual-or-business, the registered name if it
+is a business, the two consent versions, and the marketing opt-in. **Billing
+address and tax ID are checkout questions and are deliberately not here.**
+
+Three things the rules enforce that the form cannot be trusted to:
+
+- the email on the document must equal the verified email on the auth token;
+- the date of birth must be at least 18 years ago, so an under-age account
+  cannot be created by anything, form or script;
+- `users` can never be listed, only fetched one document at a time by its owner.
+
+## Running the emulator
+
+You need a JVM (the Firestore and Auth emulators are Java). Then, in two
+terminals:
+
+```
+pnpm emulate        # Auth :9099, Firestore :8571, Emulator UI :4401
+pnpm dev:emulated   # next dev, pointed at both
+```
+
+**The ports are not Firebase's defaults.** 8080 and 4000 are contested on a
+developer machine — a local reverse proxy, an LLM gateway or a spare web server
+will have taken them long before this project asks. They are declared once, in
+`firebase.json`; `next.config.ts` reads them from there and inlines them for the
+browser, and the tests read them too, so changing a port is a one-line edit.
+
+**Give the first start a minute.** `firebase-tools` loads a large bundle before
+it prints anything, and on a machine with busy disks that can take well over a
+minute — `pnpm emulate` names the command and says so, because silence at that
+point is otherwise indistinguishable from a hang.
+
+`pnpm dev:emulated` sets `NEXT_PUBLIC_FIREBASE_EMULATOR=1`, which redirects the
+Auth SDK, the Firestore SDK **and** the waitlist's REST calls to the emulator —
+so a test signup on the homepage cannot land in the production list either.
+
+The emulator runs under the project id `demo-allr`. The `demo-` prefix is not
+cosmetic: under it the emulator has no credentials and physically cannot reach a
+real Firebase project. Whatever you create while testing is written to
+`firebase/seed/` on exit (gitignored) and imported on the next start.
+
+Google sign-in against the Auth emulator does not talk to Google. Clicking
+*Continue with Google* opens the emulator's own chooser, where you invent an
+account. That is enough to exercise everything except Google's own consent
+screen.
+
+## Testing the rules
+
+```
+pnpm test:rules
+```
+
+Starts the Firestore emulator, runs [`rules.test.mjs`](./rules.test.mjs) against
+the real rule file, and shuts it down. These rules are the only thing between a
+browser and the database, so they are the part of this repo that is worth
+testing: the suite covers who may create, read, correct and delete a profile,
+the age gate, and a set of regression cases proving the waitlist rules still
+behave exactly as they did.
+
+The emulator logs an `evaluation error` for whichever of the create/update
+branches does not apply to a given write. That is expected — a rule that errors
+denies — and the tests are what pin down the branch that does apply.
+
+## Going live (not done yet)
+
+The account area currently runs against the emulator only. To let real people
+sign in, in the Firebase console for `allr-prod`:
+
+1. **Authentication → Sign-in method → Google → Enable.** Set the support email.
+2. **Authentication → Settings → Authorized domains** — add every host the site
+   is served from: `localhost`, `allr-ajmx.github.io`, the Vercel domain, and
+   `allr.work` if it is in use. A domain that is not listed gets
+   `auth/unauthorized-domain` and nothing else.
+3. Check that `NEXT_PUBLIC_FIREBASE_PROJECT_ID` and `NEXT_PUBLIC_FIREBASE_API_KEY`
+   are set wherever the site is built — they already are for the waitlist, and
+   accounts use the same pair.
+4. Push, so `deploy-firestore-rules.yml` deploys the `users` rule block. **Until
+   it is deployed every profile write is refused**, and registration will fail on
+   the last step.
+
+Skipping either of the first two steps produces a specific, recognisable
+failure, and `/login` names it rather than telling people to try again forever:
+
+| Missed step | Firebase error | What the page says |
+|---|---|---|
+| Provider not enabled | `auth/operation-not-allowed` | "Sign-in isn't switched on yet. That one is on us" |
+| Domain not authorized | `auth/unauthorized-domain` | the same line — both are ours to fix, not the visitor's |
+
+A build with no `NEXT_PUBLIC_FIREBASE_*` at all is different again: there is no
+button to press, and the page says sign-in isn't switched on in this build. In
+practice that will not happen on a deploy, because the waitlist needs the same
+two values and `prebuild` already refuses to build in CI without them.
