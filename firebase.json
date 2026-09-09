@@ -2,5 +2,13 @@
   "$schema": "https://raw.githubusercontent.com/firebase/firebase-tools/master/schema/firebase-config.json",
   "firestore": {
     "rules": "firebase/firestore.rules"
+  },
+  "emulators": {
+    "auth": { "port": 9099 },
+    "firestore": { "port": 8571 },
+    "ui": { "enabled": true, "port": 4401 },
+    "hub": { "port": 4400 },
+    "logging": { "port": 4501 },
+    "singleProjectMode": true
   }
 }
