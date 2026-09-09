@@ -109,9 +109,21 @@ export function Header() {
           ))}
         </nav>
 
-        <Link href="/#early-access" className="inline-flex items-center justify-center rounded-control bg-green px-4 py-2 text-[.92rem] font-bold text-white no-underline shadow-[0_8px_20px_rgba(46,158,99,.28)] transition-[transform,background-color] duration-150 hover:-translate-y-0.5 hover:bg-green-deep">
-          {CTA.primary}
-        </Link>
+        {/* Sign in sits outside <nav> on purpose: that nav is hidden below
+            721px with no mobile menu behind it, and a door you cannot find on
+            a phone is not a door. It stays a text link — the green CTA is the
+            only button on this bar (DESIGN.md §16). */}
+        <div className="flex items-center gap-4">
+          <Link
+            href="/login/"
+            className="nav-link text-[.95rem] font-bold text-ink-soft no-underline transition-colors duration-200 hover:text-ink"
+          >
+            Sign in
+          </Link>
+          <Link href="/#early-access" className="inline-flex items-center justify-center rounded-control bg-green px-4 py-2 text-[.92rem] font-bold text-white no-underline shadow-[0_8px_20px_rgba(46,158,99,.28)] transition-[transform,background-color] duration-150 hover:-translate-y-0.5 hover:bg-green-deep">
+            {CTA.primary}
+          </Link>
+        </div>
       </div>
     </header>
   );
