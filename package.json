@@ -8,7 +8,6 @@
     "emulate": "node scripts/emulate.mjs",
     "prebuild": "node scripts/check-waitlist-env.mjs",
     "build": "next build",
-    "postbuild": "node scripts/copy-social-assets.mjs",
     "generate-og": "node scripts/generate-og.mjs",
     "generate-icons": "node scripts/generate-icons.mjs",
     "sync-docs": "node scripts/sync-docs.mjs",

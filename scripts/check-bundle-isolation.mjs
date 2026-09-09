@@ -12,12 +12,17 @@
  * legitimately carries `NEXT_PUBLIC_FIREBASE_*` on every page.
  *
  * Run after `pnpm build`.
+ *
+ * It reads the prerendered HTML under `.next/server/app` rather than a static
+ * `out/` folder — the site moved to Vercel and there is no export any more —
+ * but the question it answers is unchanged.
  */
 
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
-const OUT = path.resolve(import.meta.dirname, "..", "out");
+const APP = path.resolve(import.meta.dirname, "..", ".next", "server", "app");
+const STATIC = path.resolve(import.meta.dirname, "..", ".next");
 
 /** Pages that must stay free of the SDK. */
 const MARKETING = ["/", "/app", "/download", "/design", "/privacy", "/terms"];
@@ -34,7 +39,8 @@ const FINGERPRINTS = [
 ];
 
 function htmlFor(route) {
-  return path.join(OUT, route === "/" ? "" : route.slice(1), "index.html");
+  // Next writes `/` as index.html and `/account` as account.html.
+  return path.join(APP, route === "/" ? "index.html" : `${route.slice(1)}.html`);
 }
 
 function inspect(route) {
@@ -46,7 +52,8 @@ function inspect(route) {
   let bytes = 0;
   const carrying = [];
   for (const ref of refs) {
-    const asset = path.join(OUT, ref.slice(1));
+    // `/_next/static/...` is a URL prefix; on disk that is `.next/static/...`.
+    const asset = path.join(STATIC, ref.replace(/^\/_next\//, ""));
     if (!existsSync(asset)) continue;
     bytes += statSync(asset).size;
     const body = readFileSync(asset, "utf8");

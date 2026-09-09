@@ -3,19 +3,12 @@ import path from "node:path";
 import type { NextConfig } from "next";
 
 /**
- * GitHub project Pages lives at /allr.github.io/ under the org site.
- * Leave BASE_PATH empty for local `next dev` / plain deploys.
- */
-const basePath = process.env.BASE_PATH?.replace(/\/$/, "") || "";
-
-/**
  * Emulator ports, read from firebase.json so there is one place to change them.
  *
  * The browser has to know where the Auth and Firestore emulators are listening,
  * and firebase.json is what actually decides that. Duplicating the numbers into
  * the client meant two files had to agree, and the day they stopped agreeing
- * the failure would be a silent connection to nothing. The defaults here are
- * only for a firebase.json with no emulators block at all.
+ * the failure would be a silent connection to nothing.
  *
  * These are not Firebase's own defaults: 8080 and 4000 are heavily contested on
  * a developer machine — a local reverse proxy or an LLM gateway will take them
@@ -28,26 +21,30 @@ const emulators: Record<string, { port?: number }> = JSON.parse(
 const emulatorPort = (name: string, fallback: number) =>
   String(emulators[name]?.port ?? fallback);
 
+/**
+ * The site runs on Vercel, with a server.
+ *
+ * It used to be `output: "export"` for GitHub Pages, and that shaped everything:
+ * no API routes, no middleware, and Firestore rules as the only thing standing
+ * between a browser and the database. Accounts broke that. One account per email
+ * address cannot be enforced from the browser — the document id is the uid, so
+ * two uids with the same address both write successfully — and the fields that
+ * say whether someone is approved must not be writable by the person they
+ * describe. Both need a server holding a service account (DESIGN.md §16).
+ */
 const nextConfig: NextConfig = {
-  // Static HTML for GitHub Pages (no Node server).
-  output: "export",
-  // next/image needs this off for static hosting.
-  images: { unoptimized: true },
-  // Trailing slashes play nicer with GH Pages directory routing.
+  /**
+   * Kept from the GitHub Pages days, but no longer for its original reason.
+   * These are the site's canonical URLs — they are in the sitemap and in
+   * whatever has already linked to them — and every internal href is written
+   * with the slash. Dropping it would 308-redirect every one of them.
+   */
   trailingSlash: true,
-  // So client code (Logo, hero engraving) can prefix public asset URLs.
   env: {
-    NEXT_PUBLIC_BASE_PATH: basePath,
     // Only read when NEXT_PUBLIC_FIREBASE_EMULATOR=1; inert in a real build.
     NEXT_PUBLIC_FIREBASE_EMULATOR_AUTH_PORT: emulatorPort("auth", 9099),
     NEXT_PUBLIC_FIREBASE_EMULATOR_FIRESTORE_PORT: emulatorPort("firestore", 8571),
   },
-  ...(basePath
-    ? {
-        basePath,
-        assetPrefix: basePath,
-      }
-    : {}),
   // Pin the workspace root; an unrelated lockfile in a parent directory would
   // otherwise be picked up and produce a warning on every build.
   turbopack: {
