@@ -184,35 +184,29 @@ describe("signing in with Google", () => {
     assert.equal(user.emailVerified, true);
   });
 
-  it("lets that person register, through the real rules", async () => {
+  it("cannot create its own profile — there is no signup but the API", async () => {
     const user = auth.currentUser;
     assert.ok(user, "expected to still be signed in");
-    await setDoc(doc(db, "users", user.uid), profileFor(user));
 
-    const saved = await getDoc(doc(db, "users", user.uid));
-    assert.equal(saved.exists(), true);
-    assert.equal(saved.data().legalName, "Ada Lovelace");
-    assert.equal(saved.data().email, "ada@example.com");
+    // A correctly signed-in person, with a perfectly valid profile, is still
+    // refused. Registration exists at POST /api/account/register and nowhere
+    // else, which is what stops a second account for one address.
+    await assert.rejects(
+      setDoc(doc(db, "users", user.uid), profileFor(user)),
+      (err) => err.code === "permission-denied",
+      "the browser must have no path to writing a profile",
+    );
   });
 
-  it("refuses to register somebody under 18, even with a valid sign-in", async () => {
-    const { user } = await signInWithCredential(
-      auth,
-      googleCredential({
-        sub: "google-kid",
-        email: "kid@example.com",
-        email_verified: true,
-        name: "Too Young",
-      }),
-    );
-
+  it("cannot grant itself a workspace or credit", async () => {
+    const user = auth.currentUser;
     await assert.rejects(
-      setDoc(
-        doc(db, "users", user.uid),
-        profileFor(user, { dateOfBirth: yearsAgo(15) }),
-      ),
+      setDoc(doc(db, "users", user.uid), {
+        workspace_username: "ada",
+        workspace_email: "ada@allr.work",
+        workspace_address: "https://ada.allr.work",
+      }),
       (err) => err.code === "permission-denied",
-      "the age gate must hold without the form in front of it",
     );
   });
 

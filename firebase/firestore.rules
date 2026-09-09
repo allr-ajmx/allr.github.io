@@ -51,119 +51,48 @@ service cloud.firestore {
       allow read, update, delete: if false;
     }
 
-    // Accounts. One document per signed-in person, keyed by their Firebase Auth
-    // uid — which is what lets these rules say "only your own" without a query.
+    // Accounts.
     //
-    // The site is a static export: there is no server between the browser and
-    // this database, so everything the registration form promises has to be
-    // true here too, or it is not true at all.
+    // The browser cannot write here at all. Profiles are created and changed by
+    // `src/app/api/account/**` through the Admin SDK, which bypasses these rules
+    // entirely — so denying every client write costs the application nothing and
+    // removes the last path to an account we did not make.
+    //
+    // That is what makes two things true. One account per email address: the
+    // claim in `user_emails` is written in the same transaction as the profile,
+    // and no client can write either. And approval that is not self-service:
+    // `workspace_username`, `workspace_email` and `workspace_address` decide
+    // whether somebody has access, and the person they describe cannot touch
+    // them.
     match /users/{uid} {
-      function signedInAs(id) {
-        return request.auth != null
-          && request.auth.uid == id
-          // Google always verifies. Checking it anyway means the email below is
-          // an address the person demonstrably controls, not one they typed.
-          && request.auth.token.email_verified == true;
-      }
-
-      // Allr is strictly an above-contract-age product (DESIGN.md §16).
-      //
-      // Rules have durations, not a calendar, so this cannot be exact: 18 years
-      // is 6574 or 6575 days depending on the leap days in between. 6570 is
-      // deliberately a few days loose, because being refused on the morning of
-      // your eighteenth birthday is a real failure and four days of slack is
-      // not. The exact calendar check is `isOldEnough()` in
-      // src/lib/firebase/profile.ts; this is the backstop for a client that
-      // never ran it.
-      function oldEnough(dob) {
-        return dob is timestamp
-          && dob < request.time - duration.value(6570, 'd')
-          && dob > request.time - duration.value(54750, 'd'); // ~150 years
-      }
-
-      // Client clocks are wrong; server timestamps resolve to request.time.
-      // Either is fine, five minutes out is not.
-      function fresh(ts) {
-        return ts is timestamp
-          && ts > request.time - duration.value(5, 'm')
-          && ts < request.time + duration.value(5, 'm');
-      }
-
-      function validProfile(d, id) {
-        return d.keys().hasOnly([
-            'uid', 'email', 'legalName', 'dateOfBirth', 'country',
-            'accountType', 'entityName', 'marketingOptIn',
-            'termsVersion', 'privacyVersion', 'createdAt', 'updatedAt'
-          ])
-          && d.keys().hasAll([
-            'uid', 'email', 'legalName', 'dateOfBirth', 'country',
-            'accountType', 'entityName', 'marketingOptIn',
-            'termsVersion', 'privacyVersion', 'createdAt', 'updatedAt'
-          ])
-          && d.uid == id
-          && d.email is string
-          && d.email == request.auth.token.email.lower()
-          && d.legalName is string
-          && d.legalName.size() >= 2
-          && d.legalName.size() <= 120
-          && d.country is string
-          && d.country.matches('^[A-Z]{2}$')
-          && d.accountType in ['individual', 'business']
-          && d.entityName is string
-          && d.entityName.size() <= 200
-          // A business has a registered name; an individual has none, rather
-          // than a leftover one from before they switched.
-          && (d.accountType == 'business'
-                ? d.entityName.size() >= 1
-                : d.entityName == '')
-          && d.marketingOptIn is bool
-          // Consent is a required detail, not an optional one: a profile that
-          // records no version of what was agreed to is a profile with no
-          // consent behind it. The form disables its button until both are
-          // ticked; this is what makes that true for anything that is not the
-          // form.
-          && d.termsVersion is string
-          && d.termsVersion.size() >= 1
-          && d.termsVersion.size() <= 32
-          && d.privacyVersion is string
-          && d.privacyVersion.size() >= 1
-          && d.privacyVersion.size() <= 32
-          && oldEnough(d.dateOfBirth)
-          && fresh(d.updatedAt);
-      }
-
-      // Your own, and only ever one at a time: `list` is never allowed, so the
+      // Your own, one document at a time. `list` is never allowed, so the
       // collection cannot be enumerated from a browser.
-      allow get: if signedInAs(uid);
+      allow get: if request.auth != null && request.auth.uid == uid;
       allow list: if false;
+      allow create, update, delete: if false;
 
-      // `resource == null` says out loud that this branch is for a document
-      // that does not exist yet — the emulator evaluates both branches for
-      // every write, and this is what keeps the two readable side by side.
-      //
-      // The emulator logs an "evaluation error" for whichever branch does not
-      // apply (an update has no `resource` to compare against, a create has
-      // nothing to merge into). That is expected and it is fail-closed: an
-      // erroring rule denies. The branch that applies is evaluated cleanly,
-      // which is what rules.test.mjs pins down.
-      allow create: if resource == null
-        && signedInAs(uid)
-        && validProfile(request.resource.data, uid)
-        && fresh(request.resource.data.createdAt)
-        && request.resource.data.createdAt == request.resource.data.updatedAt;
+      // What the workspace has published for this person. A subcollection
+      // rather than an array on the profile: the list only grows, a document
+      // caps at 1 MiB, and an array is rewritten whole on every publish.
+      match /urls/{urlId} {
+        allow get, list: if request.auth != null && request.auth.uid == uid;
+        allow write: if false;
+      }
+    }
 
-      // Identity is set once. The date of birth may be corrected — a typo
-      // should not need a support desk — but only to another date that still
-      // passes the age check, so nobody can edit themselves into being a minor.
-      allow update: if resource != null
-        && signedInAs(uid)
-        && validProfile(request.resource.data, uid)
-        && request.resource.data.uid == resource.data.uid
-        && request.resource.data.email == resource.data.email
-        && request.resource.data.createdAt == resource.data.createdAt;
+    // The email claim index — one document per address, keyed by its SHA-256 so
+    // the collection is not a mailing list. Server-only in both directions:
+    // reading it would confirm whether an address has an account.
+    match /user_emails/{hash} {
+      allow read, write: if false;
+    }
 
-      // Deleting an account is not a thing a form does on its own yet.
-      allow delete: if false;
+    // App versions and download links. Public to read, because /download and
+    // /app render them for anyone; written by an admin, so a bad release is
+    // rolled back by pointing currentVersion at an older version document.
+    match /app_configuration/{document=**} {
+      allow read: if true;
+      allow write: if false;
     }
 
     match /{document=**} {

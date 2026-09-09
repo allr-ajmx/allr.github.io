@@ -1,13 +1,13 @@
 /**
  * Tests for firestore.rules.
  *
- * The site is a static export. There is no server between a browser and this
- * database, so these rules are not a second line of defence — they are the
- * only one. That is why they get tests and the UI does not: a bug in the
- * registration form shows someone a confusing message, a bug in here hands out
- * somebody else's date of birth.
+ * These rules no longer carry the whole security story — accounts are written
+ * by the server through the Admin SDK, which bypasses rules entirely — but they
+ * carry the half that faces the browser, and that half is now mostly about
+ * refusal. A rule that wrongly allows a write here is an account somebody made
+ * without asking us.
  *
- * Run with `pnpm test:rules`, which starts the Firestore emulator around them.
+ * Run with `pnpm test:rules`, which starts an emulator of its own.
  */
 
 import { after, before, describe, it } from "node:test";
@@ -27,7 +27,6 @@ import {
   setDoc,
   updateDoc,
   Timestamp,
-  serverTimestamp,
 } from "firebase/firestore";
 
 const RULES = path.resolve(import.meta.dirname, "firestore.rules");
@@ -38,9 +37,7 @@ const RULES = path.resolve(import.meta.dirname, "firestore.rules");
  * the tests and catastrophic against one somebody is using — it deletes their
  * account, and their next sign-in mints a new uid with no profile behind it.
  *
- * So the clearing only happens when `pnpm test:rules` says so. Running
- * `node --test firebase/*.test.mjs` by hand against a live emulator now stops
- * here instead of quietly wiping it.
+ * So the clearing only happens when `pnpm test:rules` says so.
  */
 function requireThrowawayEmulator() {
   if (process.env.ALLR_TEST_EMULATOR === "1") return;
@@ -53,35 +50,36 @@ function requireThrowawayEmulator() {
 
 let env;
 
-/** A date `years` ago, as a Firestore Timestamp. */
 const yearsAgo = (years) => {
   const d = new Date();
   d.setUTCFullYear(d.getUTCFullYear() - years);
   return Timestamp.fromDate(d);
 };
 
-/** A complete, valid profile for `uid`. Override one field to test that field. */
+/** A profile as the server writes it. Used only to seed, never through rules. */
 const profile = (uid, email, overrides = {}) => ({
   uid,
   email,
-  legalName: "Ada Lovelace",
+  name: "Ada Lovelace",
   dateOfBirth: yearsAgo(30),
   country: "GB",
   accountType: "individual",
   entityName: "",
   marketingOptIn: false,
+  mobilePlatforms: ["ios"],
   termsVersion: "0.1-draft",
   privacyVersion: "0.1-draft",
-  createdAt: serverTimestamp(),
-  updatedAt: serverTimestamp(),
+  createdAt: Timestamp.now(),
+  updatedAt: Timestamp.now(),
+  workspace_username: null,
+  workspace_email: null,
+  workspace_address: null,
+  trial: null,
   ...overrides,
 });
 
-/** Signed in with Google: a uid and an email Google says it verified. */
-const asUser = (uid, email, extra = {}) =>
-  env
-    .authenticatedContext(uid, { email, email_verified: true, ...extra })
-    .firestore();
+const asUser = (uid, email) =>
+  env.authenticatedContext(uid, { email, email_verified: true }).firestore();
 
 before(async () => {
   requireThrowawayEmulator();
@@ -89,250 +87,141 @@ before(async () => {
     projectId: "demo-allr",
     firestore: { rules: readFileSync(RULES, "utf8") },
   });
-  // These tests write to fixed document ids, and the waitlist rules refuse a
-  // second write to an id that already exists — which is the whole point of
-  // them. Without this the suite passes only against a freshly booted
-  // emulator and fails against the one `pnpm emulate` leaves running.
   await env.clearFirestore();
+
+  // Seeded with rules off, the way the server would write it.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, "users/ada"), profile("ada", "ada@example.com"));
+    await setDoc(doc(db, "users/ada/urls/one"), {
+      url: "https://ada.allr.app",
+      title: "Ada's site",
+      kind: "site",
+      createdAt: Timestamp.now(),
+    });
+    await setDoc(doc(db, "user_emails/abc123"), { uid: "ada", email: "ada@example.com" });
+    await setDoc(doc(db, "app_configuration/app"), { currentVersion: "1.0.0" });
+  });
 });
 
 after(async () => {
   await env?.cleanup();
 });
 
-describe("users/{uid} — creating a profile", () => {
-  it("lets a signed-in person create their own", async () => {
-    const db = asUser("alice", "alice@example.com");
-    await assertSucceeds(
-      setDoc(doc(db, "users/alice"), profile("alice", "alice@example.com")),
-    );
-  });
-
-  it("refuses an anonymous visitor", async () => {
-    const db = env.unauthenticatedContext().firestore();
-    await assertFails(
-      setDoc(doc(db, "users/alice"), profile("alice", "alice@example.com")),
-    );
-  });
-
-  it("refuses a document under somebody else's uid", async () => {
-    const db = asUser("bob", "bob@example.com");
-    await assertFails(
-      setDoc(doc(db, "users/alice"), profile("alice", "bob@example.com")),
-    );
-  });
-
-  it("refuses an email that is not the one on the token", async () => {
-    const db = asUser("carol", "carol@example.com");
-    await assertFails(
-      setDoc(doc(db, "users/carol"), profile("carol", "someone.else@example.com")),
-    );
-  });
-
-  it("refuses an unverified email", async () => {
-    const db = env
-      .authenticatedContext("dave", { email: "dave@example.com", email_verified: false })
-      .firestore();
-    await assertFails(
-      setDoc(doc(db, "users/dave"), profile("dave", "dave@example.com")),
-    );
-  });
-
-  it("refuses anyone under 18 — the age gate is not just the form", async () => {
-    const db = asUser("erin", "erin@example.com");
-    await assertFails(
-      setDoc(
-        doc(db, "users/erin"),
-        profile("erin", "erin@example.com", { dateOfBirth: yearsAgo(14) }),
-      ),
-    );
-  });
-
-  it("refuses a date of birth in the future", async () => {
-    const db = asUser("frank", "frank@example.com");
-    await assertFails(
-      setDoc(
-        doc(db, "users/frank"),
-        profile("frank", "frank@example.com", { dateOfBirth: yearsAgo(-5) }),
-      ),
-    );
-  });
-
-  it("refuses an extra field nobody asked for", async () => {
-    const db = asUser("grace", "grace@example.com");
-    await assertFails(
-      setDoc(
-        doc(db, "users/grace"),
-        profile("grace", "grace@example.com", { isAdmin: true }),
-      ),
-    );
-  });
-
-  it("refuses a business with no registered name", async () => {
-    const db = asUser("heidi", "heidi@example.com");
-    await assertFails(
-      setDoc(
-        doc(db, "users/heidi"),
-        profile("heidi", "heidi@example.com", {
-          accountType: "business",
-          entityName: "",
-        }),
-      ),
-    );
-  });
-
-  it("refuses an individual carrying a leftover business name", async () => {
-    const db = asUser("ivan", "ivan@example.com");
-    await assertFails(
-      setDoc(
-        doc(db, "users/ivan"),
-        profile("ivan", "ivan@example.com", {
-          accountType: "individual",
-          entityName: "Old Company Ltd",
-        }),
-      ),
-    );
-  });
-
-  it("refuses a profile that records no accepted terms", async () => {
-    const db = asUser("kate", "kate@example.com");
-    await assertFails(
-      setDoc(
-        doc(db, "users/kate"),
-        profile("kate", "kate@example.com", { termsVersion: "" }),
-      ),
-    );
-  });
-
-  it("refuses a profile that records no accepted privacy policy", async () => {
-    const db = asUser("liam", "liam@example.com");
-    await assertFails(
-      setDoc(
-        doc(db, "users/liam"),
-        profile("liam", "liam@example.com", { privacyVersion: "" }),
-      ),
-    );
-  });
-
-  it("refuses a country that is not a two-letter code", async () => {
-    const db = asUser("judy", "judy@example.com");
-    await assertFails(
-      setDoc(
-        doc(db, "users/judy"),
-        profile("judy", "judy@example.com", { country: "United Kingdom" }),
-      ),
-    );
-  });
-});
-
-describe("users/{uid} — reading", () => {
-  before(async () => {
-    await env.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), "users/mallory"), {
-        ...profile("mallory", "mallory@example.com"),
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      });
-    });
-  });
-
-  it("lets you read your own", async () => {
-    const db = asUser("mallory", "mallory@example.com");
-    await assertSucceeds(getDoc(doc(db, "users/mallory")));
+describe("users/{uid} — the browser may read its own and nothing else", () => {
+  it("lets you read your own profile", async () => {
+    await assertSucceeds(getDoc(doc(asUser("ada", "ada@example.com"), "users/ada")));
   });
 
   it("refuses somebody else's", async () => {
-    const db = asUser("trent", "trent@example.com");
-    await assertFails(getDoc(doc(db, "users/mallory")));
+    await assertFails(getDoc(doc(asUser("bob", "bob@example.com"), "users/ada")));
   });
 
   it("refuses an anonymous read", async () => {
     const db = env.unauthenticatedContext().firestore();
-    await assertFails(getDoc(doc(db, "users/mallory")));
+    await assertFails(getDoc(doc(db, "users/ada")));
   });
 
-  it("never lets the collection be listed, even by a signed-in user", async () => {
-    const db = asUser("mallory", "mallory@example.com");
-    await assertFails(getDocs(collection(db, "users")));
+  it("never lets the collection be listed", async () => {
+    await assertFails(getDocs(collection(asUser("ada", "ada@example.com"), "users")));
   });
 });
 
-describe("users/{uid} — changing and deleting", () => {
-  const EMAIL = "nina@example.com";
-
-  before(async () => {
-    await env.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), "users/nina"), {
-        ...profile("nina", EMAIL),
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      });
-    });
+describe("users/{uid} — the browser may never write a profile", () => {
+  it("refuses to let you create your own account directly", async () => {
+    // The whole point: there is no signup except POST /api/account/register.
+    const db = asUser("carol", "carol@example.com");
+    await assertFails(
+      setDoc(doc(db, "users/carol"), profile("carol", "carol@example.com")),
+    );
   });
 
-  it("lets you correct your own name", async () => {
-    const db = asUser("nina", EMAIL);
+  it("refuses to let you edit your own profile directly", async () => {
+    const db = asUser("ada", "ada@example.com");
+    await assertFails(updateDoc(doc(db, "users/ada"), { name: "Someone Else" }));
+  });
+
+  it("refuses to let you grant yourself a workspace", async () => {
+    const db = asUser("ada", "ada@example.com");
+    await assertFails(
+      updateDoc(doc(db, "users/ada"), {
+        workspace_username: "ada",
+        workspace_email: "ada@allr.work",
+        workspace_address: "https://ada.allr.work",
+      }),
+    );
+  });
+
+  it("refuses to let you give yourself credit", async () => {
+    const db = asUser("ada", "ada@example.com");
+    await assertFails(
+      updateDoc(doc(db, "users/ada"), {
+        trial: { creditUsd: 5000, creditUsedUsd: 0 },
+      }),
+    );
+  });
+
+  it("refuses deletion", async () => {
+    await assertFails(deleteDoc(doc(asUser("ada", "ada@example.com"), "users/ada")));
+  });
+
+  it("refuses a write to somebody else's profile", async () => {
+    await assertFails(
+      updateDoc(doc(asUser("bob", "bob@example.com"), "users/ada"), { name: "Bob" }),
+    );
+  });
+});
+
+describe("users/{uid}/urls — your published work", () => {
+  it("lets you read your own", async () => {
     await assertSucceeds(
-      updateDoc(doc(db, "users/nina"), {
-        legalName: "Nina Simone",
-        updatedAt: serverTimestamp(),
-      }),
+      getDocs(collection(asUser("ada", "ada@example.com"), "users/ada/urls")),
     );
   });
 
-  it("lets you correct a mistyped date of birth to another adult date", async () => {
-    const db = asUser("nina", EMAIL);
-    await assertSucceeds(
-      updateDoc(doc(db, "users/nina"), {
-        dateOfBirth: yearsAgo(41),
-        updatedAt: serverTimestamp(),
-      }),
-    );
-  });
-
-  it("refuses editing yourself into being a minor", async () => {
-    const db = asUser("nina", EMAIL);
+  it("refuses somebody else's", async () => {
     await assertFails(
-      updateDoc(doc(db, "users/nina"), {
-        dateOfBirth: yearsAgo(12),
-        updatedAt: serverTimestamp(),
-      }),
+      getDocs(collection(asUser("bob", "bob@example.com"), "users/ada/urls")),
     );
   });
 
-  it("refuses changing the email away from the token's", async () => {
-    const db = asUser("nina", EMAIL);
+  it("refuses a write, even your own", async () => {
     await assertFails(
-      updateDoc(doc(db, "users/nina"), {
-        email: "someone.else@example.com",
-        updatedAt: serverTimestamp(),
+      setDoc(doc(asUser("ada", "ada@example.com"), "users/ada/urls/two"), {
+        url: "https://example.com",
       }),
     );
   });
+});
 
-  it("refuses rewriting createdAt", async () => {
-    const db = asUser("nina", EMAIL);
+describe("user_emails — the claim index is server-only", () => {
+  it("refuses a read, so it cannot be used to test whether an address is taken", async () => {
     await assertFails(
-      updateDoc(doc(db, "users/nina"), {
-        createdAt: Timestamp.fromDate(new Date("2020-01-01")),
-        updatedAt: serverTimestamp(),
-      }),
+      getDoc(doc(asUser("ada", "ada@example.com"), "user_emails/abc123")),
     );
   });
 
-  it("refuses an edit to somebody else's profile", async () => {
-    const db = asUser("oscar", "oscar@example.com");
+  it("refuses a write, so a claim cannot be forged or released", async () => {
     await assertFails(
-      updateDoc(doc(db, "users/nina"), {
-        legalName: "Not Nina",
-        updatedAt: serverTimestamp(),
+      setDoc(doc(asUser("bob", "bob@example.com"), "user_emails/deadbeef"), {
+        uid: "bob",
       }),
     );
   });
+});
 
-  it("refuses deletion, even your own", async () => {
-    const db = asUser("nina", EMAIL);
-    await assertFails(deleteDoc(doc(db, "users/nina")));
+describe("app_configuration — public to read, admin to write", () => {
+  it("lets anyone read the current version", async () => {
+    const db = env.unauthenticatedContext().firestore();
+    await assertSucceeds(getDoc(doc(db, "app_configuration/app")));
+  });
+
+  it("refuses a write from a signed-in user", async () => {
+    await assertFails(
+      setDoc(doc(asUser("ada", "ada@example.com"), "app_configuration/app"), {
+        currentVersion: "9.9.9",
+      }),
+    );
   });
 });
 
@@ -364,16 +253,12 @@ describe("the waitlist still behaves as it did", () => {
     const db = env.unauthenticatedContext().firestore();
     await assertFails(getDocs(collection(db, "waitlist")));
   });
-
-  it("still refuses to let a signed-in user read the list", async () => {
-    const db = asUser("alice", "alice@example.com");
-    await assertFails(getDoc(doc(db, "waitlist/abc123")));
-  });
 });
 
 describe("everything else is denied", () => {
   it("refuses a collection that has no rule block", async () => {
-    const db = asUser("alice", "alice@example.com");
-    await assertFails(setDoc(doc(db, "secrets/anything"), { a: 1 }));
+    await assertFails(
+      setDoc(doc(asUser("ada", "ada@example.com"), "secrets/anything"), { a: 1 }),
+    );
   });
 });
