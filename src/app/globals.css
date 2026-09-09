@@ -36,6 +36,12 @@
   --color-sage-line: #dce8dd;
   --color-clay-tint: #f6ede2;
 
+  /* A state, not a hue (DESIGN.md §5): the only thing `alert` may ever say is
+     that something the person typed needs fixing. It never decorates. */
+  --color-alert: #a6543c;
+  --color-alert-tint: #f9e9e4;
+  --color-alert-line: #efcfc4;
+
   /* ---------- fonts ---------- */
   --font-sans: var(--font-nunito), system-ui, sans-serif;
   --font-serif: var(--font-young-serif), serif;
@@ -182,6 +188,41 @@
   .allr-field--on-green {
     border-color: transparent;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Invalid is drawn on the border, never by turning the text red: the message
+     under the field is what says what is wrong. */
+  .allr-field--invalid,
+  .allr-field[aria-invalid="true"] {
+    border-color: var(--color-alert);
+  }
+  .allr-field--invalid:focus,
+  .allr-field[aria-invalid="true"]:focus {
+    outline-color: var(--color-alert);
+    border-color: var(--color-alert);
+  }
+  .allr-field:disabled {
+    background: var(--color-line-soft);
+    color: var(--color-ink-soft);
+    cursor: not-allowed;
+  }
+
+  /* A <select> is an .allr-field with the platform arrow replaced by our own,
+     drawn in ink so it belongs to the palette. `appearance: none` also stops
+     Safari from ignoring the padding and the radius. */
+  select.allr-field {
+    appearance: none;
+    padding-right: 2.4em;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%235c7168' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1em center;
+    background-size: 12px 8px;
+  }
+
+  /* The signed-in shell is denser than a marketing page (DESIGN.md §13). */
+  .allr-field--dense {
+    font-size: 0.94rem;
+    padding: 0.58em 0.85em;
   }
 
   .sr-only {

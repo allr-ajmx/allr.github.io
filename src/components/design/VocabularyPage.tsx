@@ -1,9 +1,16 @@
+"use client";
+
 import Link from "next/link";
 import { AmbientShader } from "@/components/AmbientShader";
 import { Swatch } from "@/components/design/Swatch";
 import { Footer } from "@/components/Footer";
 import { Reveal } from "@/components/Reveal";
+import { useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { ChoiceChips } from "@/components/ui/ChoiceChips";
+import { Field } from "@/components/ui/Field";
+import { Select } from "@/components/ui/Select";
 import { Card } from "@/components/ui/Card";
 import { JunkPill, OnePill } from "@/components/ui/JunkPill";
 import { Logo } from "@/components/ui/Logo";
@@ -23,7 +30,7 @@ import {
 } from "@/lib/brand";
 
 const GROUND = [
-  { token: "paper", hex: "#FBF8F2", meaning: "Evening paper — page wash", className: "bg-paper" },
+  { token: "paper", hex: "#FDFCF9", meaning: "Evening paper — page wash", className: "bg-paper" },
   { token: "card", hex: "#FFFFFF", meaning: "A sheet on the desk", className: "bg-card" },
   { token: "ink", hex: "#223B33", meaning: "Deep pine — headlines", className: "bg-ink" },
   { token: "ink-soft", hex: "#5C7168", meaning: "Quiet pine — body", className: "bg-ink-soft" },
@@ -48,6 +55,16 @@ const GREEN = [
 const TINTS = [
   { token: "sage-tint", hex: "#ECF2EC", meaning: "Quiet green sticker", className: "bg-sage-tint" },
   { token: "clay-tint", hex: "#F6EDE2", meaning: "Warm clay sticker", className: "bg-clay-tint" },
+] as const;
+
+/**
+ * A state, not a hue (DESIGN.md §5). The only thing it may say is that
+ * something the person typed needs fixing — it never decorates.
+ */
+const ALERT = [
+  { token: "alert", hex: "#A6543C", meaning: "Needs fixing — error text", className: "bg-alert" },
+  { token: "alert-tint", hex: "#F9E9E4", meaning: "Error wash", className: "bg-alert-tint" },
+  { token: "alert-line", hex: "#EFCFC4", meaning: "Error edge", className: "bg-alert-line" },
 ] as const;
 
 const RADII = [
@@ -220,6 +237,20 @@ export function VocabularyPage() {
                 <Swatch key={s.token} {...s} />
               ))}
             </div>
+
+            <h3 className="mt-10 mb-4 text-[1.15rem]">
+              Alert — a state, never a fourth hue
+            </h3>
+            <p className="mb-4 max-w-[60ch] text-ink-soft">
+              The only thing this red may say is that something the person typed
+              needs fixing. It never decorates, never fills a surface, and never
+              appears on a page with no form on it.
+            </p>
+            <div className="grid grid-cols-2 gap-4 min-[721px]:grid-cols-4">
+              {ALERT.map((s) => (
+                <Swatch key={s.token} {...s} />
+              ))}
+            </div>
           </div>
         </section>
 
@@ -312,6 +343,17 @@ export function VocabularyPage() {
               <OnePill>allr · one plan</OnePill>
             </Reveal>
 
+            <h3 className="mb-4 text-[1.15rem]">Form controls</h3>
+            <p className="mb-4 max-w-[60ch] text-ink-soft">
+              Labels are visible, not placeholders: a placeholder disappears the
+              moment you type, and &ldquo;what was this box for?&rdquo; is not a
+              question a legal-name field may provoke. Errors are added below the
+              field, so it never loses its name.
+            </p>
+            <Reveal className="mb-12 flex flex-col gap-6 rounded-card border border-line bg-card px-6 py-6 shadow-soft">
+              <FormSpecimen />
+            </Reveal>
+
             <h3 className="mb-4 text-[1.15rem]">Output cards</h3>
             <div className="mb-12 grid grid-cols-1 gap-5 min-[561px]:grid-cols-2 min-[861px]:grid-cols-3">
               {OUTPUTS.map((item, i) => (
@@ -368,6 +410,92 @@ export function VocabularyPage() {
         </section>
       </main>
       <Footer />
+    </>
+  );
+}
+
+/**
+ * The form primitives, live and interactive — including their error state,
+ * which is the one you cannot see from a screenshot.
+ */
+function FormSpecimen() {
+  const [name, setName] = useState("");
+  const [country, setCountry] = useState("");
+  const [kind, setKind] = useState<"individual" | "business">("individual");
+  const [agreed, setAgreed] = useState(false);
+
+  return (
+    <>
+      <Field
+        label="Legal name"
+        hint="As it appears on your ID or payment card."
+        required
+      >
+        {(props) => (
+          <input
+            {...props}
+            type="text"
+            className="allr-field"
+            value={name}
+            onChange={(e) => setName(e.currentTarget.value)}
+          />
+        )}
+      </Field>
+
+      <Field label="Country of residence" required>
+        {(props) => (
+          <Select
+            {...props}
+            placeholder="Choose a country"
+            value={country}
+            onChange={(e) => setCountry(e.currentTarget.value)}
+          >
+            <option value="GB">United Kingdom</option>
+            <option value="IN">India</option>
+            <option value="US">United States</option>
+          </Select>
+        )}
+      </Field>
+
+      <Field
+        label="This one is showing its error state"
+        error="You have to be 18 or over to have an Allr account."
+      >
+        {(props) => (
+          <input {...props} type="date" className="allr-field" readOnly value="2015-04-02" />
+        )}
+      </Field>
+
+      <div className="flex flex-col gap-2">
+        <p className="text-[.92rem] font-bold text-ink">Who is this account for?</p>
+        <ChoiceChips
+          legend="Who is this account for?"
+          options={[
+            { id: "individual", label: "Just me" },
+            { id: "business", label: "A business" },
+          ]}
+          value={kind}
+          onChange={setKind}
+        />
+      </div>
+
+      <Checkbox
+        checked={agreed}
+        onChange={setAgreed}
+        label="I agree to the Terms of Use."
+        hint="Consent is its own tick, never bundled with another."
+      />
+
+      <Field label="Denser, for the signed-in shell">
+        {(props) => (
+          <input
+            {...props}
+            type="text"
+            className="allr-field allr-field--dense"
+            placeholder="Controls may be denser behind a login (§13)"
+          />
+        )}
+      </Field>
     </>
   );
 }

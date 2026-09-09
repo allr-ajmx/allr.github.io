@@ -39,6 +39,7 @@ export function Button({
   children,
   type,
   disabled,
+  busy,
 }: {
   href?: string;
   variant?: Variant;
@@ -47,6 +48,12 @@ export function Button({
   children: React.ReactNode;
   type?: "button" | "submit";
   disabled?: boolean;
+  /**
+   * Disabled *because something is in flight*, rather than because the form
+   * is not ready. Only the cursor differs, and that difference is the whole
+   * point: `wait` promises the click landed, `not-allowed` says it did not.
+   */
+  busy?: boolean;
 }) {
   const tone = VARIANTS[variant];
   const interactive = Boolean(href || type) && !disabled;
@@ -56,7 +63,7 @@ export function Button({
     SIZES[size],
     interactive && INTERACTIVE,
     interactive && tone.hover,
-    disabled && "cursor-wait opacity-80",
+    disabled && (busy ? "cursor-wait opacity-80" : "cursor-not-allowed opacity-55"),
     className,
   );
 
