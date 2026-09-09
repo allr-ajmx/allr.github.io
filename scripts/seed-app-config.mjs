@@ -66,7 +66,11 @@ if (!res.ok) {
 }
 
 const release = await res.json();
-const version = String(release.tag_name ?? "").replace(/^v/, "") || "0.0.0";
+// Tags here look like `desktop-v0.0.8`, not `v0.0.8`, so strip any leading
+// channel prefix as well as the v. The document id keeps the raw tag, which is
+// what you type to roll back; `version` is what people read.
+const tag = String(release.tag_name ?? "");
+const version = tag.replace(/^.*?v(?=\d)/, "") || tag || "0.0.0";
 
 const downloads = {};
 for (const [platform, pattern] of Object.entries(MATCH)) {
@@ -81,7 +85,7 @@ if (Object.keys(downloads).length === 0) {
 const db = getFirestore();
 const root = db.collection("app_configuration").doc("app");
 
-await root.collection("versions").doc(version).set({
+await root.collection("versions").doc(tag).set({
   version,
   publishedAt: release.published_at
     ? Timestamp.fromDate(new Date(release.published_at))
@@ -90,9 +94,9 @@ await root.collection("versions").doc(version).set({
   downloads,
 });
 
-await root.set({ currentVersion: version, updatedAt: Timestamp.now() });
+await root.set({ currentVersion: tag, updatedAt: Timestamp.now() });
 
-console.log(`\n✓ app_configuration/app.currentVersion = ${version}`);
+console.log(`\n✓ app_configuration/app.currentVersion = ${tag}  (shown as ${version})`);
 for (const [k, v] of Object.entries(downloads)) console.log(`    ${k.padEnd(8)} ${v}`);
 console.log(
   "\n  Roll back by setting currentVersion to another version document.\n",
