@@ -27,6 +27,12 @@ export function Footer() {
         >
           Early access
         </Link>
+        <Link href="/privacy/" className="text-ink-soft no-underline hover:text-ink">
+          Privacy
+        </Link>
+        <Link href="/terms/" className="text-ink-soft no-underline hover:text-ink">
+          Terms
+        </Link>
       </nav>
       <div className="flex items-center justify-center gap-2">
         Made for people with things to ship.
