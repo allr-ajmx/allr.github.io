@@ -5,6 +5,7 @@ import {
   useEffect,
   useId,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import Link from "next/link";
@@ -59,26 +60,52 @@ function isCurrentPath(pathname: string, href: string) {
   return pathname === href || pathname === href.replace(/\/$/, "");
 }
 
-function useRailCollapsed() {
-  const [collapsed, setCollapsed] = useState(false);
-  const [ready, setReady] = useState(false);
+/**
+ * The desktop rail's collapsed preference, kept in localStorage.
+ *
+ * Read as an external store rather than copied into state after mount: the
+ * preference lives outside React, and `useSyncExternalStore` reads it during
+ * render. When storage is blocked (private mode) the choice still holds for the
+ * session, in memory.
+ */
+const railListeners = new Set<() => void>();
+let railCollapsedInMemory = false;
 
-  useEffect(() => {
-    try {
-      setCollapsed(window.localStorage.getItem(RAIL_COLLAPSED_KEY) === "1");
-    } catch {
-      // Private mode / blocked storage — keep the expanded default.
-    }
-    setReady(true);
-  }, []);
+function subscribeRail(onChange: () => void) {
+  railListeners.add(onChange);
+  // Another tab changing the preference updates this one too.
+  window.addEventListener("storage", onChange);
+  return () => {
+    railListeners.delete(onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+function readRailCollapsed() {
+  try {
+    const stored = window.localStorage.getItem(RAIL_COLLAPSED_KEY);
+    return stored === null ? railCollapsedInMemory : stored === "1";
+  } catch {
+    return railCollapsedInMemory;
+  }
+}
+
+const subscribeNothing = () => () => {};
+
+function useRailCollapsed() {
+  const collapsed = useSyncExternalStore(subscribeRail, readRailCollapsed, () => false);
+  // False on the server and while hydrating, true once rendering in the
+  // browser, so the rail stays hidden until it knows which width it should be.
+  const ready = useSyncExternalStore(subscribeNothing, () => true, () => false);
 
   const set = useCallback((next: boolean) => {
-    setCollapsed(next);
+    railCollapsedInMemory = next;
     try {
       window.localStorage.setItem(RAIL_COLLAPSED_KEY, next ? "1" : "0");
     } catch {
-      // Ignore — preference is best-effort.
+      // Ignore — the in-memory value still applies for this session.
     }
+    railListeners.forEach((listener) => listener());
   }, []);
 
   return { collapsed, setCollapsed: set, ready };
@@ -171,6 +198,14 @@ function Rail() {
   const router = useRouter();
   const { collapsed, setCollapsed, ready } = useRailCollapsed();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Navigating must not leave the drawer open over the new page. Adjusting
+  // state while rendering, rather than in an effect, closes it in the same
+  // render the route changes in.
+  const [drawerPath, setDrawerPath] = useState(pathname);
+  if (drawerPath !== pathname) {
+    setDrawerPath(pathname);
+    setMobileOpen(false);
+  }
   const drawerId = useId();
 
   const signOut = async () => {
@@ -193,11 +228,7 @@ function Rail() {
     };
   }, [mobileOpen]);
 
-  // Route changes (or resize up to desktop) should not leave the drawer stuck open.
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
-
+  // Nor should resizing up to desktop.
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 900px)");
     const onChange = () => {
