@@ -6,16 +6,14 @@
  * same ones, so a consent record can never claim a version the page does not
  * show. Bump the version whenever the wording changes materially — a new
  * version is what tells us who still needs to re-accept.
- *
- * `0.1-draft` is honest: the pages are scaffolds until the real wording lands.
  */
 
-export const TERMS_VERSION = "0.1-draft";
-export const PRIVACY_VERSION = "0.1-draft";
+export const TERMS_VERSION = "1.0";
+export const PRIVACY_VERSION = "1.0";
 
 /** Shown on the page itself, so a reader can see how current it is. */
-export const TERMS_UPDATED = "2026-09-08";
-export const PRIVACY_UPDATED = "2026-09-08";
+export const TERMS_UPDATED = "2026-09-15";
+export const PRIVACY_UPDATED = "2026-09-15";
 
 /**
  * The age of contract. Allr does not sell to anyone below it (DESIGN.md §16).
@@ -24,11 +22,22 @@ export const PRIVACY_UPDATED = "2026-09-08";
  */
 export { MINIMUM_AGE } from "./age";
 
+/** The natural person who operates Allr until a later company takes it over. */
+export const LEGAL_OPERATOR = "Jai Shukla";
+
+/** Trading name under which the service is offered. */
+export const LEGAL_TRADING_AS = "Allr";
+
 /**
- * Where a privacy or account request goes.
- *
- * TODO: confirm this address exists before the legal pages go live — a policy
- * that names a mailbox nobody reads is worse than one that names none. It is a
- * constant so there is exactly one place to correct.
+ * Indian company that services billing / payment collection for Allr.
+ * It is not the product provider or the privacy “who we are” party.
  */
-export const CONTACT_EMAIL = "hello@allr.work";
+export const BILLING_ENTITY = "Vasinya Yunaan Private Limited";
+
+/**
+ * Where a privacy, terms, or account request goes.
+ *
+ * One mailbox for notices so the pages and the registration consent never
+ * disagree about who to write to.
+ */
+export const CONTACT_EMAIL = "ceo@allr.work";

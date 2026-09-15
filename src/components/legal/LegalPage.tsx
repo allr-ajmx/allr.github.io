@@ -8,18 +8,15 @@ import { CONTACT_EMAIL } from "@/lib/legal";
 /**
  * The frame both legal pages share.
  *
- * These are scaffolds on purpose. The headings are the ones a policy of this
- * shape has to answer, and every one of them is marked as awaiting its real
- * wording — because a placeholder that reads like finished legal text is the
- * one kind of placeholder that can actually hurt somebody. The version string
- * on the page is the same constant the stored consent records, so the two can
- * never drift.
+ * The version string on the page is the same constant the stored consent
+ * records, so the two can never drift. Body copy is finished wording — not
+ * scaffold intent — once a version ships as 1.0 or later.
  */
 
 export type LegalSection = {
   heading: string;
-  /** What this section will have to say. Not the saying of it. */
-  intent: string;
+  /** One or more paragraphs of finished policy text. */
+  body: readonly string[];
 };
 
 export function LegalPage({
@@ -28,6 +25,8 @@ export function LegalPage({
   version,
   updated,
   sections,
+  otherHref,
+  otherLabel,
 }: {
   title: string;
   intro: string;
@@ -36,25 +35,19 @@ export function LegalPage({
    *
    * The page says when it last changed, because that is what a reader wants to
    * know. The version string is bookkeeping — it exists so a stored consent can
-   * name exactly what was agreed to — and putting it under the title only
-   * invited the question "which version am I on?", which is ours to answer, not
-   * theirs to work out.
+   * name exactly what was agreed to.
    */
   version: string;
   updated: string;
   sections: readonly LegalSection[];
+  otherHref: string;
+  otherLabel: string;
 }) {
   return (
     <>
       <AmbientShader />
       <Header />
-      {/* The header is sticky and translucent; a legal page opens with a bare
-          headline and no eyebrow above it, so without real room the title reads
-          as though it is tucked under the bar. */}
       <main
-        // Not shown — the reader wants a date, not a build number. It stays in
-        // the markup so that a page can still be matched to the consent record
-        // that names it, which is the only reason the version exists.
         data-policy-version={version}
         className="wrap pt-16 pb-22 min-[721px]:pt-24"
       >
@@ -69,25 +62,6 @@ export function LegalPage({
             {intro}
           </p>
 
-          <div
-            role="note"
-            className="mt-8 rounded-card border border-honey-line bg-honey-tint px-5 py-4"
-          >
-            <p className="text-[.95rem] leading-[1.7] font-semibold text-honey-deep">
-              <strong className="font-extrabold">This is a draft.</strong> The
-              headings below are the questions this document has to answer. The
-              wording is not written yet, so nothing here is a promise. Ask us
-              anything in the meantime at{" "}
-              <a
-                href={`mailto:${CONTACT_EMAIL}`}
-                className="font-bold text-honey-deep underline"
-              >
-                {CONTACT_EMAIL}
-              </a>
-              .
-            </p>
-          </div>
-
           <div className="mt-10 flex flex-col gap-8">
             {sections.map((section, i) => (
               <Reveal
@@ -98,9 +72,16 @@ export function LegalPage({
                 <h2 className="font-serif text-[1.35rem] leading-[1.25] text-ink">
                   {section.heading}
                 </h2>
-                <p className="mt-2 text-[1.02rem] leading-[1.7] text-ink-soft">
-                  {section.intent}
-                </p>
+                <div className="mt-3 flex flex-col gap-3">
+                  {section.body.map((paragraph, j) => (
+                    <p
+                      key={`${section.heading}-${j}`}
+                      className="text-[1.02rem] leading-[1.7] text-ink-soft"
+                    >
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
               </Reveal>
             ))}
           </div>
@@ -114,12 +95,8 @@ export function LegalPage({
               {CONTACT_EMAIL}
             </a>
             . See also our{" "}
-            <Link href="/terms/" className="font-bold text-ink underline">
-              Terms of Use
-            </Link>{" "}
-            and{" "}
-            <Link href="/privacy/" className="font-bold text-ink underline">
-              Privacy Policy
+            <Link href={otherHref} className="font-bold text-ink underline">
+              {otherLabel}
             </Link>
             .
           </p>
