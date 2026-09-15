@@ -6,8 +6,6 @@ import { CreditBar } from "./CreditBar";
 import { WorkspaceAccess } from "./WorkspaceAccess";
 import { ComingSoon, PageHeader } from "./PageHeader";
 import { RequestEarlyAccess } from "./RequestEarlyAccess";
-import { Button } from "@/components/ui/Button";
-import { Pill } from "@/components/ui/Pill";
 import { fetchCredits, type CreditResponse } from "@/lib/firebase/api";
 
 /**
@@ -80,27 +78,16 @@ function LiveOverview({
         title={firstName ? `Hello, ${firstName}` : "Hello"}
       >
         {ended
-          ? "Your free week has ended. Your work is safe and nothing has been deleted — add a payment method to pick up where you left off."
+          ? "Your free week has ended. We will email you when billing opens."
           : "Your workspace is open. Anything you make in it can be published from here."}
       </PageHeader>
 
       <div className="flex flex-col gap-5">
         {ended ? (
-          <section className="rounded-card border border-honey-line bg-honey-tint p-6">
-            <Pill tone="honey" className="mb-3">
-              Time to decide
-            </Pill>
-            <h2 className="mb-2 font-serif text-[1.3rem] text-ink">
-              Keep your workspace
-            </h2>
-            <p className="mb-5 max-w-[52ch] text-[1rem] leading-[1.7] text-ink-soft">
-              One plan, everything in it. Your sites, decks, sheets, docs, video
-              and apps stay exactly where you left them.
-            </p>
-            <Button href="/account/billing/" size="lg">
-              Pay now
-            </Button>
-          </section>
+          <ComingSoon what="Billing isn’t open yet">
+            There is no payment page to send you to yet. We will email you about
+            your workspace and what comes next.
+          </ComingSoon>
         ) : (
           credits?.credit && (
             <CreditBar
