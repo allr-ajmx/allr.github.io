@@ -78,7 +78,7 @@ const api = async (path, init = {}) => {
 const draft = {
   name: "Journey Tester",
   dateOfBirth: "1990-04-02",
-  country: "GB",
+  country: "IN",
   accountType: "individual",
   entityName: "",
   marketingOptIn: false,

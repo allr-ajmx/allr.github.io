@@ -62,7 +62,7 @@ const profile = (uid, email, overrides = {}) => ({
   email,
   name: "Ada Lovelace",
   dateOfBirth: yearsAgo(30),
-  country: "GB",
+  country: "IN",
   accountType: "individual",
   entityName: "",
   marketingOptIn: false,

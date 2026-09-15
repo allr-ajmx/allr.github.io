@@ -126,7 +126,7 @@ const profileFor = (user, overrides = {}) => ({
   email: user.email.toLowerCase(),
   legalName: "Ada Lovelace",
   dateOfBirth: yearsAgo(30),
-  country: "GB",
+  country: "IN",
   accountType: "individual",
   entityName: "",
   marketingOptIn: false,
