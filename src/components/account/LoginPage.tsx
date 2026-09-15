@@ -102,12 +102,9 @@ export function LoginPage() {
               {WORDMARK}
             </Link>
 
-            <h1 className="mb-2 font-serif text-[1.7rem] leading-[1.18] text-ink">
-              Welcome back
+            <h1 className="mb-7 font-serif text-[1.7rem] leading-[1.18] text-ink">
+              Sign in
             </h1>
-            <p className="mb-7 text-[1.02rem] leading-[1.7] text-ink-soft">
-              Sign in with Google to reach your workspace.
-            </p>
 
             {!AUTH_CONFIGURED ? (
               <p
@@ -147,8 +144,7 @@ export function LoginPage() {
             )}
 
             <p className="mt-7 border-t border-line pt-5 text-[.86rem] leading-[1.6] text-ink-soft">
-              Google is the only way in — there is no password to forget. By
-              continuing you agree to our{" "}
+              By continuing you agree to our{" "}
               <Link href="/terms/" className="font-bold text-ink underline">
                 Terms
               </Link>{" "}
@@ -159,13 +155,6 @@ export function LoginPage() {
               .
             </p>
           </div>
-
-          <p className="mt-6 text-center text-[.9rem] font-semibold text-ink-soft">
-            Don’t have an account yet?{" "}
-            <Link href="/#early-access" className="font-bold text-ink underline">
-              Get early access
-            </Link>
-          </p>
         </Reveal>
       </main>
     </>
