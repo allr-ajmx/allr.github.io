@@ -421,7 +421,7 @@ export function VocabularyPage() {
 function FormSpecimen() {
   const [name, setName] = useState("");
   const [country, setCountry] = useState("");
-  const [kind, setKind] = useState<"individual" | "business">("individual");
+  const [platform, setPlatform] = useState<"ios" | "android">("ios");
   const [agreed, setAgreed] = useState(false);
 
   return (
@@ -467,15 +467,15 @@ function FormSpecimen() {
       </Field>
 
       <div className="flex flex-col gap-2">
-        <p className="text-[.92rem] font-bold text-ink">Who is this account for?</p>
+        <p className="text-[.92rem] font-bold text-ink">Mobile testing</p>
         <ChoiceChips
-          legend="Who is this account for?"
+          legend="Mobile testing"
           options={[
-            { id: "individual", label: "Just me" },
-            { id: "business", label: "A business" },
+            { id: "ios", label: "iOS" },
+            { id: "android", label: "Android" },
           ]}
-          value={kind}
-          onChange={setKind}
+          value={platform}
+          onChange={setPlatform}
         />
       </div>
 

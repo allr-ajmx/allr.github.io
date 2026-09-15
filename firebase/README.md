@@ -124,9 +124,9 @@ the redirect on `/account` is a courtesy, and
 One document per person at `users/{uid}`, keyed by the Firebase Auth uid, which
 is what lets the rules say "your own and nobody else's" without a query. It
 holds the legal minimum needed to sell to that person later: legal name, date of
-birth, country of residence, individual-or-business, the registered name if it
-is a business, the two consent versions, and the marketing opt-in. **Billing
-address and tax ID are checkout questions and are deliberately not here.**
+birth, country of residence, the two consent versions, and the marketing opt-in.
+Accounts are individual only. **Billing address and tax ID are checkout
+questions and are deliberately not here.**
 
 Three things the rules enforce that the form cannot be trusted to:
 

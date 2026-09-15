@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import { PageHeader } from "./PageHeader";
 import { Button } from "@/components/ui/Button";
-import { ChoiceChips } from "@/components/ui/ChoiceChips";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { COUNTRIES, countryName } from "@/lib/countries";
@@ -12,7 +11,6 @@ import { MINIMUM_AGE, latestEligibleBirthDate } from "@/lib/age";
 import { ApiCallFailed, patchProfile } from "@/lib/firebase/api";
 import {
   MOBILE_PLATFORMS,
-  type AccountType,
   type MobilePlatform,
   type ProfileDraft,
 } from "@/lib/account/model";
@@ -26,12 +24,9 @@ import { ChoiceChipsMulti } from "@/components/ui/ChoiceChips";
  * pin it to the auth token, so a field here would be a lie. Date of birth *is*
  * editable — a typo should not need a support desk — but only ever to another
  * date that still passes the age check, which the rules enforce as well.
+ *
+ * Accounts are individual only; there is no business signup to edit.
  */
-
-const ACCOUNT_TYPES: readonly { id: AccountType; label: string }[] = [
-  { id: "individual", label: "Just me" },
-  { id: "business", label: "A business" },
-];
 
 type Status = "idle" | "saving" | "saved" | "error";
 
@@ -45,8 +40,8 @@ export function ProfilePage() {
             name: profile.name,
             dateOfBirth: profile.dateOfBirth,
             country: profile.country,
-            accountType: profile.accountType,
-            entityName: profile.entityName,
+            accountType: "individual",
+            entityName: "",
             marketingOptIn: profile.marketingOptIn,
           }
         : null,
@@ -97,12 +92,17 @@ export function ProfilePage() {
     event.preventDefault();
     setSubmitted(true);
     if (!dirty) return;
-    if (Object.keys(validateDraft(current)).length > 0) return;
+    const payload: ProfileDraft = {
+      ...current,
+      accountType: "individual",
+      entityName: "",
+    };
+    if (Object.keys(validateDraft(payload)).length > 0) return;
     if (!user) return;
 
     setStatus("saving");
     try {
-      await patchProfile(current);
+      await patchProfile(payload);
       await refresh();
       setStatus("saved");
     } catch (error) {
@@ -190,37 +190,6 @@ export function ProfilePage() {
         </Field>
 
         <div className="flex flex-col gap-2">
-          <p className="text-[.92rem] font-bold text-ink">
-            Who is this account for?
-          </p>
-          <ChoiceChips
-            legend="Who is this account for?"
-            options={ACCOUNT_TYPES}
-            value={current.accountType}
-            onChange={(id) => set("accountType", id)}
-          />
-        </div>
-
-        {current.accountType === "business" && (
-          <Field
-            label="Registered business name"
-            error={errors.entityName}
-            required
-          >
-            {(props) => (
-              <input
-                {...props}
-                type="text"
-                autoComplete="organization"
-                className="allr-field allr-field--dense"
-                value={current.entityName}
-                onChange={(e) => set("entityName", e.currentTarget.value)}
-              />
-            )}
-          </Field>
-        )}
-
-        <div className="flex flex-col gap-2">
           <p className="text-[.92rem] font-bold text-ink">Mobile testing</p>
           <p className="text-[.86rem] leading-snug text-ink-soft">
             Which phone builds you are enrolled in. Both is a real answer.
@@ -231,7 +200,6 @@ export function ProfilePage() {
             values={profile.mobilePlatforms}
             onChange={(v) => void savePlatforms(v as MobilePlatform[])}
           />
-
         </div>
 
         <div className="flex items-center gap-4">

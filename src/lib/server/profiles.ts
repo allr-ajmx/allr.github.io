@@ -209,9 +209,8 @@ export async function createProfile(
       name: draft.name.trim(),
       dateOfBirth: Timestamp.fromDate(birth),
       country: draft.country,
-      accountType: draft.accountType,
-      entityName:
-        draft.accountType === "business" ? draft.entityName.trim() : "",
+      accountType: "individual",
+      entityName: "",
       marketingOptIn: Boolean(draft.marketingOptIn),
       mobilePlatforms: [],
       earlyAccessRequestedAt: null,
@@ -249,8 +248,8 @@ export async function updateProfile(
     name: patch.name ?? current.name,
     dateOfBirth: patch.dateOfBirth ?? current.dateOfBirth,
     country: patch.country ?? current.country,
-    accountType: patch.accountType ?? current.accountType,
-    entityName: patch.entityName ?? current.entityName,
+    accountType: "individual" as const,
+    entityName: "",
     marketingOptIn: patch.marketingOptIn ?? current.marketingOptIn,
   };
   const mobilePlatforms = patch.mobilePlatforms ?? current.mobilePlatforms;
@@ -270,9 +269,8 @@ export async function updateProfile(
       name: merged.name.trim(),
       dateOfBirth: Timestamp.fromDate(birth),
       country: merged.country,
-      accountType: merged.accountType,
-      entityName:
-        merged.accountType === "business" ? merged.entityName.trim() : "",
+      accountType: "individual",
+      entityName: "",
       marketingOptIn: Boolean(merged.marketingOptIn),
       mobilePlatforms: [...new Set(mobilePlatforms)],
       updatedAt: FieldValue.serverTimestamp(),

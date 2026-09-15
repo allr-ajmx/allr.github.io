@@ -7,13 +7,12 @@ import { useAuth } from "./AuthProvider";
 import { AllrMark } from "@/components/ui/AllrMark";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
-import { ChoiceChips } from "@/components/ui/ChoiceChips";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { COUNTRIES } from "@/lib/countries";
 import { latestEligibleBirthDate } from "@/lib/age";
 import { ApiCallFailed, registerAccount } from "@/lib/firebase/api";
-import { type AccountType, type ProfileDraft } from "@/lib/account/model";
+import { type ProfileDraft } from "@/lib/account/model";
 import { validateDraft, type DraftErrors } from "@/lib/account/validate";
 import { WORDMARK } from "@/lib/brand";
 
@@ -24,10 +23,9 @@ import { WORDMARK } from "@/lib/brand";
  * (DESIGN.md §16). Merging the two put everyone who signed up into a queue
  * whether they meant to be or not, so this form asks only who you are.
  *
- * It asks for the legal minimum needed to sell to
- * this person later and nothing beyond it: postal address and tax ID are
- * checkout questions, and collecting them now would mean holding data we have
- * no use for, which is what a privacy policy has to justify.
+ * Accounts are individual only. Postal address and tax ID are checkout
+ * questions, and collecting them now would mean holding data we have no use
+ * for, which is what a privacy policy has to justify.
  *
  * Date of birth is here rather than at checkout because Allr is strictly an
  * above-contract-age product, and an age gate that only fires when money
@@ -38,11 +36,6 @@ import { WORDMARK } from "@/lib/brand";
  * polite half: `POST /api/account/register` re-runs this exact validator, and
  * the browser cannot write a profile at all.
  */
-
-const ACCOUNT_TYPES: readonly { id: AccountType; label: string }[] = [
-  { id: "individual", label: "Just me" },
-  { id: "business", label: "A business" },
-];
 
 type Status = "idle" | "saving" | "error";
 
@@ -86,12 +79,17 @@ export function RegisterForm() {
     setSubmitted(true);
     setFailure(null);
 
-    if (Object.keys(validateDraft(draft)).length > 0) return;
+    const payload: ProfileDraft = {
+      ...draft,
+      accountType: "individual",
+      entityName: "",
+    };
+    if (Object.keys(validateDraft(payload)).length > 0) return;
     if (!terms || !privacy || !user) return;
 
     setStatus("saving");
     try {
-      await registerAccount(draft);
+      await registerAccount(payload);
       await refresh();
       router.replace("/account/");
     } catch (error) {
@@ -172,38 +170,6 @@ export function RegisterForm() {
             </Select>
           )}
         </Field>
-
-        <div className="flex flex-col gap-2">
-          <p className="text-[.92rem] font-bold text-ink">
-            Who is this account for?
-          </p>
-          <ChoiceChips
-            legend="Who is this account for?"
-            options={ACCOUNT_TYPES}
-            value={draft.accountType}
-            onChange={(id) => set("accountType", id)}
-          />
-        </div>
-
-        {draft.accountType === "business" && (
-          <Field
-            label="Registered business name"
-            hint="The name on the company register. Tax and VAT numbers come later, at checkout."
-            error={fieldErrors.entityName}
-            required
-          >
-            {(props) => (
-              <input
-                {...props}
-                type="text"
-                autoComplete="organization"
-                className="allr-field"
-                value={draft.entityName}
-                onChange={(e) => set("entityName", e.currentTarget.value)}
-              />
-            )}
-          </Field>
-        )}
 
         <div className="flex flex-col gap-4 border-t border-line pt-6">
           <Checkbox

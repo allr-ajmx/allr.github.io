@@ -10,6 +10,11 @@
 
 export type AccountType = "individual" | "business";
 
+/**
+ * Stored on the profile for backwards compatibility. New registrations are
+ * always `"individual"` — business signup is not offered.
+ */
+
 /** iOS and Android are independent tester tracks; somebody may want both. */
 export type MobilePlatform = "ios" | "android";
 

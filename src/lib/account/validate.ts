@@ -1,7 +1,6 @@
 import { isCountryCode } from "@/lib/countries";
 import { isOldEnough, MINIMUM_AGE, parseBirthDate } from "@/lib/age";
 import {
-  MAX_ENTITY_NAME,
   MAX_NAME,
   type EarlyAccessRequest,
   type MobilePlatform,
@@ -43,15 +42,9 @@ export function validateDraft(draft: ProfileDraft): DraftErrors {
   else if (!isCountryCode(draft.country))
     errors.country = "We do not recognise that country.";
 
-  if (draft.accountType !== "individual" && draft.accountType !== "business") {
-    errors.accountType = "Pick who this account is for.";
-  }
-
-  if (draft.accountType === "business") {
-    const entity = draft.entityName?.trim() ?? "";
-    if (!entity) errors.entityName = "We need the registered name of the business.";
-    else if (entity.length > MAX_ENTITY_NAME)
-      errors.entityName = `Keep it under ${MAX_ENTITY_NAME} characters.`;
+  // Accounts are individual only — business signup is not offered.
+  if (draft.accountType !== "individual") {
+    errors.accountType = "Allr accounts are for individuals.";
   }
 
   return errors;
