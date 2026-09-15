@@ -1,10 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useState,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AuthProvider, useAuth } from "./AuthProvider";
-import { ACCOUNT_NAV } from "./nav";
+import { ACCOUNT_NAV_SECTIONS, type AccountNavItem } from "./nav";
+import {
+  CloseIcon,
+  MenuIcon,
+  NavIcon,
+  PanelCloseIcon,
+  PanelOpenIcon,
+  SignOutIcon,
+} from "./NavIcons";
 import { AllrMark } from "@/components/ui/AllrMark";
 import { signOutOfAllr } from "@/lib/firebase/auth";
 import { WORDMARK } from "@/lib/brand";
@@ -26,15 +40,127 @@ import { cx } from "@/lib/cx";
 
 /** Registration is a gate inside the shell, so it renders without the rail. */
 const WELCOME = "/account/welcome";
+const RAIL_COLLAPSED_KEY = "allr-account-rail-collapsed";
 
 function Waiting({ label }: { label: string }) {
   return (
     <div className="grid min-h-dvh place-items-center px-6">
       <div className="flex flex-col items-center gap-4 text-center">
-        {/* Fast enough to read as "working", not as the homepage drift. */}
         <AllrMark size={44} spin spinSeconds={1.8} />
         <p className="text-[.95rem] font-bold text-ink-soft">{label}</p>
       </div>
+    </div>
+  );
+}
+
+function isCurrentPath(pathname: string, href: string) {
+  // trailingSlash: true, so both sides end in "/" and "/account/" would
+  // otherwise prefix-match every page in the shell.
+  return pathname === href || pathname === href.replace(/\/$/, "");
+}
+
+function useRailCollapsed() {
+  const [collapsed, setCollapsed] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    try {
+      setCollapsed(window.localStorage.getItem(RAIL_COLLAPSED_KEY) === "1");
+    } catch {
+      // Private mode / blocked storage — keep the expanded default.
+    }
+    setReady(true);
+  }, []);
+
+  const set = useCallback((next: boolean) => {
+    setCollapsed(next);
+    try {
+      window.localStorage.setItem(RAIL_COLLAPSED_KEY, next ? "1" : "0");
+    } catch {
+      // Ignore — preference is best-effort.
+    }
+  }, []);
+
+  return { collapsed, setCollapsed: set, ready };
+}
+
+function NavLink({
+  item,
+  current,
+  collapsed,
+  onNavigate,
+}: {
+  item: AccountNavItem;
+  current: boolean;
+  collapsed?: boolean;
+  onNavigate?: () => void;
+}) {
+  return (
+    <Link
+      href={item.href}
+      title={collapsed ? item.label : undefined}
+      aria-current={current ? "page" : undefined}
+      aria-label={collapsed ? item.label : undefined}
+      onClick={onNavigate}
+      className={cx(
+        "group/link flex items-center gap-2.5 rounded-control text-[.95rem] font-bold no-underline transition-colors duration-150",
+        collapsed ? "justify-center px-2 py-2.5" : "justify-between px-3 py-2",
+        current
+          ? "bg-green-tint text-green-deep"
+          : "text-ink-soft hover:bg-line-soft hover:text-ink",
+      )}
+    >
+      <span className={cx("flex min-w-0 items-center gap-2.5", collapsed && "justify-center")}>
+        <NavIcon name={item.icon} className="size-[1.15rem] shrink-0" />
+        {!collapsed && <span className="truncate">{item.label}</span>}
+      </span>
+      {!collapsed && item.soon && (
+        <span className="shrink-0 rounded-chip border border-line px-1.5 py-0.5 text-[.68rem] font-bold tracking-[0.04em] text-ink-soft uppercase">
+          Soon
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function NavSections({
+  pathname,
+  collapsed,
+  onNavigate,
+}: {
+  pathname: string;
+  collapsed?: boolean;
+  onNavigate?: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-5">
+      {ACCOUNT_NAV_SECTIONS.map((section) => (
+        <div key={section.id}>
+          {!collapsed && (
+            <p className="mb-1.5 px-3 text-[.68rem] font-bold tracking-[0.08em] text-ink-soft uppercase">
+              {section.label}
+            </p>
+          )}
+          {collapsed && (
+            <div
+              className="mx-auto mb-1.5 h-px w-6 bg-line"
+              aria-hidden="true"
+              title={section.label}
+            />
+          )}
+          <div className="flex flex-col gap-0.5" role="group" aria-label={section.label}>
+            {section.items.map((item) => (
+              <NavLink
+                key={item.href}
+                item={item}
+                current={isCurrentPath(pathname, item.href)}
+                collapsed={collapsed}
+                onNavigate={onNavigate}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -43,106 +169,228 @@ function Rail() {
   const pathname = usePathname();
   const { user, profile } = useAuth();
   const router = useRouter();
-
-  const isCurrent = (href: string) =>
-    // trailingSlash: true, so both sides end in "/" and "/account/" would
-    // otherwise prefix-match every page in the shell.
-    pathname === href || pathname === href.replace(/\/$/, "");
-
-  const items = (
-    <>
-      {ACCOUNT_NAV.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          aria-current={isCurrent(item.href) ? "page" : undefined}
-          className={cx(
-            "flex items-center justify-between gap-2 rounded-control px-3 py-2 text-[.95rem] font-bold no-underline transition-colors duration-150",
-            isCurrent(item.href)
-              ? "bg-green-tint text-green-deep"
-              : "text-ink-soft hover:bg-line-soft hover:text-ink",
-          )}
-        >
-          {item.label}
-          {item.soon && (
-            <span className="rounded-chip border border-line px-1.5 py-0.5 text-[.68rem] font-bold tracking-[0.04em] text-ink-soft uppercase">
-              Soon
-            </span>
-          )}
-        </Link>
-      ))}
-    </>
-  );
+  const { collapsed, setCollapsed, ready } = useRailCollapsed();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const drawerId = useId();
 
   const signOut = async () => {
     await signOutOfAllr();
     router.replace("/login/");
   };
 
+  // Lock scroll and close on Escape while the mobile drawer is open.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [mobileOpen]);
+
+  // Route changes (or resize up to desktop) should not leave the drawer stuck open.
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 900px)");
+    const onChange = () => {
+      if (mq.matches) setMobileOpen(false);
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
   return (
     <>
-      {/* Wide: a rail. */}
-      <aside className="sticky top-0 hidden h-dvh w-[248px] shrink-0 flex-col border-r border-line bg-card px-4 py-5 min-[900px]:flex">
-        <Link
-          href="/"
-          className="mb-6 inline-flex items-center gap-2 px-2 font-serif text-[1.4rem] text-ink no-underline transition-opacity duration-200 hover:opacity-80"
+      {/* Desktop rail */}
+      <aside
+        className={cx(
+          "sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line bg-card py-5 transition-[width] duration-200 ease-out min-[900px]:flex",
+          collapsed ? "w-[72px] px-2" : "w-[260px] px-4",
+          !ready && "opacity-0",
+        )}
+        data-collapsed={collapsed ? "true" : "false"}
+      >
+        <div
+          className={cx(
+            "mb-5 flex items-center",
+            collapsed ? "flex-col gap-2" : "justify-between gap-2 px-1",
+          )}
         >
-          <AllrMark size={30} />
-          {WORDMARK}
-        </Link>
+          {collapsed ? (
+            <div className="relative flex w-full justify-center">
+              <button
+                type="button"
+                onClick={() => setCollapsed(false)}
+                aria-expanded={false}
+                aria-label="Open sidebar"
+                title="Open sidebar"
+                className="group relative grid size-11 place-items-center rounded-control text-ink transition-colors duration-150 hover:bg-line-soft"
+              >
+                <AllrMark size={28} />
+                <span
+                  className={cx(
+                    "pointer-events-none absolute -right-1 -bottom-1 grid size-6 place-items-center rounded-full border border-line bg-card text-ink shadow-soft",
+                    "scale-90 opacity-0 transition-all duration-150",
+                    "group-hover:scale-100 group-hover:opacity-100 group-focus-visible:scale-100 group-focus-visible:opacity-100",
+                  )}
+                  aria-hidden="true"
+                >
+                  <PanelOpenIcon className="size-3.5" />
+                </span>
+              </button>
+            </div>
+          ) : (
+            <>
+              <Link
+                href="/"
+                className="inline-flex min-w-0 items-center gap-2 px-1 font-serif text-[1.35rem] text-ink no-underline transition-opacity duration-200 hover:opacity-80"
+              >
+                <AllrMark size={28} />
+                <span className="truncate">{WORDMARK}</span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => setCollapsed(true)}
+                aria-expanded={true}
+                aria-label="Collapse sidebar"
+                title="Collapse sidebar"
+                className="grid size-9 shrink-0 place-items-center rounded-control text-ink-soft transition-colors duration-150 hover:bg-line-soft hover:text-ink"
+              >
+                <PanelCloseIcon />
+              </button>
+            </>
+          )}
+        </div>
 
-        <nav className="flex flex-col gap-1" aria-label="Account">
-          {items}
+        <nav className="min-h-0 flex-1 overflow-y-auto" aria-label="Account">
+          <NavSections pathname={pathname} collapsed={collapsed} />
         </nav>
 
         <div className="mt-auto border-t border-line pt-4">
-          <div className="mb-3 flex items-center gap-2.5 px-2">
+          <div
+            className={cx(
+              "mb-3 flex items-center gap-2.5",
+              collapsed ? "justify-center px-0" : "px-2",
+            )}
+            title={collapsed ? profile?.name || user?.displayName || "Signed in" : undefined}
+          >
             <Avatar />
-            <div className="min-w-0">
-              <p className="truncate text-[.9rem] font-bold text-ink">
-                {profile?.name || user?.displayName || "Signed in"}
-              </p>
-              <p className="truncate text-[.8rem] font-semibold text-ink-soft">
-                {user?.email}
-              </p>
-            </div>
+            {!collapsed && (
+              <div className="min-w-0">
+                <p className="truncate text-[.9rem] font-bold text-ink">
+                  {profile?.name || user?.displayName || "Signed in"}
+                </p>
+                <p className="truncate text-[.8rem] font-semibold text-ink-soft">
+                  {user?.email}
+                </p>
+              </div>
+            )}
           </div>
           <button
             type="button"
             onClick={signOut}
-            className="w-full cursor-pointer rounded-control px-3 py-2 text-left text-[.9rem] font-bold text-ink-soft transition-colors duration-150 hover:bg-line-soft hover:text-ink"
+            title={collapsed ? "Sign out" : undefined}
+            aria-label={collapsed ? "Sign out" : undefined}
+            className={cx(
+              "cursor-pointer rounded-control text-[.9rem] font-bold text-ink-soft transition-colors duration-150 hover:bg-line-soft hover:text-ink",
+              collapsed
+                ? "mx-auto grid size-10 place-items-center"
+                : "flex w-full items-center gap-2.5 px-3 py-2 text-left",
+            )}
           >
-            Sign out
+            {collapsed ? <SignOutIcon className="size-[1.15rem]" /> : "Sign out"}
           </button>
         </div>
       </aside>
 
-      {/* Narrow: a bar and a scrolling row of the same links. A drawer would
-          need focus management and a scroll lock to earn four items. */}
+      {/* Mobile top bar + hamburger drawer */}
       <div className="sticky top-0 z-40 border-b border-line bg-card min-[900px]:hidden">
-        <div className="flex items-center justify-between px-5 py-3">
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 font-serif text-[1.3rem] text-ink no-underline"
+            className="inline-flex items-center gap-2 font-serif text-[1.25rem] text-ink no-underline"
           >
             <AllrMark size={26} />
             {WORDMARK}
           </Link>
           <button
             type="button"
-            onClick={signOut}
-            className="cursor-pointer text-[.88rem] font-bold text-ink-soft hover:text-ink"
+            onClick={() => setMobileOpen(true)}
+            aria-expanded={mobileOpen}
+            aria-controls={drawerId}
+            aria-label="Open menu"
+            className="grid size-10 place-items-center rounded-control text-ink transition-colors duration-150 hover:bg-line-soft"
           >
-            Sign out
+            <MenuIcon />
           </button>
         </div>
-        <nav
-          className="flex gap-1 overflow-x-auto px-3 pb-2 [scrollbar-width:none]"
-          aria-label="Account"
-        >
-          {items}
-        </nav>
       </div>
+
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 min-[900px]:hidden" role="presentation">
+          <button
+            type="button"
+            aria-label="Close menu"
+            className="absolute inset-0 bg-ink/35"
+            onClick={() => setMobileOpen(false)}
+          />
+          <div
+            id={drawerId}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Account menu"
+            className="absolute inset-y-0 right-0 flex w-[min(100%,320px)] flex-col bg-card shadow-soft"
+          >
+            <div className="flex items-center justify-between border-b border-line px-4 py-3">
+              <p className="font-serif text-[1.2rem] text-ink">Menu</p>
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                aria-label="Close menu"
+                className="grid size-10 place-items-center rounded-control text-ink transition-colors duration-150 hover:bg-line-soft"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+
+            <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4" aria-label="Account">
+              <NavSections
+                pathname={pathname}
+                onNavigate={() => setMobileOpen(false)}
+              />
+            </nav>
+
+            <div className="border-t border-line px-4 py-4">
+              <div className="mb-3 flex items-center gap-2.5">
+                <Avatar />
+                <div className="min-w-0">
+                  <p className="truncate text-[.9rem] font-bold text-ink">
+                    {profile?.name || user?.displayName || "Signed in"}
+                  </p>
+                  <p className="truncate text-[.8rem] font-semibold text-ink-soft">
+                    {user?.email}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={signOut}
+                className="w-full cursor-pointer rounded-control px-3 py-2.5 text-left text-[.9rem] font-bold text-ink-soft transition-colors duration-150 hover:bg-line-soft hover:text-ink"
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -150,9 +398,6 @@ function Rail() {
 function Avatar() {
   const { user } = useAuth();
   const initial = (user?.displayName || user?.email || "?").trim().charAt(0);
-  // Google's photo URL is a remote host and `next/image` is unoptimized here,
-  // so a plain <img> is the honest element — and it falls back to the initial
-  // when Google serves nothing.
   if (user?.photoURL) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
@@ -176,7 +421,7 @@ function Avatar() {
   );
 }
 
-function Gate({ children }: { children: React.ReactNode }) {
+function Gate({ children }: { children: ReactNode }) {
   const { status, unreachable, refresh } = useAuth();
   const [retrying, setRetrying] = useState(false);
   const router = useRouter();
@@ -187,9 +432,12 @@ function Gate({ children }: { children: React.ReactNode }) {
     if (status === "signedOut") router.replace("/login/");
     else if (status === "needsProfile" && !onWelcome) {
       router.replace("/account/welcome/");
-    } else if (status !== "needsProfile" && status !== "loading" && status !== "error" && onWelcome) {
-      // Registered already — the form has nothing left to ask. This is the bug
-      // that sent somebody who already had an account back to signup.
+    } else if (
+      status !== "needsProfile" &&
+      status !== "loading" &&
+      status !== "error" &&
+      onWelcome
+    ) {
       router.replace("/account/");
     }
   }, [status, onWelcome, router]);
@@ -211,8 +459,6 @@ function Gate({ children }: { children: React.ReactNode }) {
               ? "Nothing answered when we asked for your details. That is usually a connection dropping out \u2014 your account is untouched."
               : "Your details are there; we just could not read them. Signing out and back in is the quickest fix."}
           </p>
-          {/* Actually re-runs the read. Navigating to this same page would not:
-              the shell is already mounted and would ask for nothing. */}
           <button
             type="button"
             disabled={retrying}
@@ -230,8 +476,6 @@ function Gate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Registration owns the whole window: no rail to wander into, because there
-  // is nothing behind it to see yet.
   if (status === "needsProfile") {
     if (!onWelcome) return <Waiting label="Just one more step…" />;
     return <main className="min-h-dvh">{children}</main>;
@@ -249,7 +493,7 @@ function Gate({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function AccountShell({ children }: { children: React.ReactNode }) {
+export function AccountShell({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
       <div className="min-h-dvh bg-paper">
