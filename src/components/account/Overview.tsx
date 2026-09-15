@@ -37,7 +37,8 @@ export function Overview() {
         <div className="flex flex-col gap-4">
           <ComingSoon what="What happens next">
             When your workspace opens you get a free week with $5 of AI credit,
-            and the desktop and phone builds unlock at the same time.
+            and the desktop and phone builds unlock at the same time. The full
+            terms for the workspace come by email.
           </ComingSoon>
           <ComingSoon what="While you wait">
             Your details are saved. You can change them under Profile whenever

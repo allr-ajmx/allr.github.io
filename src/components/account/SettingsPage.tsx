@@ -74,7 +74,8 @@ export function SettingsPage() {
         <h2 className="mb-2 font-serif text-[1.2rem] text-ink">Closing your account</h2>
         <p className="mb-4 text-[.96rem] leading-[1.7] text-ink-soft">
           Write to us and we will delete your account and everything we hold
-          about you. There is no button for it yet, because a button that half
+          about you within 90 days, apart from anything the law requires us to
+          keep. There is no button for it yet, because a button that half
           worked would be worse than none.
         </p>
         <Button href={`mailto:${CONTACT_EMAIL}?subject=Delete%20my%20account`} variant="ghost">

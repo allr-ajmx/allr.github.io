@@ -148,7 +148,7 @@ export function LoginPage() {
               <Link href="/terms/" className="font-bold text-ink underline">
                 Terms
               </Link>{" "}
-              and{" "}
+              and confirm you have read our{" "}
               <Link href="/privacy/" className="font-bold text-ink underline">
                 Privacy Policy
               </Link>

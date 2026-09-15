@@ -118,8 +118,8 @@ export function ProfilePage() {
   return (
     <>
       <PageHeader eyebrow="Profile" title="Your details">
-        What we hold about you, and nothing more. We will ask for a billing
-        address when there is something to bill.
+        The details you gave us, which you can correct here. We will ask for a
+        billing address when there is something to bill.
       </PageHeader>
 
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-6">

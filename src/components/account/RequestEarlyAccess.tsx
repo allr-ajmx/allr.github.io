@@ -88,7 +88,8 @@ export function RequestEarlyAccess() {
             {saving ? "Putting your name down…" : "Request early access"}
           </Button>
           <p className="mt-3 text-[.86rem] text-ink-soft">
-            You get a free week with $5 of AI credit when your workspace opens.
+            When your workspace opens, you get a free week with $5 of AI credit.
+            We will email you the full terms.
           </p>
         </div>
       </form>
