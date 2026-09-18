@@ -6,7 +6,8 @@ import { getSiteUrl } from "@/lib/site";
  * absent — all three are noindex and URL-only (DESIGN.md §16). The legal pages
  * are the opposite: they have to be findable.
  */
-const ROUTES = ["/", "/app", "/download", "/privacy", "/terms"];
+/** /app is a retired stub (noindex) until its rebuild lands. /roadmap is live. */
+const ROUTES = ["/", "/download", "/roadmap", "/privacy", "/terms"];
 
 export const dynamic = "force-static";
 
