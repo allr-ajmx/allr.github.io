@@ -1,24 +1,21 @@
 import { Reveal } from "@/components/Reveal";
-import { Logo } from "@/components/ui/Logo";
+import { PROMISE } from "@/lib/brand";
 
+/**
+ * Quiet promise — demoted into Resolve (LANDING_PAGE_STORY §7.9).
+ * One centered serif line; generous padding. Not a mid-page climax.
+ */
 export function AllrPromise() {
   return (
-    <section className="relative py-[30px]">
+    <section className="relative py-16 sm:py-20" aria-label="Allr promise">
       <div className="wrap relative">
         <Reveal
-          className="mx-auto max-w-[720px] px-6 py-2.5 text-center"
+          className="mx-auto max-w-[640px] px-4 text-center"
           variant="wipe"
         >
-          <blockquote className="font-serif text-[clamp(1.35rem,2.8vw,1.8rem)] leading-[1.45]">
-            &ldquo;You bring the idea. We&rsquo;ll take care of everything
-            between you and{" "}
-            <span className="text-green-deep">&lsquo;it&rsquo;s live.&rsquo;</span>
-            &rdquo;
-          </blockquote>
-          <span className="mt-[18px] inline-flex items-center gap-[.5em] text-[.95rem] font-extrabold text-ink-soft">
-            <Logo size={22} />
-            The Allr promise
-          </span>
+          <p className="font-serif text-[clamp(1.25rem,2.6vw,1.65rem)] leading-[1.45] text-ink">
+            {PROMISE}
+          </p>
         </Reveal>
       </div>
     </section>

@@ -12,20 +12,20 @@ export function Footer() {
         className="mb-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[.92rem]"
         aria-label="Footer"
       >
-        <Link href="/#makes" className="text-ink-soft no-underline hover:text-ink">
-          What it makes
+        <Link href="/#provide" className="text-ink-soft no-underline hover:text-ink">
+          What you get
         </Link>
-        <Link href="/#how" className="text-ink-soft no-underline hover:text-ink">
+        <Link href="/#loop" className="text-ink-soft no-underline hover:text-ink">
           How it works
         </Link>
-        <Link href="/app" className="text-ink-soft no-underline hover:text-ink">
-          The app
+        <Link href="/#progress" className="text-ink-soft no-underline hover:text-ink">
+          Platform
         </Link>
-        <Link
-          href="/#early-access"
-          className="text-ink-soft no-underline hover:text-ink"
-        >
-          Early access
+        <Link href="/#access" className="text-ink-soft no-underline hover:text-ink">
+          Where to use it
+        </Link>
+        <Link href="/download" className="text-ink-soft no-underline hover:text-ink">
+          Download
         </Link>
         <Link href="/privacy/" className="text-ink-soft no-underline hover:text-ink">
           Privacy
