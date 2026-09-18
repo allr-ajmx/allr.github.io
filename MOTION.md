@@ -8,11 +8,13 @@ If a motion is not listed here, it does not ship. If a still is not in `public/v
 
 ## 1. Intent
 
+Homepage section anchors for nav and secondary CTAs: `#provide`, `#loop` (“See how it works”), `#progress`, `#access` (web/desktop/mobile + phone vignette). Motion sequences below still name older section labels; implementers wire verbs to these ids.
+
 The homepage has one visual sentence:
 
-> Work lands on paper. It turns green. Then it gets a link.
+> Intent lands in a workspace. It turns green. Then it stays operating.
 
-Visitors should feel they are watching a **desk at the end of the day**, not a product demo of software chrome. Artifacts are photographed objects (letterpress, laid paper, lamplight). UI chrome (URL, Live, labels, waitlist) is HTML, because generated pictures cannot be trusted with “Allr” or `allr.app/your-launch`.
+Visitors should feel they are watching a **product come to life and keep running**, not a catalogue of creative file types. UI chrome (URL, Live, labels, waitlist) is HTML.
 
 Four verbs. Nothing else.
 
