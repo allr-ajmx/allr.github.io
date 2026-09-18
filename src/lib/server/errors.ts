@@ -49,7 +49,7 @@ export function toResponse(error: unknown): Response {
       error: {
         code: "internal",
         message: "Something went wrong at our end. Try again in a moment?",
-        cause: describe(error),
+        cause: describeError(error),
       },
     },
     { status: 500 },
@@ -65,8 +65,10 @@ export function toResponse(error: unknown): Response {
  * name and code of a Firebase error (`5 NOT_FOUND`, `7 PERMISSION_DENIED`)
  * say precisely which piece of the project is not set up. It never reaches the
  * page; nothing renders `cause`. Take it out once the deployment is settled.
+ *
+ * Shared with `/api/account/health`, which reports its probes the same way.
  */
-function describe(error: unknown) {
+export function describeError(error: unknown) {
   if (!(error instanceof Error)) {
     return { name: typeof error, message: String(error).slice(0, 300) };
   }
