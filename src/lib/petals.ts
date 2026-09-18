@@ -1,9 +1,10 @@
 import type { ShowcaseId } from "@/lib/brand";
 
 /**
- * The Bloom: six petals, six kinds of finished work. The mark is the product
- * map — every accent colour on the page is a petal, and every section is a
- * petal of Allr. Angles are the petals' centroid directions in the mark
+ * The Bloom: six petals, six accent colours. Labels are historic colour names —
+ * not a catalogue of shipped finished-work types on the homepage.
+ * The mark is the product map — every accent colour on the page is a petal.
+ * Angles are the petals' centroid directions in the mark
  * (screen degrees, 0 = right, clockwise positive), 60° apart.
  */
 export type Petal = {
