@@ -158,19 +158,26 @@ export function DownloadPage({
         </section>
 
         <section className="wrap pb-24">
-          <Reveal className="mx-auto flex max-w-[720px] flex-col items-center gap-4 rounded-panel border border-line bg-card px-7 py-10 text-center shadow-soft sm:flex-row sm:text-left" variant="scale">
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-control bg-honey-tint text-honey-deep"><PlatformIcon platform="mobile" size={24} /></span>
-            <div className="flex-1">
-              <h2 className="mb-1 text-[1.25rem]">{DOWNLOAD.mobileTitle}</h2>
-              <p className="text-[.98rem] text-ink-soft">{DOWNLOAD.mobileBody}</p>
-            </div>
-            <Link href="/app#get" className="inline-flex shrink-0 items-center justify-center rounded-full bg-green px-5 py-2.5 text-[.95rem] font-bold text-white no-underline shadow-[0_8px_20px_rgba(46,158,99,.28)] transition-[transform,background-color] duration-150 hover:-translate-y-0.5 hover:bg-green-deep">
-              {DOWNLOAD.mobileCta}
-            </Link>
+          <Reveal
+            className="mx-auto max-w-[720px] rounded-panel border border-line bg-card px-7 py-10 text-center shadow-soft"
+            variant="scale"
+          >
+            <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-control bg-honey-tint text-honey-deep">
+              <PlatformIcon platform="mobile" size={24} />
+            </span>
+            <h2 className="mb-1 text-[1.25rem]">{DOWNLOAD.mobileTitle}</h2>
+            <p className="text-[.98rem] text-ink-soft">{DOWNLOAD.mobileBody}</p>
+            <p className="mt-3 text-[.9rem] text-ink-soft">
+              Mobile beta signup returns with the site rebuild.
+            </p>
           </Reveal>
-          <p className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-center">
-            <Link href="/" className="text-[.92rem] font-bold text-honey-deep no-underline underline-offset-[3px] hover:underline">← {DOWNLOAD.back}</Link>
-            <Link href="/app" className="text-[.92rem] font-bold text-honey-deep no-underline underline-offset-[3px] hover:underline">{DOWNLOAD.seeApp} →</Link>
+          <p className="mt-8 text-center">
+            <Link
+              href="/"
+              className="text-[.92rem] font-bold text-honey-deep no-underline underline-offset-[3px] hover:underline"
+            >
+              ← {DOWNLOAD.back}
+            </Link>
           </p>
         </section>
       </main>

@@ -119,10 +119,11 @@ export function VocabularyPage() {
             Design vocabulary
           </h1>
           <p className="max-w-[58ch] text-[1.08rem] text-ink-soft">
-            The Allr that a visitor meets: warm paper, one subscription, finished
-            work. Tokens, copy, and components for every later marketing page.
-            The written contract is <strong>DESIGN.md</strong> in this
-            repo. Click a hex or token to copy it.
+            The Allr that a visitor meets: warm paper, product and operations
+            for the AI Era. Tokens, copy, and components for every later
+            marketing page. The written contract is{" "}
+            <strong>DESIGN.md</strong> in this repo. Click a hex or token to
+            copy it.
           </p>
         </section>
 
@@ -130,10 +131,11 @@ export function VocabularyPage() {
           <div className="wrap">
             <SectionHead
               eyebrow="Product"
-              title="One workspace. Finished work."
+              title="Product-and-operations platform."
             >
-              Not a chatbot. Not a copilot. You describe the thing. Allr makes
-              the thing. You share a link.
+              Not a chatbot. Not a copilot. Product and operations on web,
+              desktop, and mobile — ideate, create, deploy, operate, maintain,
+              scale.
             </SectionHead>
             <Reveal className="mx-auto max-w-[720px] rounded-panel border border-line bg-card px-7 py-8 text-center shadow-soft">
               <p className="font-serif text-[clamp(1.35rem,2.8vw,1.8rem)] leading-[1.45]">
@@ -143,17 +145,17 @@ export function VocabularyPage() {
                 The Allr promise · {SITE_TAGLINE}
               </p>
             </Reveal>
-            <div className="mx-auto mt-8 grid max-w-[720px] grid-cols-1 gap-3 min-[641px]:grid-cols-3">
+            <div className="mx-auto mt-8 grid max-w-[720px] grid-cols-2 gap-3 min-[641px]:grid-cols-3">
               {LOOP.map((step, i) => (
                 <Reveal
                   key={step}
-                  delay={i * 80}
+                  delay={i * 60}
                   className="rounded-card border border-line bg-card px-5 py-5 text-center shadow-soft"
                 >
                   <span className="mb-2 inline-flex size-8 items-center justify-center rounded-control bg-honey-tint font-serif text-honey-deep">
                     {i + 1}
                   </span>
-                  <p className="font-serif text-[1.15rem]">{step}</p>
+                  <p className="font-serif text-[1.05rem]">{step}</p>
                 </Reveal>
               ))}
             </div>
@@ -163,7 +165,7 @@ export function VocabularyPage() {
         <section id="voice" className="pb-22">
           <div className="wrap">
             <SectionHead eyebrow="Voice" tone="honey" title="Mentor, not vendor.">
-              Warm, not cute. Finished, not generating. Kitchen-table lamplight,
+              Warm, not cute. Operating, not generating. Kitchen-table lamplight,
               not a YC launch post.
             </SectionHead>
             <div className="grid grid-cols-1 gap-5 min-[761px]:grid-cols-2">
@@ -266,7 +268,7 @@ export function VocabularyPage() {
                   Young Serif · display
                 </p>
                 <p className="font-serif text-[clamp(2rem,4vw,3rem)] leading-[1.18]">
-                  Finished work, live.
+                  Operating products, live.
                 </p>
               </Reveal>
               <Reveal
@@ -277,9 +279,8 @@ export function VocabularyPage() {
                   Nunito Sans · body
                 </p>
                 <p className="text-[1.08rem] leading-[1.7] text-ink-soft">
-                  One AI workspace that makes finished work — decks, docs,
-                  videos, websites, apps, and games. You describe it. Allr
-                  handles the rest.
+                  Allr is the Product and Operations platform for the AI Era.
+                  You ideate. Allr helps you create, deploy, operate, and maintain.
                 </p>
               </Reveal>
             </div>

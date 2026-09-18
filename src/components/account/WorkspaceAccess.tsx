@@ -93,7 +93,7 @@ export function WorkspaceAccess() {
           chosen.map((p) => (
             <Row
               key={p}
-              icon={<PlatformIcon platform="mobile" size={18} />}
+              icon={<PlatformIcon platform={p} size={18} />}
               title={p === "ios" ? "iPhone" : "Android"}
               detail={downloads[p] ? "Testing build" : "Invite on its way"}
               action={
