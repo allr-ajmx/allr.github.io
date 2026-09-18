@@ -2,7 +2,7 @@ import "server-only";
 
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { adminAuth } from "./admin";
-import { forbidden, unauthorized } from "./errors";
+import { ApiError, forbidden, unauthorized } from "./errors";
 
 /**
  * Who is calling, proven rather than claimed.
@@ -38,7 +38,12 @@ export async function requireUser(request: Request): Promise<Caller> {
     // checkRevoked: a signed-out or disabled session must stop working here,
     // not whenever the token happens to expire.
     decoded = await adminAuth().verifyIdToken(token, true);
-  } catch {
+  } catch (error) {
+    // Anything the Admin SDK itself raises — a missing service account, a key
+    // that will not parse — comes from `adminAuth()`, inside this same try.
+    // Those are ours to fix and must not be dressed up as the visitor's
+    // session having expired.
+    if (error instanceof ApiError) throw error;
     throw unauthorized("That session has expired. Sign in again?");
   }
 

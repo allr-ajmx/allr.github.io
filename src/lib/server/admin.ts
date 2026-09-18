@@ -3,6 +3,7 @@ import "server-only";
 import { cert, getApp, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { ApiError } from "./errors";
 
 /**
  * The privileged half of Firebase.
@@ -31,10 +32,20 @@ const USING_EMULATOR = Boolean(
   process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_AUTH_EMULATOR_HOST,
 );
 
-export class AdminNotConfigured extends Error {
+/**
+ * An `ApiError`, not a bare one, so it survives the catch in `requireUser`.
+ *
+ * `adminAuth()` is called inside that try/catch, which means a deployment with
+ * no service account used to answer every account request with "that session
+ * has expired" — sending people to sign in again, which cannot possibly help,
+ * and hiding the one fact that would. 503 says whose problem it is.
+ */
+export class AdminNotConfigured extends ApiError {
   constructor() {
     super(
-      "FIREBASE_SERVICE_ACCOUNT is not set, so the server cannot reach Firebase.",
+      503,
+      "unconfigured",
+      "Accounts are not switched on in this deployment yet. That one is on us.",
     );
   }
 }
