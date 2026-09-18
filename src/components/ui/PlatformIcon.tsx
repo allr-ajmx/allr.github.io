@@ -1,7 +1,17 @@
 import type { Platform } from "@/lib/releases";
 
+export type SupportedPlatform = Platform | "mobile" | "ios" | "android";
+
 /** Monochrome platform glyphs, drawn in currentColor. */
-export function PlatformIcon({ platform, size = 18, className }: { platform: Platform | "mobile"; size?: number; className?: string }) {
+export function PlatformIcon({
+  platform,
+  size = 18,
+  className,
+}: {
+  platform: SupportedPlatform;
+  size?: number;
+  className?: string;
+}) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "currentColor", "aria-hidden": true, className };
   switch (platform) {
     case "macos":
@@ -27,6 +37,18 @@ export function PlatformIcon({ platform, size = 18, className }: { platform: Pla
         <svg {...common} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <rect x="7" y="2.5" width="10" height="19" rx="2.2" />
           <path d="M10.5 18.5h3" />
+        </svg>
+      );
+    case "ios":
+      return (
+        <svg {...common} viewBox="0 -960 960 960">
+          <path d="M160-600v-80h80v80h-80Zm0 320v-240h80v240h-80Zm280 0h-80q-33 0-56.5-23.5T280-360v-240q0-33 23.5-56.5T360-680h80q33 0 56.5 23.5T520-600v240q0 33-23.5 56.5T440-280Zm-80-80h80v-240h-80v240Zm200 80v-80h160v-80h-80q-33 0-56.5-23.5T560-520v-80q0-33 23.5-56.5T640-680h160v80H640v80h80q33 0 56.5 23.5T800-440v80q0 33-23.5 56.5T720-280H560Z" />
+        </svg>
+      );
+    case "android":
+      return (
+        <svg {...common} viewBox="0 0 256 256">
+          <path d="M180,148a16,16,0,1,1-16-16A16,16,0,0,1,180,148ZM92,132a16,16,0,1,0,16,16A16,16,0,0,0,92,132Zm152,28v24a20,20,0,0,1-20,20H32a20,20,0,0,1-20-20V161.13A117.35,117.35,0,0,1,45.72,78.69L23.51,56.49a12,12,0,0,1,17-17L64.3,63.33A114.35,114.35,0,0,1,127.59,44H128a115.15,115.15,0,0,1,63.89,19.14l23.62-23.63a12,12,0,0,1,17,17l-22,22A115.18,115.18,0,0,1,244,160Zm-24,0a92,92,0,0,0-92.33-92C77.12,68.18,36,110,36,161.13V180H220Z" />
         </svg>
       );
   }

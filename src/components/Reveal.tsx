@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useGSAP } from "@gsap/react";
 import { cx } from "@/lib/cx";
 import { gsap, EASE } from "@/lib/motion";
@@ -32,14 +32,10 @@ const VARIANTS: Record<RevealVariant, FromTo> = {
   scale: { from: { opacity: 0, scale: 0.97 }, duration: 0.55 },
   left: { from: { opacity: 0, x: -14 }, duration: 0.55 },
   right: { from: { opacity: 0, x: 14 }, duration: 0.55 },
-  // Headlines come into focus, not just into view.
   blur: { from: { opacity: 0, y: 10, scale: 0.985, filter: "blur(10px)" }, duration: 0.9 },
-  // The promise: a wipe from the left, like ink being laid down. Opacity stays
-  // at 1 — the mask does the reveal.
   wipe: { from: { opacity: 1, "--wipe": "-18%" }, duration: 1.1 },
 };
 
-/** The resting value for each property a variant might start from. */
 const REST: gsap.TweenVars = {
   opacity: 1, x: 0, y: 0, scale: 1, filter: "blur(0px)", "--wipe": "100%",
 };
@@ -52,7 +48,6 @@ export function Reveal({
   style,
   ...rest
 }: React.HTMLAttributes<HTMLDivElement> & {
-  /** Extra wait (ms) after entering the viewport — use for staggered grids. */
   delay?: number;
   variant?: RevealVariant;
 }) {
@@ -67,25 +62,15 @@ export function Reveal({
 
       const mm = gsap.matchMedia();
 
-      // MOTION.md §2: reduced motion is not "no animation", it is the finished
-      // frame — reveals are instant opacity 1.
       mm.add("(prefers-reduced-motion: reduce)", () => {
         gsap.set(el, { clearProps: "all" });
         setState("shown");
       });
 
       mm.add("(prefers-reduced-motion: no-preference)", () => {
-        // Take the element over from CSS at exactly the values CSS was
-        // already showing, so the handover is invisible.
         gsap.set(el, spec.from);
         setState("armed");
 
-        // Only the properties this variant actually starts from. Spreading a
-        // fixed set here meant `fade` and `wipe` — both of which declare
-        // `transform: none` — still got an inline `transform` and `filter`,
-        // and an element with either becomes a containing block and a
-        // stacking context, which breaks `position: sticky` and `-z-10`
-        // descendants for the length of the reveal.
         const animated = Object.keys(spec.from);
         const tween = gsap.to(el, {
           ...Object.fromEntries(animated.map((k) => [k, REST[k as keyof gsap.TweenVars]])),
@@ -95,15 +80,11 @@ export function Reveal({
           paused: true,
           onComplete: () => {
             setState("shown");
-            // Hand layout back to the stylesheet. `--wipe` is deliberately
-            // kept: its @property initial value is 100%, but the mask reads it
-            // every frame and clearing it mid-paint flickers.
             const clear = animated.filter((k) => k !== "--wipe");
             if (clear.length) gsap.set(el, { clearProps: clear.join(",") });
           },
         });
 
-        // Children marked `stagger-child` rise in behind the parent.
         const kids = Array.from(el.querySelectorAll<HTMLElement>(".stagger-child"))
           .filter((k) => k.closest("[data-reveal]") === el);
         const kidTween = kids.length
@@ -119,9 +100,6 @@ export function Reveal({
           kidTween?.play();
         };
 
-        // One shared, live-layout scroll queue decides when. See
-        // motion/revealQueue.ts for why neither ScrollTrigger nor a bare
-        // IntersectionObserver is reliable for a one-shot trigger.
         const unwatch = whenReached(el, play);
 
         return () => {
@@ -135,6 +113,19 @@ export function Reveal({
     },
     { scope: ref, dependencies: [variant, delay] },
   );
+
+  // Failsafe: never leave the page blank if GSAP/matchMedia never arms.
+  useEffect(() => {
+    if (state === "shown") return;
+    const id = window.setTimeout(() => {
+      const el = ref.current;
+      if (!el) return;
+      if (el.getAttribute("data-reveal") === "shown") return;
+      gsap.set(el, { clearProps: "all", opacity: 1, x: 0, y: 0, scale: 1, filter: "none" });
+      setState("shown");
+    }, 1800);
+    return () => window.clearTimeout(id);
+  }, [state]);
 
   return (
     <div

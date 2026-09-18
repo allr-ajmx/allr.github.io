@@ -1,5 +1,5 @@
 import { Reveal } from "@/components/Reveal";
-import { MockFrame } from "@/components/mocks/Mocks";
+import { PlaceholderImage } from "@/components/ui/PlaceholderImage";
 import { cx } from "@/lib/cx";
 import type { ShowcaseId } from "@/lib/brand";
 
@@ -37,7 +37,12 @@ export function Card({
       className="surface-lift flex flex-col gap-3.5 rounded-card border border-line bg-card p-6 shadow-soft"
     >
       {visual ? (
-        <MockFrame id={visual} className="mb-0.5 shadow-soft" />
+        <PlaceholderImage
+          slotId={`card-${visual}`}
+          label={title}
+          aspectRatio="aspect-[16/10]"
+          className="mb-0.5 shadow-soft"
+        />
       ) : (
         <div
           className={cx(

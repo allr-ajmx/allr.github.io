@@ -18,7 +18,7 @@ export function JunkPill({
         tilt === "right" && "rotate-1",
       )}
     >
-      {dot ? <span className="size-1.5 rounded-full bg-[#DFA4A4]" /> : null}
+      {dot ? <span className="size-1.5 rounded-full bg-honey" /> : null}
       {children}
     </span>
   );
