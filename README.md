@@ -102,8 +102,12 @@ everything the browser touches.
 `FIREBASE_SERVICE_ACCOUNT` is the exception and must never be committed. It is
 the privileged half: the only thing that can create a profile, claim an email
 address, or set the workspace and trial fields. Set it in Vercel's environment
-variables. Local development needs none of this — against the emulator the Admin
-SDK uses no credential at all.
+variables, for Production and Preview — which key, and how to tell why a
+deployment is failing when local is not, is in
+[`firebase/README.md`](./firebase/README.md#the-servers-service-account). Local
+development needs none of this — against the emulator the Admin SDK uses no
+credential at all, which also means the emulator cannot tell you whether the
+key works.
 
 ## Deploying
 

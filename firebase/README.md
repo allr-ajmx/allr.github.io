@@ -66,6 +66,12 @@ is deprecated:
 4. GitHub → repo Settings → Secrets → `FIREBASE_SERVICE_ACCOUNT`, pasting the
    whole JSON file.
 
+**This key is for the workflow only.** Vercel has a variable with the same name
+and it must hold a *different* key — see
+[The server's service account](#the-servers-service-account). Rules Admin can
+publish a rule set and cannot read a single document, so reusing it there gives
+an account API that authenticates and then fails every Firestore call.
+
 Without that secret the workflow skips instead of failing. To deploy by hand:
 
 ```
@@ -116,10 +122,13 @@ firebase firestore:export ./waitlist-export --collection-ids waitlist,beta_signu
 
 # Accounts
 
-Sign-in is Google and nothing else (DESIGN.md §16). The site is a static export,
-so there is no server, no session cookie, and nothing to protect a page with —
-the redirect on `/account` is a courtesy, and
-[`firestore.rules`](./firestore.rules) is the actual boundary.
+Sign-in is Google and nothing else (DESIGN.md §16). The site runs on Vercel with
+a server, and that server is the only thing that writes a profile: the browser
+sends its Google ID token to `/api/account/**`, which verifies it and uses the
+Admin SDK ([`src/lib/server/admin.ts`](../src/lib/server/admin.ts)). The Admin
+SDK is not bound by [`firestore.rules`](./firestore.rules); the rules are what
+bind the browser, and for `users` they allow one thing — reading your own
+document.
 
 One document per person at `users/{uid}`, keyed by the Firebase Auth uid, which
 is what lets the rules say "your own and nobody else's" without a query. It
@@ -128,12 +137,64 @@ birth, country of residence, the two consent versions, and the marketing opt-in.
 Accounts are individual only. **Billing address and tax ID are checkout
 questions and are deliberately not here.**
 
-Three things the rules enforce that the form cannot be trusted to:
+Three things are enforced where the form cannot reach:
 
-- the email on the document must equal the verified email on the auth token;
-- the date of birth must be at least 18 years ago, so an under-age account
-  cannot be created by anything, form or script;
-- `users` can never be listed, only fetched one document at a time by its owner.
+- the email on the document is taken from the verified auth token, never from
+  the request body (`src/lib/server/session.ts`);
+- the date of birth must be at least 18 years ago, checked by the server on
+  every create and update, so an under-age account cannot be made by anything,
+  form or script;
+- the rules refuse every client write to `users`, and `users` can never be
+  listed — only fetched one document at a time by its owner.
+
+Nothing has to be created in Firestore beforehand. `users` and `user_emails`
+appear when the first person registers; an empty database is a working one.
+
+## The server's service account
+
+`FIREBASE_SERVICE_ACCOUNT` in Vercel is the Admin SDK's credential:
+
+1. Firebase console → Project settings → **Service accounts** → *Generate new
+   private key*. The account is named `firebase-adminsdk-…@<project>` and
+   already holds the Auth and Firestore roles it needs.
+2. Vercel → project Settings → Environment Variables →
+   `FIREBASE_SERVICE_ACCOUNT`, pasting the whole JSON file, for **Production and
+   Preview**.
+3. Redeploy. Vercel reads environment variables at deploy time, so a deployment
+   built before the variable existed will never see it.
+
+It is not the rules-deploy key above. They share a name because each lives in a
+different product's secret store; they are different accounts with different
+roles.
+
+### When a deployment fails and local does not
+
+What each failure looks like from outside:
+
+| Response from `/api/account/**` | Meaning |
+|---|---|
+| `503` `unconfigured` | The variable is missing from *this* deployment — wrong environment ticked, or not redeployed since it was added. |
+| `401` with a valid sign-in | The key did not initialise: not valid JSON, a damaged private key, or a key for another project. |
+| `500` as JSON | The key works and a Firestore call failed. The server log has the gRPC code; `7 PERMISSION_DENIED` means the account lacks a Firestore role. |
+| `500` as an HTML page | The route crashed while loading, before any handler ran. Nothing the API returns can describe this — read the logs. |
+
+The browser is never told why a 500 happened. The reason is in Vercel's runtime
+logs — the project's **Logs** tab, or:
+
+```
+npx vercel logs --environment preview --since 30m --status-code 500 --expand
+npx vercel curl /api/account/me/ --deployment <preview-url>   # past the SSO wall
+```
+
+Vercel's function runtime is stricter than a developer machine about one thing
+that has bitten this project: it refuses `require()` of an ES module. To run a
+local production build under the same restriction:
+
+```
+pnpm build && NODE_OPTIONS=--no-experimental-require-module pnpm start
+```
+
+That is what the `jwks-rsa` override in `pnpm-workspace.yaml` is for.
 
 ## Running the emulator
 
@@ -187,22 +248,25 @@ The emulator logs an `evaluation error` for whichever of the create/update
 branches does not apply to a given write. That is expected — a rule that errors
 denies — and the tests are what pin down the branch that does apply.
 
-## Going live (not done yet)
+## Going live
 
-The account area currently runs against the emulator only. To let real people
-sign in, in the Firebase console for `allr-prod`:
+To let real people sign in, in the Firebase console for `allr-prod`:
 
 1. **Authentication → Sign-in method → Google → Enable.** Set the support email.
 2. **Authentication → Settings → Authorized domains** — add every host the site
-   is served from: `localhost`, `allr-ajmx.github.io`, the Vercel domain, and
-   `allr.work` if it is in use. A domain that is not listed gets
+   is served from: `localhost`, the Vercel domains (previews included, if people
+   are to sign in on them), and `allr.work`. A domain that is not listed gets
    `auth/unauthorized-domain` and nothing else.
 3. Check that `NEXT_PUBLIC_FIREBASE_PROJECT_ID` and `NEXT_PUBLIC_FIREBASE_API_KEY`
    are set wherever the site is built — they already are for the waitlist, and
    accounts use the same pair.
-4. Push, so `deploy-firestore-rules.yml` deploys the `users` rule block. **Until
-   it is deployed every profile write is refused**, and registration will fail on
-   the last step.
+4. Give Vercel [the server's service account](#the-servers-service-account).
+   Without it every account route answers `503`.
+5. Make sure the `users` rule block is deployed — `deploy-firestore-rules.yml`
+   runs on a push to `main`, or by hand from the Actions tab. Nothing in the
+   account area depends on it, because every read and write goes through the
+   API; it is there so that a browser holding the public key cannot write a
+   profile or list the collection.
 
 Skipping either of the first two steps produces a specific, recognisable
 failure, and `/login` names it rather than telling people to try again forever:
