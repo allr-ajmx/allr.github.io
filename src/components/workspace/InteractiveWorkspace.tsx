@@ -31,12 +31,25 @@ export function InteractiveWorkspace({
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  // Smooth auto-scroll to the current active step's message block
+  // Smooth auto-scroll to the current active step's message block.
+  // Scrolls the chat container only — scrollIntoView would also scroll the
+  // window, dragging the whole page down to this section on load.
   useEffect(() => {
     const target = stepRefs.current[stepIndex];
-    if (target && chatContainerRef.current) {
-      target.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
+    const container = chatContainerRef.current;
+    if (!target || !container) return;
+
+    const top = target.offsetTop;
+    const bottom = top + target.offsetHeight;
+    const viewTop = container.scrollTop;
+    const viewBottom = viewTop + container.clientHeight;
+
+    // Same result as block: "nearest", scoped to the container
+    let next = viewTop;
+    if (top < viewTop || target.offsetHeight > container.clientHeight) next = top;
+    else if (bottom > viewBottom) next = bottom - container.clientHeight;
+
+    if (next !== viewTop) container.scrollTo({ top: next, behavior: "smooth" });
   }, [stepIndex]);
 
   return (
