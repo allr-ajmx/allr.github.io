@@ -33,7 +33,10 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "any",
       },
       {
-        src: "./icon-512.png",
+        // Its own file, not icon-512.png: a maskable icon is cropped to the
+        // platform's shape and only the middle 80% is guaranteed to survive,
+        // so this one is drawn with the padding that crop assumes.
+        src: "./icon-512-maskable.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

@@ -22,12 +22,32 @@ import {
   type Platform,
   type Release,
 } from "@/lib/releases";
+import type { AppConfig } from "@/lib/account/app-config";
 
 /** The detected platform never changes during a session, so nothing to watch. */
 const noopSubscribe = () => () => {};
 
-export function DownloadPage({ release: initial }: { release: Release | null }) {
+/**
+ * `config` is authoritative when `app_configuration` has been populated
+ * (DESIGN.md §16): it names one link per platform and can be rolled back from
+ * the database, which the GitHub Releases API cannot do — it only ever knows
+ * what is latest.
+ *
+ * The GitHub path is kept underneath rather than replaced, because it carries
+ * what app_configuration does not: every asset for a platform, its format and
+ * its size. So a configured platform overrides the link and keeps the page's
+ * shape, and an unconfigured one behaves exactly as it always has.
+ */
+export function DownloadPage({
+  release: initial,
+  config,
+}: {
+  release: Release | null;
+  config?: AppConfig | null;
+}) {
   const [release, setRelease] = useState(initial);
+  const managed = config?.source === "app_configuration";
+  const overrides = managed ? (config?.current?.downloads ?? {}) : {};
 
   // Detected once on the client; the server renders no "your platform" badge.
   const mine = useSyncExternalStore<Platform | undefined>(
@@ -36,8 +56,11 @@ export function DownloadPage({ release: initial }: { release: Release | null }) 
     () => undefined,
   );
 
-  // Catch a release published since the last site build.
+  // Catch a release published since the last render. Skipped when
+  // app_configuration is in charge: refreshing from GitHub there would quietly
+  // undo a rollback, which is the one thing app_configuration exists to do.
   useEffect(() => {
+    if (managed) return;
     let live = true;
     fetchLatestRelease().then((fresh) => {
       if (live && fresh) setRelease(fresh);
@@ -45,7 +68,7 @@ export function DownloadPage({ release: initial }: { release: Release | null }) 
     return () => {
       live = false;
     };
-  }, []);
+  }, [managed]);
 
   return (
     <>
@@ -62,16 +85,34 @@ export function DownloadPage({ release: initial }: { release: Release | null }) 
             {DOWNLOAD.sub}
           </p>
           <p className="hero-enter mt-6 rounded-chip border border-line bg-card px-3 py-1.5 font-mono text-[.78rem] text-ink-soft" data-enter="0.3">
-            {release
-              ? DOWNLOAD.version(release.version, formatReleaseDate(release.publishedAt))
-              : DOWNLOAD.versionUnknown}
+            {managed && config?.current
+              ? DOWNLOAD.version(
+                  config.current.version,
+                  formatReleaseDate(config.current.publishedAt ?? ""),
+                )
+              : release
+                ? DOWNLOAD.version(release.version, formatReleaseDate(release.publishedAt))
+                : DOWNLOAD.versionUnknown}
           </p>
         </section>
 
         <section className="wrap pb-16">
           <div className="grid gap-5 md:grid-cols-3">
             {PLATFORM_ORDER.map((id, i) => {
-              const builds = resolveDownloads(release, id);
+              const override = overrides[id];
+              const builds = override
+                ? [
+                    {
+                      id: `${id}-managed`,
+                      label: config?.current?.version
+                        ? `Version ${config.current.version}`
+                        : "Latest build",
+                      hint: "",
+                      href: override,
+                      size: 0,
+                    },
+                  ]
+                : resolveDownloads(release, id);
               const yours = mine === id;
               return (
                 <Reveal
@@ -117,19 +158,26 @@ export function DownloadPage({ release: initial }: { release: Release | null }) 
         </section>
 
         <section className="wrap pb-24">
-          <Reveal className="mx-auto flex max-w-[720px] flex-col items-center gap-4 rounded-panel border border-line bg-card px-7 py-10 text-center shadow-soft sm:flex-row sm:text-left" variant="scale">
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-control bg-honey-tint text-honey-deep"><PlatformIcon platform="mobile" size={24} /></span>
-            <div className="flex-1">
-              <h2 className="mb-1 text-[1.25rem]">{DOWNLOAD.mobileTitle}</h2>
-              <p className="text-[.98rem] text-ink-soft">{DOWNLOAD.mobileBody}</p>
-            </div>
-            <Link href="/app#get" className="inline-flex shrink-0 items-center justify-center rounded-full bg-green px-5 py-2.5 text-[.95rem] font-bold text-white no-underline shadow-[0_8px_20px_rgba(46,158,99,.28)] transition-[transform,background-color] duration-150 hover:-translate-y-0.5 hover:bg-green-deep">
-              {DOWNLOAD.mobileCta}
-            </Link>
+          <Reveal
+            className="mx-auto max-w-[720px] rounded-panel border border-line bg-card px-7 py-10 text-center shadow-soft"
+            variant="scale"
+          >
+            <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-control bg-honey-tint text-honey-deep">
+              <PlatformIcon platform="mobile" size={24} />
+            </span>
+            <h2 className="mb-1 text-[1.25rem]">{DOWNLOAD.mobileTitle}</h2>
+            <p className="text-[.98rem] text-ink-soft">{DOWNLOAD.mobileBody}</p>
+            <p className="mt-3 text-[.9rem] text-ink-soft">
+              Mobile beta signup returns with the site rebuild.
+            </p>
           </Reveal>
-          <p className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-center">
-            <Link href="/" className="text-[.92rem] font-bold text-honey-deep no-underline underline-offset-[3px] hover:underline">← {DOWNLOAD.back}</Link>
-            <Link href="/app" className="text-[.92rem] font-bold text-honey-deep no-underline underline-offset-[3px] hover:underline">{DOWNLOAD.seeApp} →</Link>
+          <p className="mt-8 text-center">
+            <Link
+              href="/"
+              className="text-[.92rem] font-bold text-honey-deep no-underline underline-offset-[3px] hover:underline"
+            >
+              ← {DOWNLOAD.back}
+            </Link>
           </p>
         </section>
       </main>

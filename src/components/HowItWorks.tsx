@@ -2,112 +2,221 @@
 
 import { useRef, useState } from "react";
 import { useGSAP } from "@gsap/react";
-import { MockFor } from "@/components/mocks/Mocks";
 import { Reveal } from "@/components/Reveal";
+import { AllrMark } from "@/components/ui/AllrMark";
 import { SectionHead } from "@/components/ui/SectionHead";
-import { STORY } from "@/lib/brand";
+import { InteractiveWorkspace } from "@/components/workspace/InteractiveWorkspace";
+import { LIFECYCLE, STORY } from "@/lib/brand";
 import { cx } from "@/lib/cx";
-import { PETALS } from "@/lib/petals";
-import { PetalShape } from "@/components/ui/PetalShape";
-import { ScrollTrigger } from "@/lib/motion";
-
-/** Step numerals sit on petals: honey (ask), sage (make), deep green (live). */
-const NUM_PETALS = [PETALS[1], PETALS[0], PETALS[4]];
+import { gsap, ScrollTrigger } from "@/lib/motion";
+import { PETALS, rotationToPoint } from "@/lib/petals";
 
 /**
- * Three steps on the left; one sticky stage on the right that advances as the
- * steps scroll past the middle of the screen: ask → making → live.
+ * Loop — Operating Lifecycle (Act III of Master Story).
+ * Fixed-position scrollytelling stage:
+ * The step card stays fixed in place on the left while its content fade-transitions
+ * across all 6 steps as the user scrolls, driving the unified interactive workspace on the right.
  */
 export function HowItWorks() {
   const [active, setActive] = useState(0);
+  const [showPostOverlay, setShowPostOverlay] = useState(false);
   const scope = useRef<HTMLElement>(null);
-  const refs = useRef<(HTMLLIElement | null)[]>([]);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const stickyRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<ScrollTrigger | null>(null);
 
   useGSAP(
     () => {
-      // A band across the middle of the viewport decides the active step —
-      // the same 45%/45% band the observer used, expressed as a trigger.
-      // The stage stays CSS `sticky`: no `pin`, so no pin-spacer is inserted
-      // and the layout is exactly what it was.
-      const triggers = refs.current.map((el, i) =>
-        el
-          ? ScrollTrigger.create({
-              trigger: el,
-              start: "top 55%",
-              end: "bottom 45%",
-              onToggle: (self) => { if (self.isActive) setActive(i); },
-            })
-          : null,
-      );
-      return () => triggers.forEach((t) => t?.kill());
+      const track = trackRef.current;
+      const sticky = stickyRef.current;
+      if (!track || !sticky) return;
+
+      const mm = gsap.matchMedia();
+
+      mm.add("(prefers-reduced-motion: no-preference)", () => {
+        const getStickyTop = () => {
+          if (typeof window === "undefined") return 80;
+          return window.innerWidth >= 1024
+            ? Math.round(window.innerHeight * 0.5 - 255)
+            : 80;
+        };
+
+        const st = ScrollTrigger.create({
+          trigger: track,
+          start: () => "top " + getStickyTop(),
+          end: () => "bottom " + (getStickyTop() + (stickyRef.current?.offsetHeight ?? 530)),
+          scrub: 0.5,
+          onUpdate: (self) => {
+            const p = self.progress;
+            // 6 lifecycle steps (0 to 5)
+            const nextStep = Math.min(5, Math.floor(p * 6));
+            setActive(nextStep);
+            // Step 06 (Scale) features a two-phase scroll experience:
+            // Phase 1: Chat draft with user prompt & screenshot preview
+            // Phase 2: Live tweet overlay on X (triggers in the second half of step 6)
+            setShowPostOverlay(p > 0.916);
+          },
+        });
+
+        triggerRef.current = st;
+
+        return () => st.kill();
+      });
+
+      return () => mm.revert();
     },
     { scope },
   );
 
+  const handleStepSelect = (idx: number) => {
+    setActive(idx);
+    setShowPostOverlay(idx === 5);
+    const st = triggerRef.current;
+    if (st) {
+      const progressTarget = (idx + 0.5) / 6;
+      const targetScroll = st.start + progressTarget * (st.end - st.start);
+      window.scrollTo({ top: targetScroll, behavior: "smooth" });
+    }
+  };
+
+  const currentPetal = PETALS[active] ?? PETALS[0];
+
   return (
-    <section id="how" ref={scope} className="relative py-22">
-      <div className="wrap">
-        <SectionHead eyebrow="How it works" title="Three steps. No stitching." />
+    <section id="loop" ref={scope} className="relative pt-12 pb-20 sm:pt-16 sm:pb-28">
+      <div className="wrap relative">
+        <SectionHead
+          eyebrow="Act III · From Intent to Operation"
+          title={LIFECYCLE.title}
+        >
+          {LIFECYCLE.sub}
+        </SectionHead>
 
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,26rem)_1fr] lg:gap-16">
-          {/* steps */}
-          <ol className="flex flex-col gap-6 lg:gap-[38vh] lg:py-[20vh]">
-            {STORY.map((step, i) => (
-              <li
-                key={step.title}
-                ref={(el) => { refs.current[i] = el; }}
-                data-step={i}
-                className={cx(
-                  "story-step rounded-card border bg-card px-6 py-7 shadow-soft transition-[opacity,transform,border-color] duration-500",
-                  active === i ? "border-honey-line opacity-100 lg:-translate-x-1" : "border-line lg:opacity-45",
-                )}
-              >
-                <span className={cx("relative mb-4 inline-flex size-11 items-center justify-center font-serif text-[1.1rem]", NUM_PETALS[i].on === "ink" ? "text-ink" : "text-paper")}>
-                  <PetalShape color={NUM_PETALS[i].color} className="absolute inset-0 -z-10 h-full w-full" rotate={-10} />
-                  {i + 1}
-                </span>
-                <h3 className="mb-2.5 text-[1.28rem]">{step.title}</h3>
-                <p className="text-ink-soft">{step.body}</p>
-                <p className="mt-3.5 text-[.92rem] font-bold text-honey-deep">{step.aside}</p>
-                {/* small-screen stage, inline */}
-                <div className="mt-5 lg:hidden"><Stage step={i} /></div>
-              </li>
-            ))}
-          </ol>
+        {/* Scroll Runway Track */}
+        <div ref={trackRef} className="relative mt-8 min-h-[300vh] lg:min-h-[340vh]">
+          {/* Unified Sticky Stage: Keeps both the step card and workspace fixed in viewport */}
+          <div
+            ref={stickyRef}
+            className="sticky top-20 lg:top-[calc(50vh-16rem)]"
+          >
+            <div className="mx-auto max-w-fit grid gap-5 lg:gap-6 lg:grid-cols-[minmax(0,22.5rem)_minmax(0,42.5rem)] items-start justify-center">
+              {/* Left Column: Fixed-position Step Card with smooth content cross-fade */}
+              <div className="relative w-full max-w-[360px] lg:w-[22.5rem]">
+                <div className="rounded-card border border-honey-line bg-card p-5 sm:p-6 shadow-soft transition-all duration-300">
+                  {/* Step Header: Petal Icon, Step Number, and Interactive Navigation Pills */}
+                  <div className="mb-4 flex items-center justify-between border-b border-line-soft pb-3">
+                    <div className="flex items-center gap-2">
+                      <AllrMark
+                        size={19}
+                        highlight={currentPetal.i}
+                        rotate={rotationToPoint(currentPetal.i, -90)}
+                      />
+                      <span className="font-mono text-[.78rem] font-bold text-ink uppercase tracking-wider">
+                        Step 0{active + 1} of 06
+                      </span>
+                    </div>
 
-          {/* sticky stage */}
-          <div className="hidden lg:block">
-            <div className="sticky top-[calc(50vh-15rem)]">
-              <Reveal variant="scale"><Stage step={active} /></Reveal>
+                    {/* 6 Step Interactive Pills */}
+                    <div
+                      className="flex items-center gap-1.5"
+                      role="tablist"
+                      aria-label="Lifecycle steps"
+                    >
+                      {STORY.map((step, idx) => {
+                        const isCurrent = active === idx;
+                        const petal = PETALS[idx] ?? PETALS[0];
+                        return (
+                          <button
+                            key={step.title}
+                            type="button"
+                            role="tab"
+                            aria-selected={isCurrent}
+                            aria-label={`Jump to Step ${idx + 1}: ${step.title}`}
+                            onClick={() => handleStepSelect(idx)}
+                            className="group relative flex items-center justify-center p-1 cursor-pointer transition-all duration-300 focus-visible:outline-none"
+                          >
+                            <span
+                              className={cx(
+                                "block rounded-full transition-all duration-300",
+                                isCurrent
+                                  ? "h-2 w-5 sm:w-6"
+                                  : "h-2 w-2 bg-ink-soft/25 hover:bg-ink-soft/50",
+                              )}
+                              style={{
+                                backgroundColor: isCurrent ? petal.color : undefined,
+                              }}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Fade-transitioned Step Content */}
+                  <div className="relative grid grid-cols-1 grid-rows-1 overflow-hidden min-h-[145px] sm:min-h-[135px]">
+                    {STORY.map((step, idx) => {
+                      const isCurrent = active === idx;
+                      const petal = PETALS[idx] ?? PETALS[0];
+                      return (
+                        <div
+                          key={step.title}
+                          className={cx(
+                            "col-start-1 row-start-1 transition-all duration-300 ease-out motion-reduce:transition-none",
+                            isCurrent
+                              ? "opacity-100 translate-y-0 pointer-events-auto z-10"
+                              : "opacity-0 translate-y-2 pointer-events-none z-0",
+                          )}
+                        >
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span
+                              className="text-[0.72rem] font-mono font-bold px-2 py-0.5 rounded-full border"
+                              style={{
+                                borderColor: `${petal.color}50`,
+                                backgroundColor: `${petal.color}15`,
+                                color: petal.color,
+                              }}
+                            >
+                              0{idx + 1}
+                            </span>
+                            <h3 className="font-serif text-[1.28rem] sm:text-[1.35rem] text-ink font-normal">
+                              {step.title}
+                            </h3>
+                          </div>
+                          <p className="text-[.92rem] sm:text-[.95rem] leading-relaxed text-ink-soft">
+                            {step.body}
+                          </p>
+                          <p className="mt-2.5 text-[.85rem] sm:text-[.88rem] font-semibold text-honey-deep">
+                            {step.aside}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Desktop Interactive Workspace */}
+              <div className="hidden lg:block w-full max-w-[680px]">
+                <Reveal variant="scale">
+                  <InteractiveWorkspace
+                    stepIndex={active}
+                    showPostOverlay={showPostOverlay}
+                    onStepChange={handleStepSelect}
+                  />
+                </Reveal>
+              </div>
+            </div>
+
+            {/* Mobile Workspace: Appears neatly below the fixed card on mobile */}
+            <div className="mt-6 lg:hidden w-full max-w-[680px] mx-auto">
+              <InteractiveWorkspace
+                stepIndex={active}
+                showPostOverlay={showPostOverlay}
+                onStepChange={handleStepSelect}
+              />
             </div>
           </div>
         </div>
       </div>
     </section>
-  );
-}
-
-function Stage({ step }: { step: number }) {
-  return (
-    <div className="mock-frame relative overflow-hidden rounded-panel border border-line bg-[linear-gradient(160deg,#fbf8f2,#f3ecdd)] p-5 shadow-lift sm:p-7">
-      <div className="mb-4 flex justify-end">
-        <div className={cx("max-w-[26rem] rounded-card rounded-tr-[4px] bg-ink px-4 py-3 text-[.9rem] leading-snug text-paper shadow-soft transition-[opacity,transform] duration-500", step >= 0 ? "opacity-100" : "opacity-0 translate-y-2")}>
-          A landing page for the album launch, with a mailing list signup.
-        </div>
-      </div>
-      <div className="relative aspect-[16/10] w-full">
-        <div className={cx("absolute inset-0 overflow-hidden rounded-card border bg-card shadow-lift transition-[opacity,transform,border-color] duration-700", step >= 1 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3", step >= 2 ? "live-glow" : "border-line")}>
-          <MockFor id="websites" />
-        </div>
-        <div className={cx("absolute inset-0 rounded-card border border-dashed border-honey-line bg-honey-tint/30 transition-opacity duration-500", step === 0 ? "opacity-100" : "opacity-0")}>
-          <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[.9rem] font-semibold text-honey-deep">Waiting for your ask…</span>
-        </div>
-      </div>
-      <div className={cx("mt-4 inline-flex items-center gap-2 rounded-control border bg-card px-3 py-1.5 text-[.85rem] font-semibold shadow-soft transition-colors duration-500", step >= 2 ? "border-green-line text-ink" : "border-line-soft text-ink-soft")}>
-        <span className={cx("size-1.5 rounded-full", step >= 2 ? "live-ring bg-green" : step === 1 ? "dot-making" : "bg-line")} />
-        <span className="font-mono tracking-tight">allr.app/album-launch</span>
-        {step >= 2 ? <span className="rounded-chip bg-green-tint px-2 py-0.5 text-[.7rem] font-bold tracking-[0.03em] text-green-deep uppercase">v1 · Live</span> : null}
-      </div>
-    </div>
   );
 }

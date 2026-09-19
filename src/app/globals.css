@@ -36,6 +36,12 @@
   --color-sage-line: #dce8dd;
   --color-clay-tint: #f6ede2;
 
+  /* A state, not a hue (DESIGN.md §5): the only thing `alert` may ever say is
+     that something the person typed needs fixing. It never decorates. */
+  --color-alert: #a6543c;
+  --color-alert-tint: #f9e9e4;
+  --color-alert-line: #efcfc4;
+
   /* ---------- fonts ---------- */
   --font-sans: var(--font-nunito), system-ui, sans-serif;
   --font-serif: var(--font-young-serif), serif;
@@ -114,9 +120,15 @@
 }
 
 @utility wrap {
-  max-width: 1080px;
+  width: 80%;
+  max-width: 80%;
   margin-inline: auto;
   padding-inline: 24px;
+
+  @media (max-width: 720px) {
+    width: 100%;
+    max-width: 100%;
+  }
 }
 
 @layer base {
@@ -184,6 +196,41 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   }
 
+  /* Invalid is drawn on the border, never by turning the text red: the message
+     under the field is what says what is wrong. */
+  .allr-field--invalid,
+  .allr-field[aria-invalid="true"] {
+    border-color: var(--color-alert);
+  }
+  .allr-field--invalid:focus,
+  .allr-field[aria-invalid="true"]:focus {
+    outline-color: var(--color-alert);
+    border-color: var(--color-alert);
+  }
+  .allr-field:disabled {
+    background: var(--color-line-soft);
+    color: var(--color-ink-soft);
+    cursor: not-allowed;
+  }
+
+  /* A <select> is an .allr-field with the platform arrow replaced by our own,
+     drawn in ink so it belongs to the palette. `appearance: none` also stops
+     Safari from ignoring the padding and the radius. */
+  select.allr-field {
+    appearance: none;
+    padding-right: 2.4em;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5l5-5' fill='none' stroke='%235c7168' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1em center;
+    background-size: 12px 8px;
+  }
+
+  /* The signed-in shell is denser than a marketing page (DESIGN.md §13). */
+  .allr-field--dense {
+    font-size: 0.94rem;
+    padding: 0.58em 0.85em;
+  }
+
   .sr-only {
     position: absolute;
     width: 1px;
@@ -241,12 +288,19 @@
   }
 
   @media (prefers-reduced-motion: no-preference) {
+    /* Hidden only until GSAP arms (`data-reveal="armed"`). If JS never arms
+       (stuck "hidden"), content must stay readable — blank sections are worse
+       than missing motion. Armed state is opacity 0 via inline GSAP styles. */
     .js [data-reveal="hidden"] {
-      opacity: 0;
+      opacity: 1;
+    }
+
+    .js [data-reveal="armed"] {
+      /* GSAP owns opacity/transform via inline styles while armed. */
     }
 
     .js [data-reveal="hidden"][data-reveal-variant="up"] {
-      transform: translate3d(0, 18px, 0);
+      transform: none;
     }
 
     .js [data-reveal="hidden"][data-reveal-variant="fade"] {
@@ -254,21 +308,21 @@
     }
 
     .js [data-reveal="hidden"][data-reveal-variant="scale"] {
-      transform: scale(0.97);
+      transform: none;
     }
 
     .js [data-reveal="hidden"][data-reveal-variant="left"] {
-      transform: translate3d(-14px, 0, 0);
+      transform: none;
     }
 
     .js [data-reveal="hidden"][data-reveal-variant="right"] {
-      transform: translate3d(14px, 0, 0);
+      transform: none;
     }
 
     /* Headlines: come into focus, not just into view */
     .js [data-reveal="hidden"][data-reveal-variant="blur"] {
-      filter: blur(10px);
-      transform: translate3d(0, 10px, 0) scale(0.985);
+      filter: none;
+      transform: none;
     }
 
     /* The promise: a wipe from the left, like ink being laid down */
@@ -277,7 +331,7 @@
       mask-image: linear-gradient(90deg, #000 0%, #000 var(--wipe, 100%), transparent calc(var(--wipe, 100%) + 18%));
     }
     .js [data-reveal="hidden"][data-reveal-variant="wipe"] {
-      --wipe: -18%;
+      --wipe: 100%;
       opacity: 1;
       transform: none;
     }
@@ -308,10 +362,12 @@
   /* ---------- hero entrance ---------- */
   @media (prefers-reduced-motion: no-preference) {
     /* GSAP (motion/HeroEnter.tsx) does the movement; CSS only supplies the
-       frame before it, so nothing flashes in and back out on load. */
-    .hero-enter,
-    .hero-enter-console {
+       frame before it, so nothing flashes in and back out on load.
+       Failsafe animation forces visibility if GSAP never runs (blank-page bug). */
+    .js .hero-enter,
+    .js .hero-enter-console {
       opacity: 0;
+      animation: hero-enter-failsafe 0.01s linear 1.6s forwards;
     }
 
     .hero-swash::before {
@@ -321,20 +377,29 @@
 
   }
 
+  @keyframes hero-enter-failsafe {
+    to {
+      opacity: 1;
+    }
+  }
+
   /*
-   * The frosted bar used to end in three coincident full-width edges: an
-   * opaque slab, a backdrop-filter boundary (those have a hard box edge, so
-   * the background was blurred above the line and sharp below it) and a
-   * border. Against a fixed background that reads as a seam. The mask fades
-   * all three out together over the last 14px, so there is no line at all.
+   * Frosted sticky bar. Keep it nearly opaque so scrolled section copy cannot
+   * bleed through the nav links (the old bottom mask fade was reading as
+   * overlapping text on Platform / Download).
    */
   .header-bar--on {
-    background: color-mix(in srgb, var(--color-paper) 62%, transparent);
-    box-shadow: 0 10px 30px rgba(34, 59, 51, 0.05);
-    backdrop-filter: blur(22px) saturate(1.4);
-    -webkit-backdrop-filter: blur(22px) saturate(1.4);
-    -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 14px), transparent 100%);
-    mask-image: linear-gradient(to bottom, #000 0%, #000 calc(100% - 14px), transparent 100%);
+    background: var(--color-paper);
+    box-shadow: 0 1px 0 var(--color-line-soft), 0 10px 30px rgba(34, 59, 51, 0.05);
+  }
+
+  /* Anchor jumps clear the sticky header. */
+  html {
+    scroll-padding-top: 88px;
+  }
+
+  main section[id] {
+    scroll-margin-top: 88px;
   }
 
   /* ---------- nav link underline ---------- */
@@ -590,6 +655,10 @@
   .mark--focus[style*="--focus: 4"] .mark__petal:not([data-petal="4"]),
   .mark--focus[style*="--focus: 5"] .mark__petal:not([data-petal="5"]) {
     opacity: 0.22;
+  }
+  .mark--interactive .mark__petal {
+    cursor: pointer;
+    pointer-events: auto;
   }
 
   /* ---------- hosting scene (HostingScene.tsx) ---------- */

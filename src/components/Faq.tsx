@@ -1,38 +1,38 @@
 import { Reveal } from "@/components/Reveal";
 import { SectionHead } from "@/components/ui/SectionHead";
+import { FAQ } from "@/lib/brand";
 
-const ITEMS = [
-  {
-    q: "What do I get in early access?",
-    a: "A workspace that makes finished decks, docs, spreadsheets, videos, sites, apps, and games — then gives them a link. You describe the work. Allr ships it.",
-  },
-  {
-    q: "Do I need five other subscriptions?",
-    a: "No. That’s the point. One plan instead of a slides tool, a doc tool, a video tool, a site builder, and an app builder.",
-  },
-  {
-    q: "When can I use it?",
-    a: "Leave your email. We’ll write when a spot opens. No credit card to join the list.",
-  },
-  {
-    q: "Is this another chatbot?",
-    a: "No. The point was never the file sitting in Downloads. The point is people seeing the work — live.",
-  },
-];
-
+/**
+ * FAQ — last objections before the close (LANDING_PAGE_STORY §7.9).
+ * All five questions from brand. Quiet WordPress analogy at the end only.
+ */
 export function Faq() {
   return (
     <section id="faq" className="relative pt-5 pb-22">
-      <div className="wrap">
-        <SectionHead eyebrow="Questions" tone="honey" title="Straight answers." />
-        <div className="mx-auto max-w-[720px] divide-y divide-line-soft rounded-card bg-card shadow-soft">
-          {ITEMS.map((item, i) => (
-            <Reveal key={item.q} delay={i * 50} className="px-6 py-5 sm:px-7">
-              <h3 className="mb-2 text-[1.15rem]">{item.q}</h3>
-              <p className="text-[.98rem] text-ink-soft">{item.a}</p>
-            </Reveal>
-          ))}
-        </div>
+      <div className="wrap relative">
+        <SectionHead title="Straight answers." />
+
+        <Reveal className="mx-auto max-w-[720px]" delay={60}>
+          <ul className="divide-y divide-line-soft border-y border-line-soft">
+            {FAQ.map((item) => (
+              <li key={item.q} className="stagger-child py-5">
+                <h3 className="mb-2 text-[1.08rem] tracking-[-0.01em]">
+                  {item.q}
+                </h3>
+                <p className="text-[.98rem] leading-relaxed text-ink-soft">
+                  {item.a}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Reveal>
+
+        <Reveal className="mx-auto mt-10 max-w-[520px] text-center" delay={120}>
+          <p className="text-[.92rem] font-bold leading-snug text-honey-deep">
+            WordPress standardized publishing infrastructure. Allr aims to
+            standardize the operating layer under AI-enabled products.
+          </p>
+        </Reveal>
       </div>
     </section>
   );

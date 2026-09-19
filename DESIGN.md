@@ -10,38 +10,40 @@ The HTML prototype in `references/index.html` is historical. The Next app is can
 
 ## 1. Product, in one breath
 
-Allr is one AI workspace that takes an idea in plain language and returns **finished work**, then **publishes it**.
+Allr is the **product-and-operations platform for the AI era**: a persistent **Cloud AI Workspace** on **web, desktop, and mobile** where people ideate, create, deploy, operate, maintain, and scale AI-enabled products.
 
-Not a chatbot. Not a coding copilot. Not six tools with a shared login.
+Not a chatbot. Not a coding copilot. Not another pile of partial outputs.
 
-You describe the thing. Allr makes the thing. You share a link.
+You bring the brief. Allr holds the operating layer — so the product stays real after the generation step.
 
 The name is the thesis: **allr, as in all.**
+
+Quiet analogy (never the hero lead): WordPress standardized publishing infrastructure; Allr aims to standardize the repeated product-and-operations infrastructure under AI-enabled products.
 
 ---
 
 ## 2. Who we speak to
 
-People with something to ship, who are tired of paying a stack of AI subscriptions and still not shipping.
+People and teams moving AI products from prototype to something that can run, reach customers, and be maintained.
 
 | Audience | What they need from us |
 |---|---|
-| Creators | Site, promo, press kit, in front of an audience |
+| AI product builders | Dependable deploy, operate, and maintain — not only a prototype |
+| Product teams | Shared workspace for experiments and continuous operation |
+| Agencies & client teams | Repeatable delivery and ongoing maintenance per client |
+| Business operators | Intelligence and workflows that keep running after the first build |
 
-On the homepage the audiences are not cards. The hero workspace shows one thing being made per tab (`SHOWCASE` in `brand.ts`) — a visitor picks the kind of work that is theirs and watches it get made and go live.
-| Founders & solopreneurs | Deck, model, landing page, demo — one plan |
-| Students & educators | Presentations and papers, not formatting battles |
-| Small teams | One place, one share link |
+On the homepage, audiences are not proof cards. The hero shows one **Cloud AI Workspace** beat (`WORKSPACE_DEMO` in `brand.ts`) — ideate → build → live/operating. Named testimonials stay off the public site until we choose otherwise.
 
-We do **not** lead with developers, self-hosters, or “autonomous agents.” That product is real (CLI, gateway, skills, Helix). It is how Allr works, not why a visitor cares. Power-user language belongs in docs, not on the door.
+We do **not** lead with self-hosters, foundation-model claims, or investor narrative (raise, ARR, market size). Power-user language belongs in docs, not on the door.
 
 ---
 
-## 2b. The Bloom — the mark turns to the work
+## 2b. The Bloom — mark colour only
 
-The mark has six petals. On the homepage each petal carries one *example* of finished work and lends it a colour. This is a way of showing, not a catalogue: never write "six things", never imply the list is complete or that everything on it ships at launch. The mark turns to whatever is being made; the six below are the ones we show today.
+The mark still has six petals and six accent colours. Those colours remain the page’s accent system. They are **not** a catalogue of shipped finished-work types on the homepage.
 
-| Petal | Colour | Thing |
+| Petal | Colour | Historic label (colour only) |
 |---|---|---|
 | 0 | `#74926b` sage | Sites |
 | 1 | `#f7c14c` honey | Decks |
@@ -50,13 +52,13 @@ The mark has six petals. On the homepage each petal carries one *example* of fin
 | 4 | `#34905e` deep green | Video |
 | 5 | `#9bb289` light sage | Apps |
 
-Rules: a petal shape (`PetalShape`) is the only decorative form we own — use it for bullets, numerals, backdrops and progress. Never add a seventh colour. When a surface is "about" one thing, it takes that petal's colour and the mark lights that petal (`AllrMark highlight`). Do not number petals in copy ("petal 3 of 6"). Registry: `src/lib/petals.ts`.
+Rules: a petal shape (`PetalShape`) is the only decorative form we own — use it for bullets, numerals, backdrops and progress. Never add a seventh colour. **Desktop** status chips read **green**; **mobile** status chips read **orange** (honey/amber tokens — not a new hue). Do not number petals in copy. Registry: `src/lib/petals.ts`. `BloomJourney` is unimported on the homepage until product truth catches up.
 
 ## 3. Voice
 
-**Mentor, not vendor.** Warm, not cute. Finished, not generating.
+**Mentor, not vendor.** Warm, not cute. Operating, not generating.
 
-Speak as if you are sitting next to someone at a kitchen table at the end of the day — paper, lamplight, a thing finally done. Short sentences. Concrete nouns (deck, link, formula). Second person: *you*.
+Speak as if you are sitting next to someone at a kitchen table at the end of the day — paper, lamplight, a product finally running. Short sentences. Concrete nouns (workspace, link, deploy, maintain). Second person: *you*.
 
 The only first-person line we own is the promise:
 
@@ -66,11 +68,12 @@ The only first-person line we own is the promise:
 
 | Do | Don’t |
 |---|---|
-| “Your site is up.” | “We’ve leveraged our agentic pipeline to orchestrate a deploy.” |
-| “Ready to present.” | “AI-powered presentation generation.” |
-| “One subscription.” | “A unified ecosystem of capabilities.” |
-| “Describe it.” | “Prompt the model.” |
+| “Your product is live.” | “We’ve leveraged our agentic pipeline to orchestrate a deploy.” |
+| “It’s operating.” | “AI-powered presentation generation.” |
+| “Cloud AI Workspace.” | “A unified ecosystem of capabilities.” |
+| “Ideate.” | “Prompt the model.” |
 | “Live.” | “Output artifact.” |
+| “More outcome per dollar.” | Investor ARR / raise copy on the door. |
 
 Prefer the words in `SAY` (`src/lib/brand.ts`). Never use the words in `NEVER_SAY`. If a sentence would also fit a YC launch post, rewrite it.
 
@@ -84,9 +87,9 @@ Prefer the words in `SAY` (`src/lib/brand.ts`). Never use the words in `NEVER_SA
 | Never `ALLR` | — |
 | Never `AllR` | — |
 
-### Calls to action (2026-08-25)
+### Calls to action (2026-09-17)
 
-The hero shows two: **Download** (dark pill, macOS · Windows · Linux glyphs) → `/download`, and **Get early access** (light pill, phone glyph) → the waitlist. Desktop gets the app; phones get on the list. `/download` links only real assets from the current GitHub release (`src/lib/releases.ts`) — no other links.
+The hero and header show **Get Started** → `/login/` (account signup). Download stays on `/download`, Access (last), and `/app` — not the hero. Early access waitlist is off the public marketing door for this pass. `/download` links only real assets from the current release (`src/lib/releases.ts`) — no other links.
 
 ---
 
@@ -96,19 +99,19 @@ Do not paraphrase these on a page. Import from `src/lib/brand.ts` or copy exactl
 
 | Role | Line |
 |---|---|
-| Tagline | the one subscription that replaces all of them |
-| Eyebrow | One workspace. Finished work. |
-| Hero headline | the one subscription that replaces all of them. (the mark + `allr` wordmark sit above it as the name) |
-| Subhead | One AI workspace that makes finished work — decks, docs, videos, websites, apps, and games. |
-| Loop | Describe it. / Allr makes it. / Ship it. |
+| Tagline | the product-and-operations platform for the AI era |
+| Eyebrow | Cloud AI Workspace |
+| Hero headline | the product-and-operations platform for the AI era. |
+| Subhead | A persistent workspace where you ideate, create, deploy, operate, and maintain AI-enabled products — on the web, on desktop, and on mobile. |
+| Loop | Ideate. / Create. / Deploy. / Operate. / Maintain. / Scale. |
 | Promise | You bring the idea. We’ll take care of everything between you and ‘it’s live.’ |
-| Closing | Stop stitching. Start shipping. |
+| Closing | Stop rebuilding the plumbing. Start operating. |
 | Etymology | allr — as in all. |
 | Reassurance | No credit card required. Your first project is on us. |
 
-**Six outputs, in this order:** Decks · Docs · Spreadsheets · Videos & animations · Websites · Apps & games.
+**Platform progress** (`PLATFORM_PROGRESS` in `brand.ts`): honest Available / In progress / Upcoming — Cloud AI Workspace, desktop (green), mobile (orange), memory, then upcoming research / product management / intelligence network / product development framework / billing rail. Do not imply creative outputs are already shipping as a catalogue.
 
-Websites and apps are *live*. The rest are *ready*. That distinction is the product: files you can present, and things that have a URL.
+**Roadmap** (`ROADMAP`): dedicated `/roadmap` page for upcoming detail. No investor milestones on the public site.
 
 ---
 
@@ -118,7 +121,7 @@ Color is semantic, not decorative. Green means done. Honey means warmth and in-p
 
 | Token | Hex | Meaning | Use |
 |---|---|---|---|
-| `paper` | `#FBF8F2` | Evening paper | Page wash, sticky header |
+| `paper` | `#FDFCF9` | Evening paper | Page wash, sticky header |
 | `card` | `#FFFFFF` | A sheet on the desk | Surfaces, buttons (ghost) |
 | `ink` | `#223B33` | Deep pine — steady | Headlines, body emphasis |
 | `ink-soft` | `#5C7168` | Quiet pine | Body, captions, nav |
@@ -135,8 +138,16 @@ Color is semantic, not decorative. Green means done. Honey means warmth and in-p
 | `sage-tint` | `#ECF2EC` | Quiet green | Card stickers, handled chips |
 | `sage-line` | `#DCE8DD` | Quiet green edge | Handled chips |
 | `clay-tint` | `#F6EDE2` | Warm clay | Card stickers |
+| `alert` | `#A6543C` | Something needs fixing | Form error text, invalid field border |
+| `alert-tint` | `#F9E9E4` | Error wash | The struck-through `NEVER_SAY` chips on `/design` |
+| `alert-line` | `#EFCFC4` | Error edge | Those chips' border |
 
 Ambient orbs are honey + green on paper. Never introduce a fourth hue (blue, purple, neon) on a welcome surface.
+
+`alert` is the one exception, and it is a correction rather than an expansion: the same red was already
+hardcoded twice — in `WaitlistForm.tsx` and on `/design` — before it had a name. It is a *state*, not a
+brand hue: it may only say that something the person typed needs fixing. It never decorates, never fills a
+surface, never appears on a page with no form on it, and never becomes a fourth accent.
 
 **Forbidden:** generic Tailwind gray (`zinc`, `slate`, `neutral`) as text or background. Forbidden: black `#000` as ink. Forbidden: using green for anything that is not success / live / primary CTA.
 
@@ -188,7 +199,7 @@ We used to be pill-round (`999px`, `24px` cards) in the HTML prototype. Producti
 
 Surfaces lift `3px` on hover (`surface-lift`). Buttons lift `2px`. Never a hard drop-shadow or glow halo except the live-console green ring.
 
-**Wrap:** `max-width: 1080px`, inline padding `24px`. Prose measure: `640px`. Section vertical rhythm: `pt-5 / pb-22`. **Sections carry no background of their own** — not a wash, not a tint, not a colour band. The shader is the only background on the page; a section that paints its own scrolls against a fixed backdrop and shows as a seam. Closing CTAs are copy on paper with a green button, not a filled panel. Separate blocks with space, not rules — a hairline across a continuous background reads as a scar.
+**Wrap:** `width: 80%` on desktop (`max-width: 80%`), full width under 720px, inline padding `24px`. Prose measure: `640px`. Section vertical rhythm: `pt-5 / pb-22`. **Sections carry no background of their own** — not a wash, not a tint, not a colour band. The shader is the only background on the page; a section that paints its own scrolls against a fixed backdrop and shows as a seam. Closing CTAs are copy on paper with a green button, not a filled panel. Separate blocks with space, not rules — a hairline across a continuous background reads as a scar. Marketing sections do **not** use eyebrow/Pill labels.
 
 Focus: `3px solid honey`, offset `3px`. Selection: honey-tint on ink.
 
@@ -243,20 +254,18 @@ New UI belongs in `src/components/ui/` and must use existing tokens. If a new co
 
 ## 11. Page rhythm (a marketing page)
 
-A welcome page reads like a short essay with objects on the desk, not a SaaS feature grid.
+A welcome page reads like a short essay with objects on the desk, not a SaaS feature grid. Each section retires one doubt; order is the argument (see `LANDING_PAGE_STORY.md` §5).
 
-1. **Hero** — name, tagline, one sentence, two CTAs, launch console
-2. **Problem** — the subscription tax
-3. **Solution** — one workspace; technical stuff already handled
-4. **What it makes** — the six outputs
-5. **How** — three steps
-6. **Publishing** — the thing other tools drop at the download button
-7. **Promise** — one line, centered, serif
-8. **Who** — four audiences
-9. **Pricing** — the arithmetic, not a toggle
-10. **Final CTA** — green band, one action
+1. **Hero** — category + outcome + Get Started; one workspace beat (`WORKSPACE_DEMO`)
+2. **Gap** — generated output is not a product (paradox, tax, token trap)
+3. **Provide** (`#provide`) — interactive mark: six petal beats (three harnesses + three audience reflections); Outcomes chapter absorbed here
+4. **Loop** (`#loop`) — Ideate → Create → Deploy → Operate → Maintain → Scale
+5. **Contrast** — why not chat / builders / raw cloud (`CONTRAST`)
+6. **Platform progress** (`#progress`) — honest Available / In progress / Upcoming
+7. **Access** (`#access`) — web · desktop · mobile in one chapter; phone vignette subordinated (not a peer section)
+8. **Resolve** — quiet promise (one line) · FAQ · Final CTA. Promise is demoted into Resolve — not a competing mid-page band.
 
-Campaign pages may cut sections. They may not reorder the six outputs, swap the promise, or skip the paper atmosphere.
+**Roadmap** lives at `/roadmap`. Named proof / testimonials stay **hidden**. No public early-access waitlist on the marketing door. Homepage copy imports from `brand.ts` only — do not lead with `VALUE_BEATS` or `OUTCOMES`.
 
 ---
 
@@ -278,7 +287,8 @@ Campaign pages may cut sections. They may not reorder the six outputs, swap the 
 | `allr.github.io` landing | Full. Source of truth |
 | Campaign / waitlist / OG | Full |
 | `allr-agent/website` docs | **One Allr.** Same faces, hues, and paper wash as the landing — migrate off the dark-navy theme. Layout may be denser; code may use JetBrains Mono. Never GitHub gray |
-| Allr.OS Dex / dashboard login | Same hues and wordmark. Controls may be denser |
+| `/login` | Full. It is still a welcome surface: the shader, the wordmark, the paper wash |
+| `/account` (the signed-in shell) | Same hues, wordmark, faces and type scale. **No shader** — flat paper. Sidebar chrome instead of the marketing page rhythm; controls are denser and forms carry visible labels. What it shows is decided by the early-access state, not by the route |
 | Helix admin | Product chrome; do not force letterpress. Steal tokens, not the landing layout |
 | TUI / desktop app | Out of scope for this vocabulary |
 
@@ -309,6 +319,13 @@ Campaign pages may cut sections. They may not reorder the six outputs, swap the 
 | `src/components/ui/` | Primitives |
 | `src/components/app/` | The `/app` page sections. Its hero shows real captures (`public/*_screenshot.png`); the drawn screens in `mocks.tsx` are the kept fallback |
 | `src/lib/releases.ts` | The latest desktop release — the only source of download links |
+| `src/lib/legal.ts` | Terms/Privacy versions and the contact address. The stored consent and the rendered page read the same constants |
+| `src/lib/age.ts` | The 18+ gate. Imports nothing, so it can be tested on its own — `tests/age.test.mjs` |
+| `src/lib/firebase/env.ts` | Firebase config with **no** Firebase import, so `waitlist.ts` can read it without dragging the SDK onto the homepage |
+| `src/lib/firebase/` | The SDK, Google sign-in, and the `users/{uid}` profile. Only `/login` and `/account` may import from here |
+| `src/components/account/` | The signed-in shell, its gate, and registration |
+| `firebase/firestore.rules` | The whole security boundary — there is no server. Tested by `firebase/*.test.mjs` |
+| `scripts/check-bundle-isolation.mjs` | Proves the marketing pages still ship without the Firebase SDK |
 | `public/docs/` | The built docs, copied in from `allr-agent/website` by `scripts/sync-docs.mjs`. Generated — never hand-edit a page here |
 | `vercel.json` | Host routing on allr.work: `/release` sends people to GitHub Releases |
 | `MOTION.md` | Homepage motion & stills contract |
@@ -325,18 +342,23 @@ Answered while this vocabulary was written. Do not reopen on a later page.
 | Decision | Call | Implication |
 |---|---|---|
 | Docs atmosphere | **One Allr: paper** | `allr-agent/website` defaults to the landing paper wash. Same faces and hues. Dark is opt-in pine, never navy. Denser layout is fine |
-| Primary CTA | **Waitlist / early access form** | Keep the line “Get early access.” When “Coming soon” is retired, primary goes to a waitlist form — not install, not docs. Install stays a secondary path |
+| Primary CTA | **Get Started → `/login/`** | Public door is account signup. Early access waitlist is off the marketing hero/header/footer for this pass. Install stays on `/download` / Access / `/app` |
 | `/design` visibility | **URL only** | Noindex. No footer link. Team and agents open `/design` directly |
 | The app page | **`/app`, in the nav** | Ported from the primary-website `/client` page and rewritten into this voice. Copy lives in `APP` in `src/lib/brand.ts`. `/download` stays as its own page; both read the same release data |
-| Where a download button goes | **`/download`, always** | Only `/download` links at a release asset. Every download button elsewhere — the homepage hero, both on `/app` — navigates there first, so the formats, sizes and requirements are read before anything is fetched |
-| Download links | **Live from GitHub Releases** | `src/lib/releases.ts` is the only source. Fetched at build time so the static export works with no JS, re-fetched on mount so a new release reaches visitors before the next site build. Targets the `Allr_*` full bundles. Never hand-write a version or an asset URL |
+| Where a download button goes | **`/download`, always** | Only `/download` links at a release asset. Download buttons on `/app` and Access navigate there first. The homepage hero uses Get Started → `/login/`, not Download |
+| Download links | **`app_configuration` in Firestore, GitHub Releases as the fallback** | Versions and per-platform links live in `app_configuration`, so a bad release can be rolled back by pointing `currentVersion` at an older version document — something the GitHub Releases API cannot do, because it only ever knows what is latest. `src/lib/releases.ts` stays as the fallback: with the collection empty or unreachable, `/download` and `/app` keep working from GitHub rather than showing an empty page. This replaces the earlier call that GitHub Releases was the only source |
 | Client and workspace price separately | **The app is free, the workspace is the plan** | Downloading Allr — desktop or mobile — is free and stays free; the download button says "beta · free forever". The agent workspace it connects to is a separate product with its own pricing, which is what `PRICING` in `src/lib/brand.ts` describes. A line about one is never a line about the other: do not let pricing copy imply the app costs money, or a download page imply the workspace is free |
 | Two lists, never one | **Early access and the mobile beta are separate** | `waitlist` holds the general early-access list (`/#early-access`); `beta_signups` holds the mobile closed beta (`/app#get`) and carries a `platform` field. Separate so someone already on the early-access list can still join the beta — both use the email hash as the document id, so one shared collection would refuse the second signup. The lists are declared once in `src/lib/waitlist.ts`; a page never names a collection |
 | Which mobile platform | **The device answers, the person can override** | The beta chips start on the neutral "Either" — which is also what the server renders — and `detectMobilePlatform()` in `src/lib/waitlist.ts` moves them to Android or iOS on mount. Never default to the first chip: that filed every iPhone under Android. **iOS covers iPad and Android covers Android tablets** — a tablet runs the same build as the phone, so the beta does not track them apart and there is no tablet field |
 | Where a signup goes | **The ask decides the list** | Anything phone- or tablet-shaped routes to `/app#get` — the `/download` "On your phone" card and the homepage "On your phone" section included. Everything else routes to `/#early-access`. The one exception is the homepage hero's phone-glyph pill, which is the general list by design (§3) |
-| Waitlist backend | **Firestore, create-only, straight from the browser** | The site is a static export, so there is no server to post to. `src/lib/waitlist.ts` is the only transport; the rules in `firebase/firestore.rules` are the whole security boundary and are deployed by CI, not pasted into a console. A production build with no backend configured fails rather than shipping a form that pretends to have saved an address |
+| Where writes go | **Firestore, through a privileged API for accounts and straight from the browser for the waitlist** | The site is served from Vercel and has a real server, so `output: "export"` is gone and `src/app/api/**` route handlers run for real. Account writes go through them with the Firebase Admin SDK, which is what lets the server enforce one account per email address and keep the workspace and trial fields out of the user's reach. The waitlist keeps its create-only browser write: it needs no identity and the rules already hold it. `firebase/firestore.rules` remains the boundary for everything the browser touches — it is no longer the *only* boundary. This replaces the earlier call that there was no server to post to |
 | Where the docs live | **Written in `allr-agent`, shipped from `public/docs`** | The Docusaurus source stays in the product repo (`website/`, `baseUrl: '/docs/'`); its finished build is copied into `public/docs` by `pnpm sync-docs` and committed, so allr.work serves the docs from this one deployment with no proxy or second host. The cost is that the snapshot is only as fresh as the last sync: after a docs change, re-run the sync and commit. Never edit a page under `public/docs` — the edit belongs upstream and the next sync would overwrite it. `/llms.txt` and `/llms-full.txt` are copied to the site root the same way |
 | `/release` | **A redirect, not a page** | `allr.work/release` sends visitors to the GitHub Releases page for `allr-ajmx/allr-agent`; `/release/latest` to the latest one. A temporary redirect, so the destination can move. Marketing download buttons still go to `/download` — this is the raw-artifact door for links shared in issues and chat |
+| Sign-in | **Google only, and the server creates the account** | One provider, no password, no magic link, no second button — one identity per person, and an email address Google has verified. There is no self-serve path to an account: the browser cannot write `users/{uid}` at all, the rules refuse it, and `POST /api/account/register` is the only thing that creates a profile. It re-checks every field, rejects a token whose `sign_in_provider` is not `google.com`, and claims the email address in the same transaction so a second account for one person cannot exist. `signInWithPopup`, never `signInWithRedirect` — the redirect flow needs third-party storage on the `authDomain`, which browsers now partition |
+| The signed-in shell | **`/account`, sidebar, no shader** | `/login` keeps `AmbientShader`, because it is still a welcome surface. `/account` does not: the shader is one fixed full-viewport WebGL canvas and behind a dense, card-heavy dashboard it fights the content and holds a GPU context on every navigation. `/account` is flat `bg-paper` with a left rail. Everything else is inherited — same hues, same wordmark, same two faces, `Reveal` and nothing louder. Neither route is indexed and neither is in the sitemap, the same treatment `/design` gets; the only public door is a plain "Sign in" text link in the header, which never displaces the green "Get early access" button |
+| Age and legal data | **18+, asked at registration** | Allr is strictly an above-contract-age product. Date of birth is asked in the first-time registration form, not at checkout, and an under-18 answer is refused twice: by the form and again by the Firestore rules, so a forged client gets nowhere. The date is stored, because the stored date is the evidence the age assertion rests on. Registration otherwise collects only the legal minimum needed to sell to someone later — legal name and country of residence. Accounts are **individual only**; there is no business signup. Residents of the **EU and the UK are not offered accounts**: those countries are left out of `src/lib/countries.ts`, which the server validates against, so the Privacy Policy's statement that Allr is not directed at them stays true. **Postal address and tax ID are deliberately deferred to checkout** and are never asked at signup. Terms and Privacy are two separate ticks and the marketing opt-in is a third, unticked one: bundling consent is exactly what makes it invalid |
+| An account and early access are two things | **Sign up, then ask** | An Allr account is for anybody who wants one: it holds who you are, and making one puts you in no queue. Early access is a separate act with its own button on the first page after signup, because a queue you did not know you joined cannot be described to you honestly. Which phone you test on is asked *there*, not at signup — it only means something once you are asking, since early access enrols people in mobile testing. Asking twice keeps the original timestamp, so a double-click never moves somebody to the back of a queue ordered by when they asked. The three workspace fields — `workspace_username`, `workspace_email`, `workspace_address` — are the approval; all three set and nothing else. Approval starts a one-week promotional trial carrying $5 of AI credit, and when it ends the workspace asks to be paid for. Every state is *derived* from the document on read, never stored, so it cannot go stale |
+| An address belongs to a person, not a uid | **A stranded account comes back** | Profiles are keyed by Firebase uid and addresses are claimed separately, which left a trap: delete the Firebase account, sign in again with the same Google address, and the new uid has no profile — so you are shown the signup form — while the claim still names the old uid, so signing up is refused as a duplicate. Locked out of an account that plainly exists. So a claim naming a uid Auth no longer knows is stale, and the profile moves to whoever proves control of that verified address. A claim whose uid still exists is never touched: that is somebody else's account, and refusing is right |
 
 ## 17. Still open
 

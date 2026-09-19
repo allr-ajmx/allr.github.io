@@ -1,5 +1,24 @@
 packages:
   - "."
+# Which dependencies may run install scripts. The three added with the account
+# work all arrive under firebase / firebase-tools:
+#   @firebase/util — its script is a no-op for us.
+#   protobufjs     — pure-JS postinstall that google-gax needs at runtime.
+#   re2            — a native build (node-gyp). firebase-tools falls back to
+#                    plain RegExp without it, which is not worth a compiler in CI.
 allowBuilds:
+  '@firebase/util': false
+  protobufjs: true
+  re2: false
   sharp: true
   unrs-resolver: true
+# firebase-admin 14 asks for jwks-rsa 4, which does `require('jose')` against
+# jose 6 — and jose 6 is ESM-only. Node on a developer machine allows that;
+# Vercel's function runtime does not, so every account route died on import
+# with ERR_REQUIRE_ESM, before any handler (or its error handling) ran, and
+# only in a deployment. jwks-rsa 3 is the same client on jose 4, which still
+# ships a CommonJS build, and firebase-admin uses nothing newer than
+# `jwks({ jwksUri })`. Drop this once jwks-rsa stops requiring an ESM-only jose.
+# Reproduce: NODE_OPTIONS=--no-experimental-require-module pnpm start
+overrides:
+  jwks-rsa: ^3.2.2
