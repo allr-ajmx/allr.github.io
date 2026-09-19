@@ -36,6 +36,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# service-account keys for reproducing a deployment locally; never committed
+.secrets/
+
 # vercel
 .vercel
 
