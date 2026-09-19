@@ -49,33 +49,8 @@ export function toResponse(error: unknown): Response {
       error: {
         code: "internal",
         message: "Something went wrong at our end. Try again in a moment?",
-        cause: describeError(error),
       },
     },
     { status: 500 },
   );
-}
-
-/**
- * What actually went wrong, for the network tab.
- *
- * Temporary. Only `ApiError` messages are meant to reach the browser, for the
- * reason given above — but a 500 on a deployment whose runtime logs are
- * awkward to reach is otherwise indistinguishable from any other 500, and the
- * name and code of a Firebase error (`5 NOT_FOUND`, `7 PERMISSION_DENIED`)
- * say precisely which piece of the project is not set up. It never reaches the
- * page; nothing renders `cause`. Take it out once the deployment is settled.
- *
- * Shared with `/api/account/health`, which reports its probes the same way.
- */
-export function describeError(error: unknown) {
-  if (!(error instanceof Error)) {
-    return { name: typeof error, message: String(error).slice(0, 300) };
-  }
-  const code = (error as { code?: unknown }).code;
-  return {
-    name: error.name,
-    code: typeof code === "string" || typeof code === "number" ? code : undefined,
-    message: error.message.slice(0, 300),
-  };
 }
