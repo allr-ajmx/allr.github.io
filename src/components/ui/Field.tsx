@@ -9,7 +9,7 @@ import { cx } from "@/lib/cx";
  * The site's one form until now — `WaitlistForm` — asks for a single email and
  * gets away with an `sr-only` label and a placeholder. A registration form
  * cannot: a placeholder disappears the moment you type, and "what was this box
- * for again?" is exactly the question a legal-name or date-of-birth field must
+ * for again?" is exactly the question a legal-name or country field must
  * never provoke. So the label is visible, the hint sits under it, and the error
  * replaces nothing — it is added below, so the field never loses its name.
  *

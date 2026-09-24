@@ -39,8 +39,12 @@ export type UserProfile = {
   uid: string;
   email: string;
   name: string;
-  /** `YYYY-MM-DD`. */
-  dateOfBirth: string;
+  /**
+   * Self-declared at registration: the person ticked that they are 18+.
+   * True for every completed profile — including older ones that stored a
+   * date of birth instead, which already passed the age gate.
+   */
+  confirmedOver18: boolean;
   /** ISO 3166-1 alpha-2. */
   country: string;
   accountType: AccountType;
@@ -84,7 +88,7 @@ export type UserProfile = {
  */
 export type ProfileDraft = {
   name: string;
-  dateOfBirth: string;
+  confirmedOver18: boolean;
   country: string;
   accountType: AccountType;
   entityName: string;

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Nunito_Sans, Young_Serif } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import {
   getSiteUrl,
   SITE_DESCRIPTION,
@@ -143,7 +144,10 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }

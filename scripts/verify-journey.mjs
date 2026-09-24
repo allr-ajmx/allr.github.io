@@ -77,7 +77,7 @@ const api = async (path, init = {}) => {
 
 const draft = {
   name: "Journey Tester",
-  dateOfBirth: "1990-04-02",
+  confirmedOver18: true,
   country: "IN",
   accountType: "individual",
   entityName: "",

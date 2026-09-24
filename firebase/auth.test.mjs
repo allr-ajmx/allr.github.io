@@ -28,7 +28,6 @@ import {
   signOut,
 } from "firebase/auth";
 import {
-  Timestamp,
   connectFirestoreEmulator,
   doc,
   getDoc,
@@ -115,17 +114,11 @@ async function clearEmulators() {
   });
 }
 
-const yearsAgo = (years) => {
-  const d = new Date();
-  d.setUTCFullYear(d.getUTCFullYear() - years);
-  return Timestamp.fromDate(d);
-};
-
 const profileFor = (user, overrides = {}) => ({
   uid: user.uid,
   email: user.email.toLowerCase(),
   legalName: "Ada Lovelace",
-  dateOfBirth: yearsAgo(30),
+  confirmedOver18: true,
   country: "IN",
   accountType: "individual",
   entityName: "",

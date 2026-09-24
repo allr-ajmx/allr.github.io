@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { COUNTRIES, countryName } from "@/lib/countries";
-import { MINIMUM_AGE, latestEligibleBirthDate } from "@/lib/age";
 import { ApiCallFailed, patchProfile } from "@/lib/firebase/api";
 import {
   MOBILE_PLATFORMS,
@@ -21,9 +20,8 @@ import { ChoiceChipsMulti } from "@/components/ui/ChoiceChips";
  * Read and correct what we hold.
  *
  * Email is shown but not editable: it comes from Google and the Firestore rules
- * pin it to the auth token, so a field here would be a lie. Date of birth *is*
- * editable — a typo should not need a support desk — but only ever to another
- * date that still passes the age check, which the rules enforce as well.
+ * pin it to the auth token, so a field here would be a lie. Age is declared once
+ * at registration and is not editable afterwards.
  *
  * Accounts are individual only; there is no business signup to edit.
  */
@@ -38,7 +36,7 @@ export function ProfilePage() {
       profile
         ? {
             name: profile.name,
-            dateOfBirth: profile.dateOfBirth,
+            confirmedOver18: profile.confirmedOver18,
             country: profile.country,
             accountType: "individual",
             entityName: "",
@@ -142,25 +140,6 @@ export function ProfilePage() {
               className="allr-field allr-field--dense"
               value={current.name}
               onChange={(e) => set("name", e.currentTarget.value)}
-            />
-          )}
-        </Field>
-
-        <Field
-          label="Date of birth"
-          hint={`Correctable, but it has to stay ${MINIMUM_AGE} or over.`}
-          error={errors.dateOfBirth}
-          required
-        >
-          {(props) => (
-            <input
-              {...props}
-              type="date"
-              autoComplete="bday"
-              max={latestEligibleBirthDate()}
-              className="allr-field allr-field--dense"
-              value={current.dateOfBirth}
-              onChange={(e) => set("dateOfBirth", e.currentTarget.value)}
             />
           )}
         </Field>

@@ -25,7 +25,6 @@ export async function PATCH(request: Request) {
 
     const profile = await updateProfile(caller, {
       name: body.name,
-      dateOfBirth: body.dateOfBirth,
       country: body.country,
       accountType: body.accountType,
       entityName: body.entityName,

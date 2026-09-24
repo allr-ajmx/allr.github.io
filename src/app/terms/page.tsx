@@ -29,7 +29,7 @@ const SECTIONS: readonly LegalSection[] = [
   {
     heading: `Eligibility (${MINIMUM_AGE} years of age or older)`,
     body: [
-      `You must be at least ${MINIMUM_AGE} years of age to create an Allr account or use Allr. By registering, you represent and warrant that you meet this requirement. We ask for your date of birth at registration and will not complete registration if it shows that you are under ${MINIMUM_AGE}; the date is self-declared and is not verified against identity documents. If we determine that you are under ${MINIMUM_AGE}, we may suspend or terminate your account and delete associated data.`,
+      `You must be at least ${MINIMUM_AGE} years of age to create an Allr account or use Allr. By registering, you represent and warrant that you meet this requirement. We ask you to confirm this with a checkbox at registration and will not complete registration unless you do; the confirmation is self-declared and is not verified against identity documents. If we determine that you are under ${MINIMUM_AGE}, we may suspend or terminate your account and delete associated data.`,
       `Allr is not directed to children under ${MINIMUM_AGE}. You may not use Allr on behalf of any person under ${MINIMUM_AGE}.`,
     ],
   },
