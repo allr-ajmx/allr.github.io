@@ -60,8 +60,8 @@ const SECTIONS: readonly LegalSection[] = [
   {
     heading: "Processors and disclosures",
     body: [
-      `We share personal data with the following service providers, only as needed to run Allr: Google (Firebase Authentication for sign-in, and Cloud Firestore for storing account, waitlist, and published-product records); Vercel (hosting the website and your account, including request logs); GitHub (hosting application releases, which receives your IP address when you download from it); Hostinger (email, for messages you send to ${CONTACT_EMAIL}); and ${BILLING_ENTITY} (collecting and processing payments).`,
-      `We do not sell personal data. We do not use third-party advertising networks or analytics trackers on the marketing site or within the account interface.`,
+      `We share personal data with the following service providers, only as needed to run Allr: Google (Firebase Authentication for sign-in, and Cloud Firestore for storing account, waitlist, and published-product records); Vercel (hosting the website and your account, including request logs, and Web Analytics for aggregated page-view statistics); GitHub (hosting application releases, which receives your IP address when you download from it); Hostinger (email, for messages you send to ${CONTACT_EMAIL}); and ${BILLING_ENTITY} (collecting and processing payments).`,
+      `We do not sell personal data. We do not use third-party advertising networks or advertising trackers. Vercel Web Analytics records aggregated page views on the website; it does not use advertising cookies and is not used to build advertising profiles.`,
       `We may disclose personal data where required by applicable law, or where necessary to protect the rights, safety, or property of Allr, our users, or others.`,
     ],
   },
@@ -94,7 +94,7 @@ const SECTIONS: readonly LegalSection[] = [
   {
     heading: "Cookies and local storage",
     body: [
-      `We use cookies and similar technologies only as necessary to authenticate you and operate the account interface (including session data for Google sign-in and strictly necessary preferences such as sidebar state). We do not use advertising cookies or third-party tracking pixels.`,
+      `We use cookies and similar technologies only as necessary to authenticate you and operate the account interface (including session data for Google sign-in and strictly necessary preferences such as sidebar state). Vercel Web Analytics may load a first-party script to record page views; it does not set advertising cookies. We do not use advertising cookies or third-party tracking pixels.`,
     ],
   },
   {

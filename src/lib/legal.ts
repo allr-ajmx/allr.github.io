@@ -9,7 +9,7 @@
  */
 
 export const TERMS_VERSION = "1.1";
-export const PRIVACY_VERSION = "1.1";
+export const PRIVACY_VERSION = "1.2";
 
 /** Shown on the page itself, so a reader can see how current it is. */
 export const TERMS_UPDATED = "2026-09-24";
