@@ -74,6 +74,17 @@ function toProfile(data: FirebaseFirestore.DocumentData): UserProfile {
     workspace_username: data.workspace_username ?? null,
     workspace_email: data.workspace_email ?? null,
     workspace_address: data.workspace_address ?? null,
+    billing: data.billing
+      ? {
+          status: data.billing.status,
+          planCurrency: data.billing.planCurrency,
+          subscriptionId: data.billing.subscriptionId,
+          customerId: data.billing.customerId ?? "",
+          currentPeriodEnd: data.billing.currentPeriodEnd ?? null,
+          providerStatus: data.billing.providerStatus ?? "",
+          updatedAt: iso(data.billing.updatedAt),
+        }
+      : null,
     trial: data.trial
       ? {
           startedAt: iso(data.trial.startedAt),
@@ -226,6 +237,7 @@ export async function createProfile(
       workspace_email: null,
       workspace_address: null,
       trial: null,
+      billing: null,
     });
 
     tx.set(claimRef, {

@@ -49,7 +49,7 @@ export function Overview() {
     );
   }
 
-  return <LiveOverview firstName={firstName} ended={status === "trialEnded"} />;
+  return <LiveOverview firstName={firstName} ended={status === "trialEnded" || status === "pastDue"} />;
 }
 
 function LiveOverview({

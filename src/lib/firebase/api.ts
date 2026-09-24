@@ -9,6 +9,7 @@ import type {
   UserProfile,
 } from "@/lib/account/model";
 import type { JourneyState } from "@/lib/account/state";
+import type { Billing, BillingSummary, SubscribeResponse } from "@/lib/billing/model";
 
 /**
  * The browser's half of the account API.
@@ -104,3 +105,11 @@ export type CreditResponse = {
 export const fetchCredits = () => call<CreditResponse>("/account/credits/");
 
 export const fetchUrls = () => call<{ urls: PublishedUrl[] }>("/account/urls/");
+
+export const fetchBilling = () => call<BillingSummary>("/account/billing/");
+
+export const startSubscription = () =>
+  call<SubscribeResponse>("/account/billing/subscribe/", { method: "POST" });
+
+export const cancelSubscription = () =>
+  call<{ billing: Billing }>("/account/billing/cancel/", { method: "POST" });

@@ -8,6 +8,8 @@
  * mishandle one.
  */
 
+import type { Billing } from "@/lib/billing/model";
+
 export type AccountType = "individual" | "business";
 
 /**
@@ -77,6 +79,12 @@ export type UserProfile = {
   workspace_address: string | null;
 
   trial: Trial | null;
+
+  /**
+   * Written by the server from Razorpay's webhooks — never by the person it
+   * describes, and never trusted from a checkout callback.
+   */
+  billing: Billing | null;
 };
 
 /**

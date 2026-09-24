@@ -17,7 +17,8 @@
     "test:rules": "firebase emulators:exec --project demo-allr --only firestore,auth \"ALLR_TEST_EMULATOR=1 node --test --test-concurrency=1 firebase/*.test.mjs\"",
     "verify:journey": "node scripts/verify-journey.mjs",
     "test:age": "node --test tests/age.test.mjs",
-    "test": "pnpm test:age && pnpm test:rules"
+    "test:billing": "node --test tests/billing.test.mjs",
+    "test": "pnpm test:age && pnpm test:billing && pnpm test:rules"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
@@ -44,5 +45,10 @@
     "sharp": "^0.35.3",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "pnpm": {
+    "overrides": {
+      "jwks-rsa": "^3.2.2"
+    }
   }
 }

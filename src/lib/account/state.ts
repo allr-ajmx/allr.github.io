@@ -18,7 +18,11 @@ export type JourneyState =
   /** Workspace is live and the promotional week is running. */
   | "active"
   /** Workspace is live and the promotional week has run out. */
-  | "trialEnded";
+  | "trialEnded"
+  /** Paying: the subscription's current period is covered. */
+  | "subscribed"
+  /** Was paying; the last charge failed and needs their attention. */
+  | "pastDue";
 
 /**
  * A workspace exists only when all three fields are set.
@@ -44,6 +48,10 @@ export function deriveState(
   if (!hasWorkspace(profile)) {
     return profile.earlyAccessRequestedAt ? "requested" : "registered";
   }
+  // Payment outranks the trial: once a subscription exists, the trial is
+  // history whether or not its week has technically run out.
+  if (profile.billing?.status === "active") return "subscribed";
+  if (profile.billing?.status === "pastDue") return "pastDue";
   // A workspace with no trial recorded has simply not been stamped yet; the
   // server does that on first read. Treat it as running rather than expired —
   // locking someone out over our own bookkeeping would be the worse mistake.
