@@ -50,18 +50,12 @@ function requireThrowawayEmulator() {
 
 let env;
 
-const yearsAgo = (years) => {
-  const d = new Date();
-  d.setUTCFullYear(d.getUTCFullYear() - years);
-  return Timestamp.fromDate(d);
-};
-
 /** A profile as the server writes it. Used only to seed, never through rules. */
 const profile = (uid, email, overrides = {}) => ({
   uid,
   email,
   name: "Ada Lovelace",
-  dateOfBirth: yearsAgo(30),
+  confirmedOver18: true,
   country: "IN",
   accountType: "individual",
   entityName: "",

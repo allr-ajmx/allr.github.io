@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
 import { COUNTRIES } from "@/lib/countries";
-import { latestEligibleBirthDate } from "@/lib/age";
+import { MINIMUM_AGE } from "@/lib/age";
 import { ApiCallFailed, registerAccount } from "@/lib/firebase/api";
 import { type ProfileDraft } from "@/lib/account/model";
 import { validateDraft, type DraftErrors } from "@/lib/account/validate";
@@ -27,9 +27,9 @@ import { WORDMARK } from "@/lib/brand";
  * questions, and collecting them now would mean holding data we have no use
  * for, which is what a privacy policy has to justify.
  *
- * Date of birth is here rather than at checkout because Allr is strictly an
- * above-contract-age product, and an age gate that only fires when money
- * changes hands has already let someone build a workspace they were never
+ * Age is a required checkbox here rather than at checkout because Allr is
+ * strictly an above-contract-age product, and an age gate that only fires when
+ * money changes hands has already let someone build a workspace they were never
  * allowed to have.
  *
  * The submit button and the server enforce the same rules. The button is the
@@ -45,7 +45,7 @@ export function RegisterForm() {
 
   const [draft, setDraft] = useState<ProfileDraft>({
     name: user?.displayName ?? "",
-    dateOfBirth: "",
+    confirmedOver18: false,
     country: "",
     accountType: "individual",
     entityName: "",
@@ -66,10 +66,6 @@ export function RegisterForm() {
     [draft, submitted],
   );
   const consentError = submitted && !(terms && privacy);
-
-  // Recomputed per render rather than frozen at mount: a form left open across
-  // midnight should not use yesterday's cut-off.
-  const maxBirthDate = latestEligibleBirthDate();
 
   const set = <K extends keyof ProfileDraft>(key: K, value: ProfileDraft[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
@@ -105,7 +101,7 @@ export function RegisterForm() {
   const saving = status === "saving";
   // Consent is not an error to discover on submit — an account cannot exist
   // without it, so the button does not pretend otherwise.
-  const consented = terms && privacy;
+  const consented = draft.confirmedOver18 && terms && privacy;
 
   return (
     <div className="mx-auto w-full max-w-[560px] px-6 py-12">
@@ -139,20 +135,6 @@ export function RegisterForm() {
           )}
         </Field>
 
-        <Field label="Date of birth" error={fieldErrors.dateOfBirth} required>
-          {(props) => (
-            <input
-              {...props}
-              type="date"
-              autoComplete="bday"
-              max={maxBirthDate}
-              className="allr-field"
-              value={draft.dateOfBirth}
-              onChange={(e) => set("dateOfBirth", e.currentTarget.value)}
-            />
-          )}
-        </Field>
-
         <Field label="Country of residence" error={fieldErrors.country} required>
           {(props) => (
             <Select
@@ -172,6 +154,12 @@ export function RegisterForm() {
         </Field>
 
         <div className="flex flex-col gap-4 border-t border-line pt-6">
+          <Checkbox
+            checked={draft.confirmedOver18}
+            onChange={(v) => set("confirmedOver18", v)}
+            error={fieldErrors.confirmedOver18}
+            label={`I am ${MINIMUM_AGE} years or older.`}
+          />
           <Checkbox
             checked={terms}
             onChange={setTerms}

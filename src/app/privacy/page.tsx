@@ -29,7 +29,7 @@ const SECTIONS: readonly LegalSection[] = [
     heading: "Personal data we collect",
     body: [
       `Waitlist and mobile beta interest: the email address you enter and, where provided, the mobile platform you select. Alongside these, we record the date and time of the signup, the website address it was made from, and your browser’s user-agent string. You do not enter these details; they are recorded automatically when the form is submitted.`,
-      `Account registration: personal data received from Google in connection with sign-in (typically name, email address, and profile photograph), together with information you submit at registration, including name, date of birth, country, marketing preference, and the versions of the Terms of Use and Privacy Policy you accept. When you request early access, we also record the time of your request and the mobile platforms you choose for testing.`,
+      `Account registration: personal data received from Google in connection with sign-in (typically name, email address, and profile photograph), together with information you submit at registration, including name, country, your confirmation that you are at least ${MINIMUM_AGE} years of age, marketing preference, and the versions of the Terms of Use and Privacy Policy you accept. When you request early access, we also record the time of your request and the mobile platforms you choose for testing.`,
       `Workspace: identifiers we assign (including workspace username, workspace email, and workspace address), plan or credit metadata displayed to you, and content you submit to or generate within the workspace, including prompts, files, memories, workflows, and published products. You reach your workspace by signing in with your Allr account. Our team can access workspaces to install updates and fix faults; when we do, we do not read the data in your workspace or the content you create.`,
       `AI traces: when you use an AI model through Allr, we record a trace of each request — including the prompt, the response, the model used, timing, and any errors — in a tracing system (Langfuse) that we host ourselves, so traces are not shared with a third party. We look at traces only to investigate an issue you are facing.`,
       `Payments: when checkout is available, billing information necessary to process payment, handled by ${BILLING_ENTITY} and any payment processors identified at checkout. We do not collect card details on interfaces that are not enabled for payment.`,
@@ -46,9 +46,9 @@ const SECTIONS: readonly LegalSection[] = [
     ],
   },
   {
-    heading: "Date of birth and age restriction",
+    heading: "Age restriction",
     body: [
-      `We ask for your date of birth at registration to confirm that you are at least ${MINIMUM_AGE} years of age, which is a condition of using Allr. The date is self-declared: we check it against that requirement, but we do not verify it against identity documents. We retain the date of birth as the record of your declaration. If the date you give shows that you are under ${MINIMUM_AGE}, registration will not be completed.`,
+      `We ask you to confirm at registration that you are at least ${MINIMUM_AGE} years of age, which is a condition of using Allr. The confirmation is self-declared: we require the checkbox to be ticked, but we do not verify your age against identity documents. We retain the record of that confirmation. If you do not confirm that you meet the age requirement, registration will not be completed.`,
     ],
   },
   {
@@ -77,7 +77,7 @@ const SECTIONS: readonly LegalSection[] = [
   {
     heading: "Retention",
     body: [
-      `Account data — including your profile, date of birth, the record of the policy versions you accepted, and the record we keep to prevent duplicate accounts — is retained for as long as your account exists. AI traces are retained for as long as your account exists and are deleted with it.`,
+      `Account data — including your profile, the record of your age confirmation, the record of the policy versions you accepted, and the record we keep to prevent duplicate accounts — is retained for as long as your account exists. AI traces are retained for as long as your account exists and are deleted with it.`,
       `Waitlist data is retained until you unsubscribe, request deletion, or we discontinue the relevant list. Server logs are retained for no longer than ninety (90) days.`,
       `If a promotional or unpaid early-access period ends without conversion to a paid plan, workspace data is retained for fourteen (14) days and then deleted.`,
       `If a paid licence ends, workspace data is retained for ninety (90) days and then deleted, unless you have requested a backup and/or enrolled in a paid data-persistence option where available.`,

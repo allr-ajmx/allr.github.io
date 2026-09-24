@@ -5,7 +5,6 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "./admin";
 import { badRequest, conflict } from "./errors";
 import type { Caller } from "./session";
-import { parseBirthDate } from "@/lib/age";
 import { PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
 import {
   TRIAL_CREDIT_USD,
@@ -43,15 +42,23 @@ const emailKey = (email: string) =>
 const iso = (value: unknown): string =>
   value instanceof Timestamp ? value.toDate().toISOString() : String(value ?? "");
 
+/**
+ * Age gate on read: new profiles store `confirmedOver18`; older ones stored a
+ * date of birth that already passed the same check. Either is enough.
+ */
+function readConfirmedOver18(data: FirebaseFirestore.DocumentData): boolean {
+  if (data.confirmedOver18 === true) return true;
+  const dob = data.dateOfBirth;
+  return dob instanceof Timestamp || typeof dob === "string";
+}
+
 /** Firestore's shapes out, the API's shapes in. */
 function toProfile(data: FirebaseFirestore.DocumentData): UserProfile {
-  const dob = data.dateOfBirth;
   return {
     uid: data.uid,
     email: data.email,
     name: data.name ?? "",
-    dateOfBirth:
-      dob instanceof Timestamp ? dob.toDate().toISOString().slice(0, 10) : "",
+    confirmedOver18: readConfirmedOver18(data),
     country: data.country ?? "",
     accountType: data.accountType ?? "individual",
     entityName: data.entityName ?? "",
@@ -175,9 +182,6 @@ export async function createProfile(
     throw badRequest("invalid", Object.values(errors)[0] as string);
   }
 
-  const birth = parseBirthDate(draft.dateOfBirth);
-  if (!birth) throw badRequest("invalid", "That is not a date we can read.");
-
   // Somebody whose old identity was deleted has an account already; give it
   // back rather than turning them away from an address that is theirs.
   const adopted = await readOrAdoptProfile(caller);
@@ -207,7 +211,7 @@ export async function createProfile(
       // From the verified token, never from the request body.
       email: caller.email,
       name: draft.name.trim(),
-      dateOfBirth: Timestamp.fromDate(birth),
+      confirmedOver18: true,
       country: draft.country,
       accountType: "individual",
       entityName: "",
@@ -246,7 +250,8 @@ export async function updateProfile(
 
   const merged = {
     name: patch.name ?? current.name,
-    dateOfBirth: patch.dateOfBirth ?? current.dateOfBirth,
+    // Age attestation is set at registration and is not editable afterwards.
+    confirmedOver18: current.confirmedOver18,
     country: patch.country ?? current.country,
     accountType: "individual" as const,
     entityName: "",
@@ -259,15 +264,11 @@ export async function updateProfile(
     throw badRequest("invalid", Object.values(errors)[0] as string);
   }
 
-  const birth = parseBirthDate(merged.dateOfBirth);
-  if (!birth) throw badRequest("invalid", "That is not a date we can read.");
-
   await adminDb()
     .collection(USERS)
     .doc(caller.uid)
     .update({
       name: merged.name.trim(),
-      dateOfBirth: Timestamp.fromDate(birth),
       country: merged.country,
       accountType: "individual",
       entityName: "",

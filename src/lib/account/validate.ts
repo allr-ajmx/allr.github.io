@@ -1,5 +1,5 @@
 import { isCountryCode } from "@/lib/countries";
-import { isOldEnough, MINIMUM_AGE, parseBirthDate } from "@/lib/age";
+import { MINIMUM_AGE } from "@/lib/age";
 import {
   MAX_NAME,
   type EarlyAccessRequest,
@@ -30,13 +30,9 @@ export function validateDraft(draft: ProfileDraft): DraftErrors {
   else if (name.length > MAX_NAME)
     errors.name = `Keep it under ${MAX_NAME} characters.`;
 
-  const birth = draft.dateOfBirth ? parseBirthDate(draft.dateOfBirth) : null;
-  if (!draft.dateOfBirth) errors.dateOfBirth = "We need your date of birth.";
-  else if (!birth) errors.dateOfBirth = "That is not a date we can read.";
-  else if (birth.getTime() > Date.now())
-    errors.dateOfBirth = "That date is in the future.";
-  else if (!isOldEnough(birth))
-    errors.dateOfBirth = `You have to be ${MINIMUM_AGE} or over to have an Allr account.`;
+  if (!draft.confirmedOver18) {
+    errors.confirmedOver18 = `You have to be ${MINIMUM_AGE} or over to have an Allr account.`;
+  }
 
   if (!draft.country) errors.country = "Pick where you live.";
   else if (!isCountryCode(draft.country))

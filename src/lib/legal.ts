@@ -8,12 +8,12 @@
  * version is what tells us who still needs to re-accept.
  */
 
-export const TERMS_VERSION = "1.0";
-export const PRIVACY_VERSION = "1.0";
+export const TERMS_VERSION = "1.1";
+export const PRIVACY_VERSION = "1.1";
 
 /** Shown on the page itself, so a reader can see how current it is. */
-export const TERMS_UPDATED = "2026-09-15";
-export const PRIVACY_UPDATED = "2026-09-15";
+export const TERMS_UPDATED = "2026-09-24";
+export const PRIVACY_UPDATED = "2026-09-24";
 
 /**
  * The age of contract. Allr does not sell to anyone below it (DESIGN.md §16).

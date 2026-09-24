@@ -132,8 +132,9 @@ document.
 
 One document per person at `users/{uid}`, keyed by the Firebase Auth uid, which
 is what lets the rules say "your own and nobody else's" without a query. It
-holds the legal minimum needed to sell to that person later: legal name, date of
-birth, country of residence, the two consent versions, and the marketing opt-in.
+holds the legal minimum needed to sell to that person later: legal name,
+country of residence, the age attestation (`confirmedOver18`), the two consent
+versions, and the marketing opt-in.
 Accounts are individual only. **Billing address and tax ID are checkout
 questions and are deliberately not here.**
 
@@ -141,9 +142,9 @@ Three things are enforced where the form cannot reach:
 
 - the email on the document is taken from the verified auth token, never from
   the request body (`src/lib/server/session.ts`);
-- the date of birth must be at least 18 years ago, checked by the server on
-  every create and update, so an under-age account cannot be made by anything,
-  form or script;
+- registration must include a confirmed “I am 18 or older” attestation,
+  checked by the server on create, so an under-age account cannot be made by
+  anything, form or script;
 - the rules refuse every client write to `users`, and `users` can never be
   listed — only fetched one document at a time by its owner.
 
