@@ -80,6 +80,9 @@ export type UserProfile = {
 
   trial: Trial | null;
 
+  /** Reserved at checkout; becomes workspace_username when provisioning lands. */
+  pendingWorkspaceUsername: string | null;
+
   /**
    * Written by the server from Razorpay's webhooks — never by the person it
    * describes, and never trusted from a checkout callback.

@@ -18,7 +18,8 @@
     "verify:journey": "node scripts/verify-journey.mjs",
     "test:age": "node --test tests/age.test.mjs",
     "test:billing": "node --test tests/billing.test.mjs",
-    "test": "pnpm test:age && pnpm test:billing && pnpm test:rules"
+    "test:admin": "node --test tests/workspace-admin.test.mjs",
+    "test": "pnpm test:age && pnpm test:billing && pnpm test:admin && pnpm test:rules"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

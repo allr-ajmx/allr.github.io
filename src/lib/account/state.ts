@@ -22,7 +22,9 @@ export type JourneyState =
   /** Paying: the subscription's current period is covered. */
   | "subscribed"
   /** Was paying; the last charge failed and needs their attention. */
-  | "pastDue";
+  | "pastDue"
+  /** Paid, no workspace yet: the queue is working. */
+  | "provisioning";
 
 /**
  * A workspace exists only when all three fields are set.
@@ -46,6 +48,8 @@ export function deriveState(
   // Having an account and being in the queue are different things, and the
   // difference is the whole point of asking.
   if (!hasWorkspace(profile)) {
+    // Paid and waiting for containers: neither registered nor live.
+    if (profile.billing && profile.billing.status !== "ended") return "provisioning";
     return profile.earlyAccessRequestedAt ? "requested" : "registered";
   }
   // Payment outranks the trial: once a subscription exists, the trial is

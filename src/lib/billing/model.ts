@@ -54,10 +54,22 @@ export type Billing = {
   updatedAt: string;
 };
 
+/** Where self-serve provisioning stands, straight off the queue. */
+export type ProvisioningStatus = {
+  status: "queued" | "claimed" | "provisioned" | "failed";
+  error: string | null;
+};
+
 /** What GET /api/account/billing returns. */
 export type BillingSummary = {
   billing: Billing | null;
   plan: { currency: PlanCurrency; amountMinor: number; display: string; interval: string };
+  /** Paying is the gate now; kept for the UI's benefit. */
+  canSubscribe: boolean;
+  hasWorkspace: boolean;
+  /** The name their workspace will get, reserved before checkout. */
+  pendingUsername: string | null;
+  provisioning: ProvisioningStatus | null;
 };
 
 /** What POST /api/account/billing/subscribe returns. */

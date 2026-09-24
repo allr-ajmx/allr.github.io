@@ -5,19 +5,30 @@ through Razorpay Subscriptions. Indian accounts (`country === "IN"`) are
 billed the INR sibling plan (₹2,499/month) because Indian customers must be
 charged in INR; everyone else pays USD. Settlement is always INR.
 
-## Flow
+## Flow — fully self-serve
 
-1. `/account/billing` → **Subscribe** → `POST /api/account/billing/subscribe`
-   creates a Razorpay customer + subscription (`notes.uid` carries the account)
-   and returns `subscription_id` + key id.
-2. Razorpay Checkout opens in the browser; the card/UPI mandate is set up there.
-3. Razorpay calls `POST /api/billing/webhook` (signature-verified, idempotent
-   by event id). `subscription.*` events write the `billing` block on
-   `users/{uid}`. **The webhook is the only source of truth** — the browser
-   callback merely polls until the webhook has landed.
-4. `deriveState` puts a paying account in `subscribed`; a failing one in
-   `pastDue`. Grace after `trialEnded` is `GRACE_DAYS` (2) — suspension is a
-   manual act by whoever operates allr.os, for now.
+1. `/account/billing`: an account without a workspace **names it first**
+   (`GET /api/account/username/?u=` checks availability; reservation ledger is
+   `workspace_usernames`, one document per name ever).
+2. **Subscribe** → `POST /api/account/billing/subscribe {username}` reserves
+   the name and creates the Razorpay customer + subscription (`notes.uid`).
+3. Razorpay Checkout takes the mandate; `POST /api/billing/webhook`
+   (signature-verified, idempotent by event id) writes the `billing` block.
+   **The webhook is the only source of truth.** In the same transaction, a
+   paid account with no workspace goes onto `provision_queue`.
+4. The **provisioner worker on the VPS** (allr.os `sitequeue.py`) polls
+   `POST /api/admin/provision-queue/claim` (outbound only — the VPS listens to
+   nobody), runs the ordinary create job — minted OpenRouter key, $20/month
+   spend limit, capacity-capped by `ALLR_SELF_SERVE_MAX` — and its `site` step
+   stamps the profile through `POST /api/admin/workspace/`. The verdict lands
+   via `POST /api/admin/provision-queue/complete`.
+5. `deriveState`: paid + no workspace = `provisioning` (the billing page shows
+   "being built" and refreshes itself); paid + workspace = `subscribed`;
+   failing charge = `pastDue`. Grace after `trialEnded` is `GRACE_DAYS` (2) —
+   suspension stays a manual act.
+
+Admins can still provision by hand (admin UI or `add-user.sh`) — the same
+stamp closes the loop either way.
 
 Cancel is always at cycle end (`cancel_at_cycle_end`), so nobody loses time
 they paid for.

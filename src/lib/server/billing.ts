@@ -2,9 +2,11 @@ import "server-only";
 
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminDb } from "./admin";
-import { badRequest, conflict, forbidden } from "./errors";
+import { badRequest, conflict } from "./errors";
+import { reserveUsername } from "./provisioning";
 import { readOrAdoptProfile } from "./profiles";
 import type { Caller } from "./session";
+import { enqueueInTransaction, queueRef, readQueue } from "./provisioning";
 import {
   cancelSubscriptionAtCycleEnd,
   createCustomer,
@@ -37,10 +39,17 @@ export function readBilling(profile: UserProfile): Billing | null {
   return profile.billing ?? null;
 }
 
-export function summarize(profile: UserProfile): BillingSummary {
+export async function summarize(profile: UserProfile): Promise<BillingSummary> {
   const currency = planCurrencyFor(profile.country);
+  const workspace = hasWorkspace(profile);
   return {
     billing: readBilling(profile),
+    // Paying is the gate now; the workspace is what payment buys.
+    canSubscribe: true,
+    hasWorkspace: workspace,
+    pendingUsername: profile.pendingWorkspaceUsername,
+    provisioning:
+      !workspace && profile.billing ? await readQueue(profile.uid) : null,
     plan: {
       currency,
       amountMinor: PLAN_PRICING[currency].amountMinor,
@@ -83,14 +92,21 @@ async function writeBilling(uid: string, billing: Omit<Billing, "updatedAt">) {
  * exists is returned rather than duplicated, so an abandoned checkout does
  * not strand a second mandate.
  */
-export async function startSubscription(caller: Caller): Promise<SubscribeResponse> {
-  const profile = await readOrAdoptProfile(caller);
+export async function startSubscription(
+  caller: Caller,
+  requestedUsername?: unknown,
+): Promise<SubscribeResponse> {
+  let profile = await readOrAdoptProfile(caller);
   if (!profile) throw badRequest("no-profile", "Make an account first.");
+
+  // Paying is the gate. An account without a workspace must bring the name
+  // its workspace will get; reserving it here means checkout can only be
+  // opened for a name that is actually theirs.
   if (!hasWorkspace(profile)) {
-    throw forbidden(
-      "no-workspace",
-      "Billing opens once your workspace is live. Ask for early access first.",
-    );
+    if (requestedUsername !== undefined || !profile.pendingWorkspaceUsername) {
+      await reserveUsername(caller, requestedUsername ?? profile.pendingWorkspaceUsername);
+      profile = (await readOrAdoptProfile(caller))!;
+    }
   }
 
   const currency = planCurrencyFor(profile.country);
@@ -163,7 +179,11 @@ export async function applyWebhookEvent(
   const userRef = db.collection(USERS).doc(uid);
 
   return db.runTransaction(async (tx) => {
-    const [seen, user] = await Promise.all([tx.get(eventRef), tx.get(userRef)]);
+    const [seen, user, queueSnap] = await Promise.all([
+      tx.get(eventRef),
+      tx.get(userRef),
+      tx.get(queueRef(uid)),
+    ]);
     if (seen.exists) return "duplicate" as const;
     if (!user.exists) {
       console.error(`[billing] ${eventName}: no profile for uid ${uid}`);
@@ -197,6 +217,15 @@ export async function applyWebhookEvent(
       },
       updatedAt: FieldValue.serverTimestamp(),
     });
+    // The moment payment is real, a workspace-less account goes on the queue.
+    const data = user.data()!;
+    const paid = normalizeProviderStatus(subscription.status) === "active";
+    const noWorkspace = !String(data.workspace_username ?? "").trim();
+    const pending = String(data.pending_workspace_username ?? "").trim();
+    if (paid && noWorkspace && pending) {
+      enqueueInTransaction(tx, queueSnap, { uid, email: data.email, username: pending });
+    }
+
     tx.set(eventRef, {
       eventName,
       subscriptionId: subscription.id,

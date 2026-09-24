@@ -142,3 +142,27 @@ describe("deriveState with billing", () => {
     assert.equal(typeof GRACE_DAYS, "number");
   });
 });
+
+describe("deriveState provisioning", () => {
+  const paidNoWorkspace = {
+    uid: "u2", email: "a@b.c", name: "A", confirmedOver18: true, country: "US",
+    accountType: "individual", entityName: "", marketingOptIn: false,
+    mobilePlatforms: [], earlyAccessRequestedAt: null, termsVersion: "1",
+    privacyVersion: "1", createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z", workspace_username: null,
+    workspace_email: null, workspace_address: null, trial: null,
+    pendingWorkspaceUsername: "vishal",
+    billing: {
+      status: "active", planCurrency: "USD", subscriptionId: "sub_2",
+      customerId: "cust_2", currentPeriodEnd: null, providerStatus: "active",
+      updatedAt: "2026-01-02T00:00:00.000Z",
+    },
+  };
+  it("paid but no workspace yet is provisioning, not registered", () => {
+    assert.equal(deriveState(paidNoWorkspace), "provisioning");
+  });
+  it("an ended subscription without a workspace falls back to registered", () => {
+    const ended = { ...paidNoWorkspace, billing: { ...paidNoWorkspace.billing, status: "ended" } };
+    assert.equal(deriveState(ended), "registered");
+  });
+});

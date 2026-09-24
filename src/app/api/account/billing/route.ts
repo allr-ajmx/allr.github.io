@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     let profile = await readOrAdoptProfile(caller);
     if (!profile) throw badRequest("no-profile", "Make an account first.");
     profile = await ensureTrial(profile);
-    return Response.json(summarize(profile));
+    return Response.json(await summarize(profile));
   } catch (error) {
     return toResponse(error);
   }

@@ -108,8 +108,16 @@ export const fetchUrls = () => call<{ urls: PublishedUrl[] }>("/account/urls/");
 
 export const fetchBilling = () => call<BillingSummary>("/account/billing/");
 
-export const startSubscription = () =>
-  call<SubscribeResponse>("/account/billing/subscribe/", { method: "POST" });
+export const startSubscription = (username?: string) =>
+  call<SubscribeResponse>("/account/billing/subscribe/", {
+    method: "POST",
+    body: JSON.stringify(username ? { username } : {}),
+  });
+
+export const checkUsername = (u: string) =>
+  call<{ available: boolean; reason: string | null }>(
+    `/account/username/?u=${encodeURIComponent(u)}`,
+  );
 
 export const cancelSubscription = () =>
   call<{ billing: Billing }>("/account/billing/cancel/", { method: "POST" });
