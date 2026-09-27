@@ -104,6 +104,35 @@ export type CreditResponse = {
 
 export const fetchCredits = () => call<CreditResponse>("/account/credits/");
 
+export type LedgerSummary = {
+  includedUsd: number;
+  remaining: { includedUsd: number; topupUsd: number };
+  spentThisCycleUsd: number;
+  topupBalanceUsd: number;
+  usageSyncedAt: string | null;
+};
+export type CreditPack = {
+  id: string;
+  creditUsd: number;
+  display: { USD: string; INR: string };
+};
+export type LedgerResponse = CreditResponse & {
+  ledger?: LedgerSummary;
+  packs?: CreditPack[];
+};
+
+export const fetchLedger = () => call<LedgerResponse>("/account/credits/");
+
+export const startTopup = (pack: string) =>
+  call<{
+    orderId: string;
+    keyId: string;
+    amountMinor: number;
+    currency: "USD" | "INR";
+    display: string;
+    creditUsd: number;
+  }>("/account/credits/topup/", { method: "POST", body: JSON.stringify({ pack }) });
+
 export const fetchUrls = () => call<{ urls: PublishedUrl[] }>("/account/urls/");
 
 export const fetchBilling = () => call<BillingSummary>("/account/billing/");

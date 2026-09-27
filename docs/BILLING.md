@@ -44,7 +44,8 @@ they paid for.
      `https://www.allr.work/api/billing/webhook`, a strong secret, events:
      `subscription.activated`, `subscription.charged`, `subscription.pending`,
      `subscription.halted`, `subscription.paused`, `subscription.resumed`,
-     `subscription.cancelled`, `subscription.completed`.
+     `subscription.cancelled`, `subscription.completed`, and — for credit
+   top-ups — `payment.captured`.
 2. **Plans**: `RAZORPAY_KEY_ID=… RAZORPAY_KEY_SECRET=… node scripts/razorpay-setup.mjs`
    prints the two plan ids.
 3. **Vercel env** (Production; repeat per mode):
@@ -65,3 +66,26 @@ Razorpay test mode: `4111 1111 1111 1111`, any future expiry, any CVV, OTP
 - Out-of-order events: an event for a different subscription than the active
   one is recorded and ignored.
 - Abandoned checkout: the pending subscription is reused, never duplicated.
+
+## Credits
+
+$20 of AI credit is included per subscription month (expires with the month);
+purchased packs — $10 / $25 / $50 (₹899 / ₹2,199 / ₹4,299) — carry until used.
+The ledger (`users/{uid}.credits`, math in `src/lib/billing/credits.ts`) is
+the source of truth; the workspace's OpenRouter key is a cumulative-limit key
+(`limit_reset: never`) and every ledger change becomes a `set_limit` op in
+`workspace_ops`, which the VPS worker applies and acknowledges. The worker
+also pushes usage snapshots (~5 min) to `/api/admin/usage`, which is what the
+meter on /account/credits renders. Top-ups are one-time Razorpay Orders; the
+`payment.captured` webhook re-fetches the order server-side and applies the
+pack idempotently by payment id (`credit_purchases`).
+
+## Adopting pre-self-serve workspaces
+
+Workspaces made by hand predate the site knowing them. One-time backfill, on
+the VPS: `uv run allr-provisioner site sync` — stamps every existing
+workspace onto its profile and claims its name in the ledger. Ongoing: the
+worker adopts instead of re-creating when a paid signup's email already owns
+a workspace, and every stamp claims the username. Pasted (non-minted)
+OpenRouter keys cannot be limit-managed; `set_limit` ops for them are
+recorded as skipped.

@@ -113,3 +113,33 @@ export const cancelSubscriptionAtCycleEnd = (id: string) =>
     method: "POST",
     body: JSON.stringify({ cancel_at_cycle_end: 1 }),
   });
+
+export type RzpOrder = {
+  id: string;
+  status: string;
+  amount: number;
+  currency: string;
+  notes?: Record<string, string>;
+};
+
+/** One-time order (credit top-ups). Notes carry uid + credit for the webhook. */
+export const createOrder = (
+  amountMinor: number,
+  currency: "USD" | "INR",
+  notes: Record<string, string>,
+) =>
+  rzp<RzpOrder>("/orders", {
+    method: "POST",
+    body: JSON.stringify({ amount: amountMinor, currency, notes }),
+  });
+
+export const fetchOrder = (id: string) => rzp<RzpOrder>(`/orders/${id}`);
+
+export type RzpPayment = {
+  id: string;
+  status: string;
+  order_id?: string | null;
+  amount: number;
+  currency: string;
+  notes?: Record<string, string>;
+};

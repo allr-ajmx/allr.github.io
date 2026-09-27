@@ -20,6 +20,8 @@ const USERS = "users";
 const USERNAMES = "workspace_usernames";
 /** One document per uid: at most one workspace per account, by construction. */
 const QUEUE = "provision_queue";
+/** Small imperatives for the VPS worker: set_limit today, suspend/resume next. */
+const OPS = "workspace_ops";
 
 export type QueueStatus = "queued" | "claimed" | "provisioned" | "failed";
 
@@ -152,4 +154,76 @@ export async function readQueue(
   if (!snap.exists) return null;
   const d = snap.data()!;
   return { status: d.status, error: d.error ?? null };
+}
+
+
+// ---- the ops queue ------------------------------------------------------------
+
+export type WorkspaceOp = {
+  uid: string;
+  email: string;
+  username: string;
+  op: "set_limit";
+  valueUsd: number;
+};
+
+/**
+ * Queue an op inside a caller-owned transaction. Keyed by uid+op, so a burst
+ * of changes collapses to the latest value — the worker applies the target,
+ * not the history.
+ */
+export function enqueueOp(tx: FirebaseFirestore.Transaction, op: WorkspaceOp): void {
+  const ref = adminDb().collection(OPS).doc(`${op.uid}:${op.op}`);
+  tx.set(ref, {
+    ...op,
+    status: "queued",
+    error: null,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+}
+
+export async function claimNextOp(): Promise<(WorkspaceOp & { id: string }) | null> {
+  const db = adminDb();
+  const candidates = await db
+    .collection(OPS)
+    .where("status", "in", ["queued", "claimed"])
+    .orderBy("createdAt")
+    .limit(5)
+    .get();
+
+  for (const doc of candidates.docs) {
+    const claimed = await db.runTransaction(async (tx) => {
+      const fresh = await tx.get(doc.ref);
+      const data = fresh.data();
+      if (!data) return false;
+      const claimedAt = data.claimedAt?.toDate?.() as Date | undefined;
+      const stale = claimedAt ? Date.now() - claimedAt.getTime() > 900_000 : true;
+      if (data.status === "claimed" && !stale) return false;
+      if (data.status !== "queued" && data.status !== "claimed") return false;
+      tx.update(doc.ref, {
+        status: "claimed",
+        claimedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return true;
+    });
+    if (claimed) {
+      const d = doc.data();
+      return { id: doc.id, uid: d.uid, email: d.email, username: d.username, op: d.op, valueUsd: d.valueUsd };
+    }
+  }
+  return null;
+}
+
+export async function completeOp(id: string, ok: boolean, error?: string): Promise<void> {
+  const ref = adminDb().collection(OPS).doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) throw new ApiError(404, "no-op", `No op ${id}.`);
+  await ref.update({
+    status: ok ? "done" : "failed",
+    error: ok ? null : (error ?? "unknown").slice(0, 500),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  if (!ok) console.error(`[ops] ${id} failed: ${error}`);
 }

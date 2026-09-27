@@ -5,6 +5,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "./admin";
 import { ApiError, badRequest } from "./errors";
 import { parseStamp as parsePure, tokenMatches, type WorkspaceStamp } from "@/lib/admin/stamp";
+import { initialLedgerFields } from "./credits";
 
 /**
  * The one door through which workspaces reach profiles.
@@ -61,11 +62,27 @@ export async function stampWorkspace(stamp: WorkspaceStamp): Promise<{
     throw new ApiError(404, "no-account", `No profile behind ${stamp.email}.`);
   }
 
-  await user.ref.update({
-    workspace_username: stamp.username,
-    workspace_email: stamp.workspaceEmail,
-    workspace_address: stamp.address,
-    updatedAt: FieldValue.serverTimestamp(),
+  const db2 = adminDb();
+  await db2.runTransaction(async (tx) => {
+    tx.update(user.ref, {
+      workspace_username: stamp.username,
+      workspace_email: stamp.workspaceEmail,
+      workspace_address: stamp.address,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    if (stamp.username) {
+      // Claim the name so self-serve can never hand it out — this is how
+      // manually provisioned workspaces become known to the site.
+      tx.set(db2.collection("workspace_usernames").doc(stamp.username), {
+        uid,
+        email: stamp.email,
+        reservedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      // Open the credit ledger once; never reset an existing one.
+      if (!user.data()?.credits) {
+        tx.update(user.ref, initialLedgerFields());
+      }
+    }
   });
 
   const cleared = !stamp.username;

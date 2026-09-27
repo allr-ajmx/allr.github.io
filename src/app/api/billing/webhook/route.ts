@@ -1,6 +1,7 @@
 import { verifyWebhookSignature } from "@/lib/billing/signature";
 import { applyWebhookEvent } from "@/lib/server/billing";
-import type { RzpSubscription } from "@/lib/server/razorpay";
+import { applyTopupPayment } from "@/lib/server/credits";
+import type { RzpPayment, RzpSubscription } from "@/lib/server/razorpay";
 
 /**
  * Razorpay calls this; nobody else can produce the signature. This route is
@@ -27,7 +28,10 @@ export async function POST(request: Request) {
 
   let event: {
     event?: string;
-    payload?: { subscription?: { entity?: RzpSubscription } };
+    payload?: {
+      subscription?: { entity?: RzpSubscription };
+      payment?: { entity?: RzpPayment };
+    };
   };
   try {
     event = JSON.parse(raw);
@@ -38,6 +42,13 @@ export async function POST(request: Request) {
   const eventId = request.headers.get("x-razorpay-event-id") ?? "";
   const name = event.event ?? "";
   try {
+    // Credit top-ups arrive as captured one-time payments; idempotent by
+    // payment id inside, so no event-id bookkeeping is needed here.
+    if (name === "payment.captured" && event.payload?.payment?.entity) {
+      const outcome = await applyTopupPayment(event.payload.payment.entity);
+      console.log(`[billing] ${name} ${eventId}: ${outcome}`);
+      return Response.json({ outcome });
+    }
     const outcome = await applyWebhookEvent(
       eventId || `${name}:${event.payload?.subscription?.entity?.id}:${raw.length}`,
       name,

@@ -3,6 +3,8 @@ import { ensureTrial, readOrAdoptProfile } from "@/lib/server/profiles";
 import { requireUser } from "@/lib/server/session";
 import { toResponse } from "@/lib/server/errors";
 import { TRIAL_CREDIT_USD } from "@/lib/account/model";
+import { readLedger, summarizeLedger } from "@/lib/server/credits";
+import { TOPUP_PACKS } from "@/lib/billing/credits";
 
 /**
  * How much of the promotional credit is left.
@@ -18,6 +20,20 @@ export async function GET(request: Request) {
     const caller = await requireUser(request);
     let profile = await readOrAdoptProfile(caller);
     if (profile) profile = await ensureTrial(profile);
+
+    // A subscribed workspace has a real ledger; the trial shape below is the
+    // legacy pre-billing path and keeps its "mocked" honesty flag.
+    if (profile) {
+      const ledger = await readLedger(profile.uid);
+      if (ledger) {
+        return Response.json({
+          ledger: summarizeLedger(ledger),
+          packs: TOPUP_PACKS,
+          state: deriveState(profile),
+          mocked: false,
+        });
+      }
+    }
 
     if (!profile?.trial) {
       return Response.json({

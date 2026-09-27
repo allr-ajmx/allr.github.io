@@ -7,6 +7,7 @@ import { reserveUsername } from "./provisioning";
 import { readOrAdoptProfile } from "./profiles";
 import type { Caller } from "./session";
 import { enqueueInTransaction, queueRef, readQueue } from "./provisioning";
+import { applyMonthlyGrantInTransaction } from "./credits";
 import {
   cancelSubscriptionAtCycleEnd,
   createCustomer,
@@ -217,8 +218,13 @@ export async function applyWebhookEvent(
       },
       updatedAt: FieldValue.serverTimestamp(),
     });
-    // The moment payment is real, a workspace-less account goes on the queue.
     const data = user.data()!;
+    // A successful monthly charge settles the credit cycle: included expires,
+    // top-ups carry, the key's limit is re-targeted.
+    if (eventName === "subscription.charged") {
+      applyMonthlyGrantInTransaction(tx, userRef, data);
+    }
+    // The moment payment is real, a workspace-less account goes on the queue.
     const paid = normalizeProviderStatus(subscription.status) === "active";
     const noWorkspace = !String(data.workspace_username ?? "").trim();
     const pending = String(data.pending_workspace_username ?? "").trim();
