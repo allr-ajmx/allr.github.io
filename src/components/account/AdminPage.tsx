@@ -131,6 +131,8 @@ export function AdminPage() {
                 {data.workspaceOnly.map((w) => (
                   <span key={w.username} className="rounded-chip border border-line bg-paper px-3 py-1.5">
                     <b>{w.username}</b> · {w.email}
+                    {w.suspended ? <span className="ml-1.5 font-bold text-[#A6543C]">· suspended</span> : null}
+                    {w.agentTag ? <span className="text-ink-soft"> · agent {w.agentTag}</span> : null}
                   </span>
                 ))}
               </div>
@@ -142,7 +144,7 @@ export function AdminPage() {
           ) : null}
 
           <div className="overflow-x-auto rounded-card border border-line bg-card">
-            <table className="w-full min-w-[900px] border-collapse text-[.88rem]">
+            <table className="w-full min-w-[1100px] border-collapse text-[.88rem]">
               <thead>
                 <tr className="border-b border-line text-left text-[.72rem] tracking-[0.06em] text-ink-soft uppercase">
                   <th className="px-4 py-3">Customer</th>
@@ -150,6 +152,7 @@ export function AdminPage() {
                   <th className="px-4 py-3">Workspace</th>
                   <th className="px-4 py-3">Billing</th>
                   <th className="px-4 py-3">Credits</th>
+                  <th className="px-4 py-3">LLM key</th>
                   <th className="px-4 py-3">Joined</th>
                   <th className="px-4 py-3">Actions</th>
                 </tr>
@@ -169,9 +172,19 @@ export function AdminPage() {
                     </td>
                     <td className="px-4 py-3">
                       {c.workspace ? (
-                        <a href={c.workspace.address} className="text-green-deep no-underline hover:underline" target="_blank" rel="noreferrer">
-                          {c.workspace.username}
-                        </a>
+                        <>
+                          <a href={c.workspace.address} className="font-semibold text-green-deep no-underline hover:underline" target="_blank" rel="noreferrer">
+                            {c.workspace.username}
+                          </a>
+                          {c.platform?.suspended ? (
+                            <span className="ml-2 rounded-chip bg-[#F9E9E4] px-1.5 py-0.5 text-[.68rem] font-bold tracking-[0.04em] text-[#A6543C] uppercase">suspended</span>
+                          ) : null}
+                          {c.platform ? (
+                            <span className="block text-[.76rem] text-ink-soft">
+                              agent {c.platform.agentTag ?? "?"} · helix {c.platform.helixTag ?? "?"}
+                            </span>
+                          ) : null}
+                        </>
                       ) : (
                         <span className="text-ink-soft">{c.pendingUsername ? `${c.pendingUsername} (pending)` : "—"}</span>
                       )}
@@ -195,6 +208,25 @@ export function AdminPage() {
                           <span>${c.credits.remaining.includedUsd.toFixed(2)} incl · ${c.credits.remaining.topupUsd.toFixed(2)} pack</span>
                           <span className="block text-[.78rem] text-ink-soft">spent ${c.credits.spentThisCycleUsd.toFixed(2)} this cycle</span>
                         </>
+                      ) : (
+                        <span className="text-ink-soft">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {c.platform?.orManaged ? (
+                        <>
+                          <span>
+                            ${Number(c.platform.orUsageUsd ?? 0).toFixed(2)} / ${Number(c.platform.orLimitUsd ?? 0).toFixed(2)}
+                          </span>
+                          {c.platform.orDisabled ? (
+                            <span className="block text-[.76rem] font-bold text-[#A6543C]">disabled</span>
+                          ) : null}
+                          {c.platform.seenAt ? (
+                            <span className="block text-[.76rem] text-ink-soft">seen {new Date(c.platform.seenAt).toLocaleTimeString()}</span>
+                          ) : null}
+                        </>
+                      ) : c.platform ? (
+                        <span className="text-ink-soft">pasted key</span>
                       ) : (
                         <span className="text-ink-soft">—</span>
                       )}

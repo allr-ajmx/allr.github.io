@@ -5,6 +5,7 @@ import { adminDb } from "./admin";
 import { ApiError, badRequest, conflict } from "./errors";
 import type { Caller } from "./session";
 import { checkUsernameShape } from "@/lib/admin/username";
+import { initialLedger as initialCreditLedger } from "@/lib/billing/credits";
 
 /**
  * Self-serve provisioning, the site's half.
@@ -226,4 +227,53 @@ export async function completeOp(id: string, ok: boolean, error?: string): Promi
     updatedAt: FieldValue.serverTimestamp(),
   });
   if (!ok) console.error(`[ops] ${id} failed: ${error}`);
+}
+
+
+/**
+ * Connect a manually created workspace to its owner at sign-in.
+ *
+ * The roster (pushed by the VPS) is the memory of the manual era: when a
+ * profile with no workspace signs in and a roster row carries their email,
+ * the workspace is theirs — stamp it, claim the name, open the ledger.
+ * Nothing to pay, nothing to pick; the trial stamps itself on the next read
+ * like any provisioned workspace.
+ */
+export async function adoptFromRoster(
+  uid: string,
+  email: string,
+): Promise<boolean> {
+  const db = adminDb();
+  const rows = await db
+    .collection("workspace_roster")
+    .where("email", "==", email.trim().toLowerCase())
+    .limit(1)
+    .get();
+  const row = rows.docs[0]?.data();
+  if (!row?.username) return false;
+
+  const username = String(row.username);
+  const userRef = db.collection(USERS).doc(uid);
+  const nameRef = db.collection(USERNAMES).doc(username);
+
+  await db.runTransaction(async (tx) => {
+    const [user, name] = await Promise.all([tx.get(userRef), tx.get(nameRef)]);
+    if (!user.exists) return;
+    const d = user.data()!;
+    if (String(d.workspace_username ?? "").trim()) return; // raced: already set
+    if (name.exists && name.data()?.uid !== uid) return; // somebody else's name
+
+    tx.update(userRef, {
+      workspace_username: username,
+      workspace_email: email,
+      workspace_address: `https://${username}.allr.work`,
+      pending_workspace_username: null,
+      ...(d.credits ? {} : { credits: initialCreditLedger() }),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    tx.set(nameRef, { uid, email, reservedAt: FieldValue.serverTimestamp() }, { merge: true });
+  });
+
+  console.log(`[adopt] roster workspace ${username} connected to ${email} (${uid})`);
+  return true;
 }

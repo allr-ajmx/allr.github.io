@@ -28,6 +28,22 @@ export async function GET(request: Request) {
     ]);
 
     const queueByUid = new Map(queue.docs.map((d) => [d.id, d.data()]));
+    const rosterByUsername = new Map(roster.docs.map((d) => [d.id, d.data()]));
+    const platform = (username: string | null | undefined) => {
+      const r = username ? rosterByUsername.get(username) : undefined;
+      return r
+        ? {
+            suspended: Boolean(r.suspended),
+            agentTag: r.agentTag ?? null,
+            helixTag: r.helixTag ?? null,
+            orManaged: r.orManaged ?? null,
+            orDisabled: r.orDisabled ?? null,
+            orLimitUsd: r.orLimitUsd ?? null,
+            orUsageUsd: r.orUsageUsd ?? null,
+            seenAt: iso(r.updatedAt),
+          }
+        : null;
+    };
 
     const customers = users.docs.map((doc) => {
       const d = doc.data();
@@ -67,6 +83,7 @@ export async function GET(request: Request) {
           : null,
         credits,
         queue: q ? { status: q.status, error: q.error ?? null } : null,
+        platform: platform(d.workspace_username),
       };
     });
 
@@ -79,7 +96,13 @@ export async function GET(request: Request) {
     const workspaceOnly = roster.docs
       .map((d) => d.data())
       .filter((r) => !accountEmails.has(String(r.email).toLowerCase()) && !claimedUsernames.has(r.username))
-      .map((r) => ({ username: r.username, email: r.email, updatedAt: iso(r.updatedAt) }));
+      .map((r) => ({
+        username: r.username,
+        email: r.email,
+        updatedAt: iso(r.updatedAt),
+        suspended: Boolean(r.suspended),
+        agentTag: r.agentTag ?? null,
+      }));
 
     return Response.json({
       customers,

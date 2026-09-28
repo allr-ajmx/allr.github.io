@@ -454,6 +454,14 @@ function Avatar() {
   );
 }
 
+function ContentWidth({ children }: { children: ReactNode }) {
+  // Admin pages are tables and want the whole page; everything else reads
+  // better on a measure.
+  const pathname = usePathname();
+  const wide = pathname?.startsWith("/account/admin");
+  return <div className={wide ? "w-full" : "mx-auto w-full max-w-[820px]"}>{children}</div>;
+}
+
 function Gate({ children }: { children: ReactNode }) {
   const { status, unreachable, refresh } = useAuth();
   const [retrying, setRetrying] = useState(false);
@@ -520,7 +528,7 @@ function Gate({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col min-[900px]:flex-row">
       <Rail />
       <main className="min-w-0 flex-1 px-6 py-9 min-[900px]:px-10 min-[900px]:py-12">
-        <div className="mx-auto w-full max-w-[820px]">{children}</div>
+        <ContentWidth>{children}</ContentWidth>
       </main>
     </div>
   );

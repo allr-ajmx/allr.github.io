@@ -1,5 +1,6 @@
 import { deriveState } from "@/lib/account/state";
-import { ensureTrial, readOrAdoptProfile } from "@/lib/server/profiles";
+import { ensureTrial, readOrAdoptProfile, readProfile } from "@/lib/server/profiles";
+import { adoptFromRoster } from "@/lib/server/provisioning";
 import { requireUser } from "@/lib/server/session";
 import { isAdminEmail } from "@/lib/server/admin-gate";
 import { toResponse } from "@/lib/server/errors";
@@ -19,6 +20,13 @@ export async function GET(request: Request) {
   try {
     const caller = await requireUser(request);
     let profile = await readOrAdoptProfile(caller);
+    // The manual era: a workspace on the VPS roster with this verified email
+    // belongs to this person — connect it the moment they show up.
+    if (profile && !profile.workspace_username) {
+      if (await adoptFromRoster(caller.uid, caller.email)) {
+        profile = await readProfile(caller.uid);
+      }
+    }
     if (profile) profile = await ensureTrial(profile);
 
     return Response.json({
