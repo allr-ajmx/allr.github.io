@@ -171,6 +171,15 @@ export type AdminCustomer = {
 };
 
 export const fetchAdminCustomers = () =>
-  call<{ customers: AdminCustomer[]; pendingOps: { id: string; op: string; username: string; status: string; error: string | null }[] }>(
-    "/admin-ui/customers/",
-  );
+  call<{
+    customers: AdminCustomer[];
+    workspaceOnly: { username: string; email: string; updatedAt: string | null }[];
+    pendingOps: { id: string; op: string; username: string; status: string; error: string | null }[];
+  }>("/admin-ui/customers/");
+
+export const adminAction = (body: {
+  action: "grant_credit" | "set_included" | "suspend" | "resume" | "provision";
+  uid: string;
+  usd?: number;
+  username?: string;
+}) => call<{ ok: true }>("/admin-ui/actions/", { method: "POST", body: JSON.stringify(body) });

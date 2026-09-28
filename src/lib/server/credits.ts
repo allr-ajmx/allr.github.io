@@ -34,6 +34,7 @@ const PURCHASES = "credit_purchases";
 const asLedger = (data: FirebaseFirestore.DocumentData | undefined): CreditLedger | null =>
   data?.credits
     ? {
+        includedUsd: Number(data.credits.includedUsd ?? 20),
         cycleStartUsageUsd: Number(data.credits.cycleStartUsageUsd ?? 0),
         topupBalanceUsd: Number(data.credits.topupBalanceUsd ?? 0),
         targetLimitUsd: Number(data.credits.targetLimitUsd ?? 0),
@@ -182,7 +183,7 @@ export async function ingestUsage(items: { email: string; usageUsd: number }[]) 
 export function summarizeLedger(ledger: CreditLedger) {
   const rem = remaining(ledger);
   return {
-    includedUsd: 20,
+    includedUsd: ledger.includedUsd ?? 20,
     remaining: rem,
     spentThisCycleUsd: spentThisCycle(ledger),
     topupBalanceUsd: ledger.topupBalanceUsd,

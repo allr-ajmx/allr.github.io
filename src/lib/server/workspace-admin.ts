@@ -71,6 +71,9 @@ export async function stampWorkspace(stamp: WorkspaceStamp): Promise<{
       updatedAt: FieldValue.serverTimestamp(),
     });
     if (stamp.username) {
+      // The name is now real; a lingering pending value would let the next
+      // monthly charge re-enqueue provisioning for a workspace that exists.
+      tx.update(user.ref, { pending_workspace_username: null });
       // Claim the name so self-serve can never hand it out — this is how
       // manually provisioned workspaces become known to the site.
       tx.set(db2.collection("workspace_usernames").doc(stamp.username), {

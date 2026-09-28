@@ -20,10 +20,11 @@ export async function GET(request: Request) {
     await requireAdminUser(request);
     const db = adminDb();
 
-    const [users, queue, ops] = await Promise.all([
+    const [users, queue, ops, roster] = await Promise.all([
       db.collection("users").orderBy("createdAt", "desc").limit(500).get(),
       db.collection("provision_queue").get(),
       db.collection("workspace_ops").where("status", "in", ["queued", "claimed", "failed"]).get(),
+      db.collection("workspace_roster").get(),
     ]);
 
     const queueByUid = new Map(queue.docs.map((d) => [d.id, d.data()]));
@@ -69,8 +70,20 @@ export async function GET(request: Request) {
       };
     });
 
+    // Workspaces the VPS knows that no site account claims — the manually
+    // created era. Shown so the whole fleet is on one page.
+    const accountEmails = new Set(users.docs.map((d) => String(d.data().email ?? "").toLowerCase()));
+    const claimedUsernames = new Set(
+      users.docs.map((d) => String(d.data().workspace_username ?? "")).filter(Boolean),
+    );
+    const workspaceOnly = roster.docs
+      .map((d) => d.data())
+      .filter((r) => !accountEmails.has(String(r.email).toLowerCase()) && !claimedUsernames.has(r.username))
+      .map((r) => ({ username: r.username, email: r.email, updatedAt: iso(r.updatedAt) }));
+
     return Response.json({
       customers,
+      workspaceOnly,
       pendingOps: ops.docs.map((d) => ({
         id: d.id,
         op: d.data().op,

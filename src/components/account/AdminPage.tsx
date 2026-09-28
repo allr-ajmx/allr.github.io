@@ -5,6 +5,7 @@ import { PageHeader } from "./PageHeader";
 import { useAuth } from "./AuthProvider";
 import {
   ApiCallFailed,
+  adminAction,
   fetchAdminCustomers,
   type AdminCustomer,
 } from "@/lib/firebase/api";
@@ -32,6 +33,7 @@ export function AdminPage() {
   const { isAdmin } = useAuth();
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -41,6 +43,23 @@ export function AdminPage() {
       setError(e instanceof ApiCallFailed ? e.message : "Could not load.");
     }
   }, []);
+
+  const act = useCallback(
+    async (body: Parameters<typeof adminAction>[0], confirmText: string) => {
+      if (!window.confirm(confirmText)) return;
+      setBusy(true);
+      setError(null);
+      try {
+        await adminAction(body);
+        await refresh();
+      } catch (e) {
+        setError(e instanceof ApiCallFailed ? e.message : "That didn’t go through.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refresh],
+  );
 
   useEffect(() => {
     const t = setTimeout(() => void refresh(), 0);
@@ -103,6 +122,25 @@ export function AdminPage() {
             </div>
           ) : null}
 
+          {(data.workspaceOnly ?? []).length > 0 ? (
+            <div className="rounded-card border border-line bg-card p-4">
+              <p className="mb-2 text-[.8rem] font-bold tracking-[0.05em] text-ink-soft uppercase">
+                Workspaces without a site account (manually created)
+              </p>
+              <div className="flex flex-wrap gap-2 text-[.85rem]">
+                {data.workspaceOnly.map((w) => (
+                  <span key={w.username} className="rounded-chip border border-line bg-paper px-3 py-1.5">
+                    <b>{w.username}</b> · {w.email}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2 text-[.78rem] text-ink-soft">
+                These connect automatically the moment their owner signs in on
+                allr.work with that email.
+              </p>
+            </div>
+          ) : null}
+
           <div className="overflow-x-auto rounded-card border border-line bg-card">
             <table className="w-full min-w-[900px] border-collapse text-[.88rem]">
               <thead>
@@ -113,6 +151,7 @@ export function AdminPage() {
                   <th className="px-4 py-3">Billing</th>
                   <th className="px-4 py-3">Credits</th>
                   <th className="px-4 py-3">Joined</th>
+                  <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -163,6 +202,9 @@ export function AdminPage() {
                     <td className="px-4 py-3 text-ink-soft">
                       {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "—"}
                     </td>
+                    <td className="px-4 py-3">
+                      <RowActions c={c} busy={busy} act={act} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -171,5 +213,76 @@ export function AdminPage() {
         </div>
       ) : null}
     </>
+  );
+}
+
+
+function RowActions({
+  c,
+  busy,
+  act,
+}: {
+  c: AdminCustomer;
+  busy: boolean;
+  act: (body: Parameters<typeof adminAction>[0], confirm: string) => Promise<void>;
+}) {
+  const btn =
+    "cursor-pointer rounded-chip border border-line bg-paper px-2 py-1 text-[.75rem] font-bold hover:border-honey-line disabled:opacity-50 disabled:cursor-not-allowed";
+  if (!c.workspace) {
+    return (
+      <button
+        type="button"
+        disabled={busy}
+        className={btn}
+        onClick={() => {
+          const username = window.prompt(`Workspace name for ${c.email}? (comp — no payment required)`, c.pendingUsername ?? "");
+          if (username) void act({ action: "provision", uid: c.uid, username }, `Provision "${username}" for ${c.email}?`);
+        }}
+      >
+        Provision…
+      </button>
+    );
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      <button
+        type="button"
+        disabled={busy}
+        className={btn}
+        onClick={() => {
+          const usd = Number(window.prompt(`Grant how many dollars of credit to ${c.email}?`, "10"));
+          if (usd > 0) void act({ action: "grant_credit", uid: c.uid, usd }, `Grant $${usd} to ${c.email}? This is free credit.`);
+        }}
+      >
+        + credit
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        className={btn}
+        onClick={() => {
+          const usd = Number(window.prompt(`Monthly included credit for ${c.email}? (default 20)`, "20"));
+          if (usd >= 0) void act({ action: "set_included", uid: c.uid, usd }, `Set ${c.email}'s monthly included credit to $${usd}?`);
+        }}
+      >
+        included…
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        className={btn}
+        onClick={() => void act({ action: "suspend", uid: c.uid }, `Suspend ${c.workspace?.username}? Their workspace goes offline until resumed.`)}
+      >
+        Suspend
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        className={btn}
+        onClick={() => void act({ action: "resume", uid: c.uid }, `Resume ${c.workspace?.username}?`)}
+      >
+        Resume
+      </button>
+    </div>
   );
 }

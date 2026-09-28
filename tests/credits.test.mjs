@@ -81,3 +81,26 @@ describe("credit ledger", () => {
     assert.equal(packById(null), null);
   });
 });
+
+import { setIncluded } from "../src/lib/billing/credits.ts";
+
+describe("per-customer included override", () => {
+  it("raising the grant mid-cycle helps immediately and persists monthly", () => {
+    let l = setIncluded(initialLedger(), 50);
+    assert.equal(l.targetLimitUsd, 50);
+    assert.deepEqual(remaining(l), { includedUsd: 50, topupUsd: 0 });
+    l = applyUsage(l, 30, "t");
+    l = applyMonthlyGrant(l);
+    assert.equal(l.targetLimitUsd, 30 + 50);
+  });
+  it("lowering the grant never claws back below what is spent", () => {
+    let l = applyUsage(initialLedger(), 18, "t");
+    l = setIncluded(l, 5);
+    assert.ok(l.targetLimitUsd >= 18);
+    assert.deepEqual(remaining(l), { includedUsd: 0, topupUsd: 0 });
+  });
+  it("old ledgers without the field behave as $20", () => {
+    const legacy = { cycleStartUsageUsd: 0, topupBalanceUsd: 0, targetLimitUsd: 20, usageUsd: 6, usageSyncedAt: null };
+    assert.deepEqual(remaining(legacy), { includedUsd: 14, topupUsd: 0 });
+  });
+});

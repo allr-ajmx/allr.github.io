@@ -163,7 +163,7 @@ export type WorkspaceOp = {
   uid: string;
   email: string;
   username: string;
-  op: "set_limit";
+  op: "set_limit" | "suspend" | "resume";
   valueUsd: number;
 };
 

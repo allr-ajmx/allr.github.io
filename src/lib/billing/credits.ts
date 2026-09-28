@@ -13,6 +13,8 @@
 export const INCLUDED_USD = 20;
 
 export type CreditLedger = {
+  /** This customer's monthly grant — INCLUDED_USD unless an admin changed it. */
+  includedUsd: number;
   /** Cumulative usage at the start of the current cycle. */
   cycleStartUsageUsd: number;
   /** Purchased credit still unconsumed. */
@@ -27,6 +29,7 @@ export type CreditLedger = {
 
 export function initialLedger(): CreditLedger {
   return {
+    includedUsd: INCLUDED_USD,
     cycleStartUsageUsd: 0,
     topupBalanceUsd: 0,
     targetLimitUsd: INCLUDED_USD,
@@ -45,8 +48,9 @@ export function spentThisCycle(l: CreditLedger): number {
 /** What the person sees: included remaining, then top-up remaining. */
 export function remaining(l: CreditLedger): { includedUsd: number; topupUsd: number } {
   const spent = spentThisCycle(l);
-  const includedUsd = round2(Math.max(0, INCLUDED_USD - spent));
-  const topupSpent = Math.max(0, spent - INCLUDED_USD);
+  const grant = l.includedUsd ?? INCLUDED_USD;
+  const includedUsd = round2(Math.max(0, grant - spent));
+  const topupSpent = Math.max(0, spent - grant);
   return { includedUsd, topupUsd: round2(Math.max(0, l.topupBalanceUsd - topupSpent)) };
 }
 
@@ -69,7 +73,7 @@ export function applyMonthlyGrant(l: CreditLedger): CreditLedger {
     ...l,
     cycleStartUsageUsd: l.usageUsd,
     topupBalanceUsd: topupUsd,
-    targetLimitUsd: round2(l.usageUsd + INCLUDED_USD + topupUsd),
+    targetLimitUsd: round2(l.usageUsd + (l.includedUsd ?? INCLUDED_USD) + topupUsd),
   };
 }
 
@@ -80,6 +84,18 @@ export function applyUsage(l: CreditLedger, usageUsd: number, at: string): Credi
     usageUsd: round2(Math.max(l.usageUsd, usageUsd)),
     usageSyncedAt: at,
   };
+}
+
+/**
+ * An admin changes this customer's monthly grant. The delta lands on the
+ * current cycle too (raising it mid-month helps immediately; lowering it
+ * never claws back below what is already spent).
+ */
+export function setIncluded(l: CreditLedger, includedUsd: number): CreditLedger {
+  const prev = l.includedUsd ?? INCLUDED_USD;
+  const next = Math.max(0, round2(includedUsd));
+  const target = Math.max(l.usageUsd, round2(l.targetLimitUsd + (next - prev)));
+  return { ...l, includedUsd: next, targetLimitUsd: target };
 }
 
 /** Top-up packs: credit value in USD, price per plan currency in minor units. */
