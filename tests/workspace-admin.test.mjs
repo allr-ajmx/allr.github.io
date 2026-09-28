@@ -92,3 +92,24 @@ describe("checkUsernameShape", () => {
     }
   });
 });
+
+describe("admin allowlist parsing", () => {
+  // The pure rule mirrors admin-gate: unset means nobody.
+  const parse = (raw) =>
+    new Set(
+      (raw ?? "")
+        .split(",")
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes("@")),
+    );
+  it("unset or empty admits nobody", () => {
+    assert.equal(parse(undefined).size, 0);
+    assert.equal(parse("").size, 0);
+  });
+  it("trims, lower-cases, and ignores junk entries", () => {
+    const set = parse(" Arunsin997@Gmail.com , jaishukla7768@gmail.com ,notanemail, ");
+    assert.equal(set.size, 2);
+    assert.equal(set.has("arunsin997@gmail.com"), true);
+    assert.equal(set.has("jaishukla7768@gmail.com"), true);
+  });
+});

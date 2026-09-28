@@ -34,6 +34,13 @@ export type AccountNavSection = {
   items: readonly AccountNavItem[];
 };
 
+/** Rendered only for allowlisted admins; the APIs behind it re-check. */
+export const ADMIN_NAV_SECTION: AccountNavSection = {
+  id: "admin",
+  label: "Allr admin",
+  items: [{ href: "/account/admin/", label: "Customers", icon: "keys" }],
+};
+
 export const ACCOUNT_NAV_SECTIONS: readonly AccountNavSection[] = [
   {
     id: "workspace",

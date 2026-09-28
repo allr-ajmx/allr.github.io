@@ -66,7 +66,7 @@ async function call<T>(
   return payload as T;
 }
 
-export type MeResponse = { profile: UserProfile | null; state: JourneyState };
+export type MeResponse = { profile: UserProfile | null; state: JourneyState; isAdmin?: boolean };
 
 export const fetchMe = () => call<MeResponse>("/account/me/");
 
@@ -150,3 +150,27 @@ export const checkUsername = (u: string) =>
 
 export const cancelSubscription = () =>
   call<{ billing: Billing }>("/account/billing/cancel/", { method: "POST" });
+
+export type AdminCustomer = {
+  uid: string;
+  email: string;
+  name: string;
+  country: string;
+  createdAt: string | null;
+  state: JourneyState;
+  workspace: { username: string; address: string } | null;
+  pendingUsername: string | null;
+  billing: { status: string; planCurrency: string; currentPeriodEnd: string | null } | null;
+  credits: {
+    remaining: { includedUsd: number; topupUsd: number };
+    spentThisCycleUsd: number;
+    topupBalanceUsd: number;
+    usageSyncedAt: string | null;
+  } | null;
+  queue: { status: string; error: string | null } | null;
+};
+
+export const fetchAdminCustomers = () =>
+  call<{ customers: AdminCustomer[]; pendingOps: { id: string; op: string; username: string; status: string; error: string | null }[] }>(
+    "/admin-ui/customers/",
+  );

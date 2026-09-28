@@ -11,7 +11,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AuthProvider, useAuth } from "./AuthProvider";
-import { ACCOUNT_NAV_SECTIONS, type AccountNavItem } from "./nav";
+import { ACCOUNT_NAV_SECTIONS, ADMIN_NAV_SECTION, type AccountNavItem } from "./nav";
 import {
   CloseIcon,
   MenuIcon,
@@ -159,9 +159,11 @@ function NavSections({
   collapsed?: boolean;
   onNavigate?: () => void;
 }) {
+  const { isAdmin } = useAuth();
+  const sections = isAdmin ? [...ACCOUNT_NAV_SECTIONS, ADMIN_NAV_SECTION] : ACCOUNT_NAV_SECTIONS;
   return (
     <div className="flex flex-col gap-5">
-      {ACCOUNT_NAV_SECTIONS.map((section) => (
+      {sections.map((section) => (
         <div key={section.id}>
           {!collapsed && (
             <p className="mb-1.5 px-3 text-[.68rem] font-bold tracking-[0.08em] text-ink-soft uppercase">

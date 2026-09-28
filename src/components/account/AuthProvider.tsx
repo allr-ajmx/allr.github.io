@@ -39,6 +39,7 @@ type AuthValue = {
   status: AuthStatus;
   user: User | null;
   profile: UserProfile | null;
+  isAdmin: boolean;
   /**
    * True when the account could not be reached at all, rather than refused.
    * One is "your network, or our outage"; the other is a bug on our side and
@@ -53,6 +54,7 @@ const AuthContext = createContext<AuthValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [unreachable, setUnreachable] = useState(false);
 
@@ -63,7 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      const { profile: found, state } = await fetchMe();
+      const { profile: found, state, isAdmin: admin } = await fetchMe();
+      setIsAdmin(Boolean(admin));
       setProfile(found);
       setUnreachable(false);
       setStatus(state);
@@ -96,8 +99,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [load, user]);
 
   const value = useMemo(
-    () => ({ status, user, profile, unreachable, refresh }),
-    [status, user, profile, unreachable, refresh],
+    () => ({ status, user, profile, isAdmin, unreachable, refresh }),
+    [status, user, profile, isAdmin, unreachable, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

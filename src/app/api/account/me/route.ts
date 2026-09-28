@@ -1,6 +1,7 @@
 import { deriveState } from "@/lib/account/state";
 import { ensureTrial, readOrAdoptProfile } from "@/lib/server/profiles";
 import { requireUser } from "@/lib/server/session";
+import { isAdminEmail } from "@/lib/server/admin-gate";
 import { toResponse } from "@/lib/server/errors";
 
 /**
@@ -23,6 +24,9 @@ export async function GET(request: Request) {
     return Response.json({
       profile,
       state: deriveState(profile),
+      // Derived from the verified token against the server-side allowlist;
+      // the admin APIs re-check it themselves, so this only shapes the UI.
+      isAdmin: isAdminEmail(caller.email),
     });
   } catch (error) {
     return toResponse(error);

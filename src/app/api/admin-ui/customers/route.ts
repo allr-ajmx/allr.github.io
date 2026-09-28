@@ -1,0 +1,85 @@
+import { Timestamp } from "firebase-admin/firestore";
+import { adminDb } from "@/lib/server/admin";
+import { requireAdminUser } from "@/lib/server/admin-gate";
+import { toResponse } from "@/lib/server/errors";
+import { deriveState } from "@/lib/account/state";
+import { remaining, spentThisCycle } from "@/lib/billing/credits";
+import type { UserProfile } from "@/lib/account/model";
+
+/**
+ * Everything an admin needs to see about the customers, in one read-only
+ * list. Signed-in + allowlisted only (admin-gate); the machine-token
+ * /api/admin/* namespace is for the VPS worker and stays separate.
+ */
+
+const iso = (v: unknown) =>
+  v instanceof Timestamp ? v.toDate().toISOString() : typeof v === "string" ? v : null;
+
+export async function GET(request: Request) {
+  try {
+    await requireAdminUser(request);
+    const db = adminDb();
+
+    const [users, queue, ops] = await Promise.all([
+      db.collection("users").orderBy("createdAt", "desc").limit(500).get(),
+      db.collection("provision_queue").get(),
+      db.collection("workspace_ops").where("status", "in", ["queued", "claimed", "failed"]).get(),
+    ]);
+
+    const queueByUid = new Map(queue.docs.map((d) => [d.id, d.data()]));
+
+    const customers = users.docs.map((doc) => {
+      const d = doc.data();
+      // deriveState wants the API shape; billing/trial pass through as stored.
+      const profileish = {
+        ...d,
+        billing: d.billing ?? null,
+        trial: d.trial ?? null,
+        earlyAccessRequestedAt: iso(d.earlyAccessRequestedAt),
+      } as unknown as UserProfile;
+      const q = queueByUid.get(doc.id);
+      const credits = d.credits
+        ? {
+            remaining: remaining(d.credits),
+            spentThisCycleUsd: spentThisCycle(d.credits),
+            topupBalanceUsd: Number(d.credits.topupBalanceUsd ?? 0),
+            usageSyncedAt: d.credits.usageSyncedAt ?? null,
+          }
+        : null;
+      return {
+        uid: d.uid,
+        email: d.email,
+        name: d.name ?? "",
+        country: d.country ?? "",
+        createdAt: iso(d.createdAt),
+        state: deriveState(profileish),
+        workspace: d.workspace_username
+          ? { username: d.workspace_username, address: d.workspace_address ?? "" }
+          : null,
+        pendingUsername: d.pending_workspace_username ?? null,
+        billing: d.billing
+          ? {
+              status: d.billing.status,
+              planCurrency: d.billing.planCurrency,
+              currentPeriodEnd: d.billing.currentPeriodEnd ?? null,
+            }
+          : null,
+        credits,
+        queue: q ? { status: q.status, error: q.error ?? null } : null,
+      };
+    });
+
+    return Response.json({
+      customers,
+      pendingOps: ops.docs.map((d) => ({
+        id: d.id,
+        op: d.data().op,
+        username: d.data().username,
+        status: d.data().status,
+        error: d.data().error ?? null,
+      })),
+    });
+  } catch (error) {
+    return toResponse(error);
+  }
+}
