@@ -74,7 +74,7 @@ export function CreditsPage() {
           amount: order.amountMinor,
           currency: order.currency,
           name: "Allr",
-          description: `Credit pack · ${order.display} → $${order.creditUsd} of AI credit`,
+          description: `Credit pack · ${order.display} → $${order.creditUsd.toFixed(2)} of AI credit`,
           prefill: { name: user?.displayName ?? "", email: user?.email ?? "" },
           theme: { color: "#1E7A49" },
           handler: async () => {
@@ -165,7 +165,8 @@ export function CreditsPage() {
           <div className="rounded-card border border-line bg-card p-6">
             <h3 className="mb-1 text-[1.1rem] font-bold">Add credit</h3>
             <p className="mb-4 text-[.92rem] text-ink-soft">
-              One-time payment; never expires until used.
+              One-time payment; never expires until used. Pack prices cover
+              payment and AI-provider fees.
             </p>
             <div className="flex flex-wrap gap-3">
               {(data.packs ?? []).map((pack) => (
@@ -176,7 +177,7 @@ export function CreditsPage() {
                   onClick={() => void buy(pack.id)}
                   className="cursor-pointer rounded-control border border-line bg-card px-5 py-3 text-left font-bold shadow-soft transition-[transform,border-color] duration-150 hover:-translate-y-0.5 hover:border-green-line disabled:cursor-wait disabled:opacity-60"
                 >
-                  <span className="block text-[1.05rem]">${pack.creditUsd} credit</span>
+                  <span className="block text-[1.05rem]">${pack.creditUsd.toFixed(2)} credit</span>
                   <span className="block text-[.82rem] font-semibold text-ink-soft">
                     {busy === pack.id ? "Opening checkout…" : `${pack.display.USD} · ${pack.display.INR} in India`}
                   </span>

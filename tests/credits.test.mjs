@@ -21,6 +21,7 @@ import {
   settle,
   spentThisCycle,
   targetOf,
+  TOPUP_PACKS,
 } from "../src/lib/billing/credits.ts";
 
 const NOW = new Date("2026-10-02T12:00:00Z");
@@ -68,8 +69,21 @@ describe("basics", () => {
   });
 
   it("pack lookup refuses unknown ids", () => {
-    assert.equal(packById("s")?.creditUsd, 10);
-    assert.equal(packById("xl"), null);
+    assert.equal(packById("s")?.creditUsd, 9.2);
+    assert.equal(packById("xxl"), null);
+  });
+
+  it("packs: $10/$25/$50/$100, credit is price less fees, INR priced per pack", () => {
+    assert.deepEqual(TOPUP_PACKS.map((p) => [p.id, p.priceUsd, p.creditUsd, p.price.INR]), [
+      ["s", 10, 9.2, 899_00],
+      ["m", 25, 23, 2_199_00],
+      ["l", 50, 46, 4_299_00],
+      ["xl", 100, 92, 8_499_00],
+    ]);
+    for (const p of TOPUP_PACKS) {
+      assert.equal(p.price.USD, p.priceUsd * 100);
+      assert.ok(p.creditUsd < p.priceUsd);
+    }
   });
 });
 

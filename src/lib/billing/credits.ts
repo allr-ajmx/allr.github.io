@@ -222,11 +222,19 @@ export function appliedLimit(l: CreditLedger, liveUsageUsd: number): number {
   return round2(Math.max(targetOf(l), liveUsageUsd));
 }
 
-/** Top-up packs: credit value in USD, price per plan currency in minor units. */
+/**
+ * Top-up packs: price per plan currency in minor units, and the AI credit (USD)
+ * it buys. Credit is the price less PACK_FEE_SHARE — what OpenRouter (~5.5% on
+ * funding) and Razorpay (~2–3% + GST) take — so every pack breaks even.
+ */
+export const PACK_FEE_SHARE = 0.08;
+const creditFor = (priceUsd: number) => round2(priceUsd * (1 - PACK_FEE_SHARE));
+
 export const TOPUP_PACKS = [
-  { id: "s", creditUsd: 10, price: { USD: 10_00, INR: 899_00 }, display: { USD: "$10", INR: "₹899" } },
-  { id: "m", creditUsd: 25, price: { USD: 25_00, INR: 2_199_00 }, display: { USD: "$25", INR: "₹2,199" } },
-  { id: "l", creditUsd: 50, price: { USD: 50_00, INR: 4_299_00 }, display: { USD: "$50", INR: "₹4,299" } },
+  { id: "s", priceUsd: 10, creditUsd: creditFor(10), price: { USD: 10_00, INR: 899_00 }, display: { USD: "$10", INR: "₹899" } },
+  { id: "m", priceUsd: 25, creditUsd: creditFor(25), price: { USD: 25_00, INR: 2_199_00 }, display: { USD: "$25", INR: "₹2,199" } },
+  { id: "l", priceUsd: 50, creditUsd: creditFor(50), price: { USD: 50_00, INR: 4_299_00 }, display: { USD: "$50", INR: "₹4,299" } },
+  { id: "xl", priceUsd: 100, creditUsd: creditFor(100), price: { USD: 100_00, INR: 8_499_00 }, display: { USD: "$100", INR: "₹8,499" } },
 ] as const;
 
 export type TopupPackId = (typeof TOPUP_PACKS)[number]["id"];

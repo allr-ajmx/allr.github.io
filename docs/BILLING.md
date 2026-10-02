@@ -70,7 +70,9 @@ Razorpay test mode: `4111 1111 1111 1111`, any future expiry, any CVV, OTP
 ## Credits
 
 $20 of AI credit is included per subscription month (expires with the month);
-purchased packs — $10 / $25 / $50 (₹899 / ₹2,199 / ₹4,299) — carry until used.
+purchased packs — $10 / $25 / $50 / $100 (₹899 / ₹2,199 / ₹4,299 / ₹8,499) —
+carry until used. A pack's credit is its price less `PACK_FEE_SHARE` (8%,
+OpenRouter funding + Razorpay fees): $9.20 / $23 / $46 / $92.
 The ledger (`users/{uid}.credits`, math in `src/lib/billing/credits.ts`) is
 the source of truth; the workspace's OpenRouter key is a cumulative-limit key
 (`limit_reset: never`) and every ledger change becomes a `set_limit` op in
