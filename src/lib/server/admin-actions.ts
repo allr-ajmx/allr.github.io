@@ -6,6 +6,7 @@ import { adminAuth, adminDb } from "./admin";
 import { badRequest, conflict } from "./errors";
 import type { Caller } from "./session";
 import { enqueueInTransaction, enqueueOp, queueRef } from "./provisioning";
+import { stopBillingForRemoval } from "./billing";
 import { shipLog } from "./logship";
 import { ledgerFromDoc, queueChange, type PendingChange } from "@/lib/billing/credits";
 import {
@@ -95,6 +96,21 @@ export async function applyAdminAction(admin: Caller, action: AdminAction): Prom
   const userRef = db.collection(USERS).doc(a.uid);
   let oldEmailForAuth: string | null = null;
 
+  // Remove, step 1: stop billing FIRST. If Razorpay refuses, we throw here and
+  // nothing is deleted; the reverse order could leave a deleted workspace that
+  // is still being charged.
+  let billingDetail = "";
+  if (a.action === "remove") {
+    const pre = (await userRef.get()).data();
+    const username = String(pre?.workspace_username ?? "");
+    if (!pre) throw badRequest("no-account", "No such customer.");
+    if (!username) throw badRequest("no-workspace", "There is no workspace to remove.");
+    if (a.confirm !== username) {
+      throw badRequest("confirm", `Name the workspace (${username}) exactly to confirm removal.`);
+    }
+    billingDetail = await stopBillingForRemoval(a.uid, a.refund);
+  }
+
   await db.runTransaction(async (tx) => {
     const user = await tx.get(userRef);
     if (!user.exists) throw badRequest("no-account", "No such customer.");
@@ -170,7 +186,7 @@ export async function applyAdminAction(admin: Caller, action: AdminAction): Prom
           throw badRequest("confirm", `Name the workspace (${username}) exactly to confirm removal.`);
         }
         enqueueOp(tx, { uid: a.uid, email: d.email, username, op: "remove", valueUsd: 0 });
-        audit(tx, admin, a, username);
+        audit(tx, admin, a, `${username} · ${billingDetail}`);
         break;
       case "provision": {
         if (username) throw conflict("has-workspace", "They already have a workspace.");

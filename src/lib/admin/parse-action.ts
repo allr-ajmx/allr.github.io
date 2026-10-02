@@ -29,8 +29,9 @@ export type AdminAction =
   | { action: "suspend"; uid: string }
   | { action: "resume"; uid: string }
   | { action: "provision"; uid: string; username: string }
-  /** Destructive: containers and data. `confirm` must equal the username. */
-  | { action: "remove"; uid: string; confirm: string }
+  /** Destructive: containers and data. `confirm` must equal the username.
+   *  Also cancels the subscription; `refund` refunds the last paid charge. */
+  | { action: "remove"; uid: string; confirm: string; refund: boolean }
   /** Roster-only workspaces (no site account yet): keyed by username. */
   | { action: "ws_suspend"; username: string }
   | { action: "ws_resume"; username: string }
@@ -123,7 +124,7 @@ export function parseAction(body: unknown, now: Date = new Date()): AdminAction 
       return { action: "resume", uid };
     case "remove":
       if (!str(b.confirm)) throw badRequest("confirm", "Name the workspace to confirm removal.");
-      return { action: "remove", uid, confirm: str(b.confirm).toLowerCase() };
+      return { action: "remove", uid, confirm: str(b.confirm).toLowerCase(), refund: b.refund === true };
     case "provision": {
       const verdict = checkUsernameShape(b.username);
       if (!verdict.ok) throw badRequest("bad-username", verdict.reason);

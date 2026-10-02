@@ -218,6 +218,7 @@ export type AdminActionBody = {
   expiresAt?: string | null;
   note?: string;
   grantId?: string;
+  refund?: boolean;
 };
 
 export const adminAction = (body: AdminActionBody) =>

@@ -69,7 +69,7 @@ describe("decide", () => {
     assert.equal(decide({ ...base, billing: billing("ended", daysAgo(10), daysAgo(1)) }, T0).action, "suspend");
   });
 
-  it("the removal clock: only after suspension + 7 days, only while unpaid", () => {
+  it("the removal clock: only after suspension + REMOVE_AFTER_DAYS, only while unpaid", () => {
     assert.equal(
       decide({ ...base, billing: billing("pastDue", daysAgo(20)), enforcement: suspendedSince(REMOVE_AFTER_DAYS - 1) }, T0).action,
       "none",
@@ -79,7 +79,7 @@ describe("decide", () => {
       "remove",
     );
     assert.equal(
-      decide({ ...base, billing: billing("ended", daysAgo(20), daysAgo(15)), enforcement: suspendedSince(8) }, T0).action,
+      decide({ ...base, billing: billing("ended", daysAgo(40), daysAgo(30)), enforcement: suspendedSince(REMOVE_AFTER_DAYS) }, T0).action,
       "remove",
     );
   });
@@ -106,5 +106,15 @@ describe("enforcementAfterSuspend", () => {
   it("payment suspensions get the 7-day removal deadline; trial ones never do", () => {
     assert.equal(enforcementAfterSuspend("payment", T0).removeAfter, daysAhead(REMOVE_AFTER_DAYS));
     assert.equal(enforcementAfterSuspend("trial", T0).removeAfter, null);
+  });
+});
+
+describe("removal window policy", () => {
+  it("is 14 days — two full weeks after suspension, not one", () => {
+    assert.equal(REMOVE_AFTER_DAYS, 14);
+    assert.equal(
+      decide({ ...base, billing: billing("pastDue", daysAgo(30)), enforcement: suspendedSince(13) }, T0).action,
+      "none",
+    );
   });
 });

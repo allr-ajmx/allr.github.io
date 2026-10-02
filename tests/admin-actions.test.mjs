@@ -73,3 +73,11 @@ describe("destructive levers", () => {
     refused(null);
   });
 });
+
+describe("removal billing choice", () => {
+  it("refund is opt-in: only an explicit true refunds", () => {
+    assert.equal(parseAction({ action: "remove", uid: "u", confirm: "k" }, NOW).refund, false);
+    assert.equal(parseAction({ action: "remove", uid: "u", confirm: "k", refund: "yes" }, NOW).refund, false);
+    assert.equal(parseAction({ action: "remove", uid: "u", confirm: "k", refund: true }, NOW).refund, true);
+  });
+});

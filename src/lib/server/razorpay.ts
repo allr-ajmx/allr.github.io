@@ -143,3 +143,30 @@ export type RzpPayment = {
   currency: string;
   notes?: Record<string, string>;
 };
+
+/** Cancel immediately (not at cycle end) — used when the workspace itself is going away. */
+export const cancelSubscriptionNow = (id: string) =>
+  rzp<RzpSubscription>(`/subscriptions/${id}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({ cancel_at_cycle_end: 0 }),
+  });
+
+type RzpInvoice = { id: string; status: string; payment_id?: string | null; paid_at?: number | null; amount_paid?: number };
+
+/** The most recent paid charge of a subscription, if any. */
+export async function lastPaidPayment(subscriptionId: string): Promise<{ paymentId: string; amount: number } | null> {
+  const list = await rzp<{ items?: RzpInvoice[] }>(
+    `/invoices?subscription_id=${encodeURIComponent(subscriptionId)}&count=20`,
+  );
+  const paid = (list.items ?? [])
+    .filter((i) => i.status === "paid" && i.payment_id)
+    .sort((a, b) => (b.paid_at ?? 0) - (a.paid_at ?? 0))[0];
+  return paid ? { paymentId: paid.payment_id!, amount: paid.amount_paid ?? 0 } : null;
+}
+
+/** Full refund of one payment. Razorpay refunds are idempotent per payment up to its amount. */
+export const refundPayment = (paymentId: string) =>
+  rzp<{ id: string; amount: number; status: string }>(`/payments/${paymentId}/refund`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });

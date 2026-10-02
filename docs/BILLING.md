@@ -101,7 +101,7 @@ webhooks handle the instant cases):
 - `pastDue` → `GRACE_DAYS` (2) after the status flip → **suspended** (offline,
   data kept); the customer's billing page says so
 - cancelled → runs to the end of the paid period, then suspended
-- suspended for **payment** and still unpaid `REMOVE_AFTER_DAYS` (7) later →
+- suspended for **payment** and still unpaid `REMOVE_AFTER_DAYS` (14) later →
   **removed** — containers and data deleted, the one destructive act
 - trial that never paid → suspended after grace, **never removed automatically**
 - an admin's manual suspension is invisible to the enforcer: never auto-resumed,

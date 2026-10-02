@@ -18,7 +18,7 @@
 import { GRACE_DAYS } from "./model.ts";
 import type { Billing } from "./model.ts";
 
-export const REMOVE_AFTER_DAYS = 7;
+export const REMOVE_AFTER_DAYS = 14;
 
 export type SuspendReason = "payment" | "trial";
 

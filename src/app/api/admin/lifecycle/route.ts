@@ -3,6 +3,7 @@ import { adminDb } from "@/lib/server/admin";
 import { toResponse } from "@/lib/server/errors";
 import { requireAdminToken } from "@/lib/server/workspace-admin";
 import { enqueueOp } from "@/lib/server/provisioning";
+import { stopBillingForRemoval } from "@/lib/server/billing";
 import { shipLog } from "@/lib/server/logship";
 import { hasExpiredGrant, ledgerFromDoc } from "@/lib/billing/credits";
 import {
@@ -86,6 +87,17 @@ export async function POST(request: Request) {
       }
 
       const op = { uid: d.uid, email: d.email, username, valueUsd: 0 } as const;
+      if (decision.action === "remove") {
+        // A pastDue subscription may still be retrying charges: stop it before
+        // the workspace is deleted. If that fails, skip this workspace this
+        // hour rather than delete something still being billed.
+        try {
+          await stopBillingForRemoval(doc.id, false);
+        } catch (e) {
+          console.error(`[lifecycle] not removing ${username}: billing stop failed`, e);
+          continue;
+        }
+      }
       await db.runTransaction(async (tx) => {
         if (decision.action === "suspend") {
           const reason =

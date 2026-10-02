@@ -10,6 +10,9 @@ import { enqueueInTransaction, enqueueOp, queueRef, readQueue } from "./provisio
 import { applyMonthlyGrantInTransaction } from "./credits";
 import { shipLog } from "./logship";
 import {
+  cancelSubscriptionNow,
+  lastPaidPayment,
+  refundPayment,
   cancelSubscriptionAtCycleEnd,
   createCustomer,
   createSubscription,
@@ -286,3 +289,48 @@ export async function applyWebhookEvent(
 }
 
 export { iso as _isoForTests };
+
+
+/**
+ * The workspace is being removed: stop billing for it, NOW, before anything is
+ * deleted. Called ahead of queuing the remove op so that if Razorpay fails,
+ * nothing is deleted and the caller sees why — a removed workspace that keeps
+ * charging is the worse failure. Optionally refunds the most recent paid
+ * charge (an explicit admin choice, never automatic).
+ *
+ * Returns a human-readable summary for the audit trail.
+ */
+export async function stopBillingForRemoval(uid: string, refund: boolean): Promise<string> {
+  const ref = adminDb().collection(USERS).doc(uid);
+  const snap = await ref.get();
+  const billing = snap.data()?.billing as { subscriptionId?: string; status?: string } | undefined;
+  if (!billing?.subscriptionId) return "no subscription";
+
+  const parts: string[] = [];
+  if (billing.status !== "ended") {
+    const sub = await cancelSubscriptionNow(billing.subscriptionId);
+    await ref.update({
+      "billing.status": "ended",
+      "billing.providerStatus": sub.status,
+      "billing.statusSince": new Date().toISOString(),
+      "billing.updatedAt": FieldValue.serverTimestamp(),
+    });
+    parts.push(`cancelled ${billing.subscriptionId}`);
+  } else {
+    parts.push("subscription already ended");
+  }
+
+  if (refund) {
+    const last = await lastPaidPayment(billing.subscriptionId);
+    if (!last) {
+      parts.push("no paid charge to refund");
+    } else {
+      const r = await refundPayment(last.paymentId);
+      parts.push(`refunded ${last.paymentId} (${r.amount / 100})`);
+    }
+  }
+
+  const summary = parts.join("; ");
+  shipLog("billing", "billing stopped for removal", { uid, detail: summary }, "warn");
+  return summary;
+}

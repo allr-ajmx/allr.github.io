@@ -209,11 +209,22 @@ export function AdminEditPanel({
                   {suspended ? "Resume" : "Suspend"}
                 </button>
                 <button type="button" className={danger} disabled={busy}
-                  onClick={() => void act(
-                    c.rosterOnly
-                      ? { action: "ws_remove", username: ws, confirm: ws }
-                      : { action: "remove", uid: c.uid, confirm: ws },
-                    `Delete ${ws}'s workspace?\n\nThis removes their containers and ALL their data permanently. There is no undo.`)}>
+                  onClick={() => {
+                    if (c.rosterOnly) {
+                      void act({ action: "ws_remove", username: ws, confirm: ws },
+                        `Delete ${ws}'s workspace?\n\nThis removes their containers and ALL their data permanently. There is no undo.`);
+                      return;
+                    }
+                    const paying = c.billing && c.billing.status !== "ended";
+                    if (!window.confirm(
+                      `Delete ${ws}'s workspace?\n\nThis removes their containers and ALL their data permanently. There is no undo.` +
+                      (paying ? "\n\nTheir subscription is cancelled immediately — no further charges." : ""),
+                    )) return;
+                    const refund = paying
+                      ? window.confirm("Also REFUND their most recent payment?\n\nOK = refund it · Cancel = no refund")
+                      : false;
+                    void act({ action: "remove", uid: c.uid, confirm: ws, refund }, null);
+                  }}>
                   Remove workspace…
                 </button>
               </div>

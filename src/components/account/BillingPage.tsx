@@ -222,8 +222,8 @@ export function BillingPage() {
             <p className="mb-4 font-semibold text-[#A6543C]">
               Your last payment didn’t go through. Pick up where you left off —
               nothing is lost yet, but your workspace goes offline until
-              payment is fixed, and an unpaid workspace is removed after a
-              week.
+              payment is fixed, and an unpaid workspace is removed two
+              weeks after that.
             </p>
           ) : null}
 
