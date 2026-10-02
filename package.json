@@ -20,7 +20,8 @@
     "test:billing": "node --test tests/billing.test.mjs",
     "test:admin": "node --test tests/workspace-admin.test.mjs",
     "test:credits": "node --test tests/credits.test.mjs",
-    "test": "pnpm test:age && pnpm test:billing && pnpm test:admin && pnpm test:credits && pnpm test:rules"
+    "test:admin-actions": "node --test tests/admin-actions.test.mjs",
+    "test": "pnpm test:age && pnpm test:billing && pnpm test:admin && pnpm test:credits && pnpm test:admin-actions && pnpm test:rules"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

@@ -108,8 +108,8 @@ export function CreditsPage() {
   return (
     <>
       <PageHeader eyebrow="Credits" title="Credit management">
-        $20 of AI credit comes with every month of your subscription. Packs you
-        buy carry over until they’re used.
+        AI credit comes with every month of your subscription. Bonus credit is
+        used before packs, and packs you buy carry over until they’re used.
       </PageHeader>
 
       {!data ? (
@@ -127,7 +127,7 @@ export function CreditsPage() {
                 <p className="text-[.8rem] font-bold tracking-[0.05em] text-ink-soft uppercase">This month</p>
                 <p className="text-[1.6rem] font-bold text-green-deep">
                   ${ledger.remaining.includedUsd.toFixed(2)}
-                  <span className="text-[.95rem] font-semibold text-ink-soft"> of $20 included</span>
+                  <span className="text-[.95rem] font-semibold text-ink-soft"> of ${ledger.includedUsd} included</span>
                 </p>
               </div>
               <div className="text-right">
@@ -138,9 +138,22 @@ export function CreditsPage() {
             <div className="h-2 overflow-hidden rounded-full bg-paper">
               <div
                 className="h-full rounded-full bg-green transition-[width] duration-500"
-                style={{ width: `${Math.min(100, (ledger.remaining.includedUsd / 20) * 100)}%` }}
+                style={{ width: `${Math.min(100, (ledger.remaining.includedUsd / Math.max(1, ledger.includedUsd)) * 100)}%` }}
               />
             </div>
+            {ledger.grants?.length ? (
+              <ul className="mt-4 flex flex-col gap-1 text-[.88rem]">
+                {ledger.grants.map((g) => (
+                  <li key={g.id}>
+                    <b>${g.usd.toFixed(2)}</b> bonus credit
+                    {g.note ? ` (${g.note})` : ""}
+                    {g.expiresAt
+                      ? ` · use by ${new Date(g.expiresAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`
+                      : ""}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             <p className="mt-2 text-[.82rem] text-ink-soft">
               Spent this cycle: ${ledger.spentThisCycleUsd.toFixed(2)}
               {ledger.usageSyncedAt

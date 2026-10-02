@@ -1,198 +1,208 @@
 import "server-only";
 
+import { createHash, randomUUID } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
-import { adminDb } from "./admin";
+import { adminAuth, adminDb } from "./admin";
 import { badRequest, conflict } from "./errors";
 import type { Caller } from "./session";
 import { enqueueInTransaction, enqueueOp, queueRef } from "./provisioning";
-import { checkUsernameShape } from "@/lib/admin/username";
 import { shipLog } from "./logship";
+import { ledgerFromDoc, queueChange, type PendingChange } from "@/lib/billing/credits";
 import {
-  applyTopup,
-  initialLedger,
-  setIncluded,
-  type CreditLedger,
-} from "@/lib/billing/credits";
+  ActionRefused,
+  parseAction as parsePure,
+  type AdminAction,
+} from "@/lib/admin/parse-action";
 
 /**
- * What an admin may do to a customer's offering. Every action is a server
- * write into the same ledgers and queues the automatic paths use — the admin
- * panel has no powers of its own, only a hand on the same levers. Each one
- * is recorded in `admin_actions` with who pulled it.
+ * What an admin may do to a customer. Every action is a server write into
+ * the same ledgers and queues the automatic paths use — the panel has no
+ * powers of its own, only a hand on the same levers — and each one is
+ * recorded in `admin_actions` with who pulled it.
+ *
+ * Validation lives here, not in the browser: a crafted request gets exactly
+ * the same refusals the UI shows.
  */
 
 const USERS = "users";
+const EMAIL_CLAIMS = "user_emails";
 
-const asLedger = (d: FirebaseFirestore.DocumentData): CreditLedger =>
-  d.credits
-    ? {
-        includedUsd: Number(d.credits.includedUsd ?? 20),
-        cycleStartUsageUsd: Number(d.credits.cycleStartUsageUsd ?? 0),
-        topupBalanceUsd: Number(d.credits.topupBalanceUsd ?? 0),
-        targetLimitUsd: Number(d.credits.targetLimitUsd ?? 20),
-        usageUsd: Number(d.credits.usageUsd ?? 0),
-        usageSyncedAt: d.credits.usageSyncedAt ?? null,
-      }
-    : initialLedger();
+const emailKey = (email: string) =>
+  createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
 
-export type AdminAction =
-  | { action: "grant_credit"; uid: string; usd: number }
-  | { action: "set_included"; uid: string; usd: number }
-  | { action: "suspend" | "resume"; uid: string }
-  | { action: "provision"; uid: string; username: string }
-  /** Destructive: containers and data. `confirm` must equal the username. */
-  | { action: "remove"; uid: string; confirm: string }
-  /** Roster-only workspaces (no site account yet): keyed by username. */
-  | { action: "ws_suspend"; username: string }
-  | { action: "ws_resume"; username: string }
-  | { action: "ws_remove"; username: string; confirm: string };
+export type { AdminAction } from "@/lib/admin/parse-action";
 
 export function parseAction(body: unknown): AdminAction {
-  const b = (body ?? {}) as Record<string, unknown>;
-  // Roster-only targets carry a username and no uid.
-  if (b.action === "ws_suspend" || b.action === "ws_resume" || b.action === "ws_remove") {
-    const verdict = checkUsernameShape(b.username);
-    if (!verdict.ok) throw badRequest("bad-username", verdict.reason);
-    if (b.action === "ws_remove") {
-      if (typeof b.confirm !== "string" || b.confirm.trim().toLowerCase() !== verdict.username) {
-        throw badRequest("confirm", "Name the workspace exactly to confirm removal.");
-      }
-      return { action: "ws_remove", username: verdict.username, confirm: verdict.username };
-    }
-    return b.action === "ws_suspend"
-      ? { action: "ws_suspend", username: verdict.username }
-      : { action: "ws_resume", username: verdict.username };
-  }
-  const uid = typeof b.uid === "string" ? b.uid : "";
-  if (!uid) throw badRequest("invalid", "uid is required.");
-  const usd = Number(b.usd);
-  switch (b.action) {
-    case "grant_credit":
-      if (!Number.isFinite(usd) || usd <= 0 || usd > 500) {
-        throw badRequest("invalid", "Grant between $0 and $500.");
-      }
-      return { action: "grant_credit", uid, usd };
-    case "set_included":
-      if (!Number.isFinite(usd) || usd < 0 || usd > 500) {
-        throw badRequest("invalid", "Included is $0–$500 a month.");
-      }
-      return { action: "set_included", uid, usd };
-    case "suspend":
-    case "resume":
-      return { action: b.action, uid };
-    case "remove":
-      if (typeof b.confirm !== "string" || !b.confirm.trim()) {
-        throw badRequest("confirm", "Type the workspace name to confirm removal.");
-      }
-      return { action: "remove", uid, confirm: b.confirm.trim().toLowerCase() };
-    case "provision": {
-      const verdict = checkUsernameShape(b.username);
-      if (!verdict.ok) throw badRequest("bad-username", verdict.reason);
-      return { action: "provision", uid, username: verdict.username };
-    }
-    default:
-      throw badRequest("invalid", "Unknown action.");
+  try {
+    return parsePure(body);
+  } catch (e) {
+    if (e instanceof ActionRefused) throw badRequest(e.code, e.message);
+    throw e;
   }
 }
 
-export async function applyAdminAction(admin: Caller, action: AdminAction): Promise<void> {
+function audit(
+  tx: FirebaseFirestore.Transaction,
+  admin: Caller,
+  action: AdminAction,
+  detail: string | number | null,
+) {
+  tx.set(adminDb().collection("admin_actions").doc(), {
+    by: admin.email,
+    uid: "uid" in action ? action.uid : null,
+    username: "username" in action ? action.username : null,
+    action: action.action,
+    detail,
+    at: FieldValue.serverTimestamp(),
+  });
+}
+
+/** Roster-only workspaces: the roster row is the identity; ops carry no uid. */
+async function applyRosterAction(
+  admin: Caller,
+  action: Extract<AdminAction, { username: string; action: `ws_${string}` }>,
+) {
   const db = adminDb();
-
-  // Roster-only workspaces: the roster row is the identity; ops carry no uid.
-  if (action.action === "ws_suspend" || action.action === "ws_resume" || action.action === "ws_remove") {
-    const roster = await db.collection("workspace_roster").doc(action.username).get();
+  const rosterRef = db.collection("workspace_roster").doc(action.username);
+  await db.runTransaction(async (tx) => {
+    const roster = await tx.get(rosterRef);
     if (!roster.exists) throw badRequest("no-workspace", "No such workspace on the roster.");
-    const email = String(roster.data()?.email ?? "");
-    const op = action.action === "ws_suspend" ? "suspend" : action.action === "ws_resume" ? "resume" : "remove";
-    await db.runTransaction(async (tx) => {
-      enqueueOp(tx, { uid: "", email, username: action.username, op, valueUsd: 0 });
-      tx.set(db.collection("admin_actions").doc(), {
-        by: admin.email,
-        uid: null,
-        username: action.username,
-        action: action.action,
-        detail: null,
-        at: FieldValue.serverTimestamp(),
-      });
-    });
-    console.log(`[admin] ${admin.email}: ${action.action} for roster workspace ${action.username}`);
-    shipLog("admin", action.action, { by: admin.email, target: action.username },
-      action.action === "ws_remove" ? "warn" : "info");
-    return;
-  }
+    const current = String(roster.data()?.email ?? "");
+    if (action.action === "ws_set_email") {
+      if (action.email === current) throw badRequest("invalid", "That is already its email.");
+      // The VPS owns the truth (USER_EMAIL, SSO login); the roster mirrors it
+      // now so the table — and sign-in adoption by that email — follow at once.
+      enqueueOp(tx, { uid: "", email: action.email, username: action.username, op: "set_email", valueUsd: 0 });
+      tx.update(rosterRef, { email: action.email, updatedAt: FieldValue.serverTimestamp() });
+      audit(tx, admin, action, `${current} → ${action.email}`);
+      return;
+    }
+    const op =
+      action.action === "ws_suspend" ? "suspend" : action.action === "ws_resume" ? "resume" : "remove";
+    enqueueOp(tx, { uid: "", email: current, username: action.username, op, valueUsd: 0 });
+    audit(tx, admin, action, null);
+  });
+  shipLog("admin", action.action, { by: admin.email, target: action.username },
+    action.action === "ws_remove" ? "warn" : "info");
+}
 
-  const userRef = db.collection(USERS).doc(action.uid);
+export async function applyAdminAction(admin: Caller, action: AdminAction): Promise<void> {
+  if (action.action.startsWith("ws_")) {
+    return applyRosterAction(admin, action as Extract<AdminAction, { action: `ws_${string}` }>);
+  }
+  const a = action as Exclude<AdminAction, { action: `ws_${string}` }>;
+  const db = adminDb();
+  const userRef = db.collection(USERS).doc(a.uid);
+  let oldEmailForAuth: string | null = null;
 
   await db.runTransaction(async (tx) => {
-    const reads: Promise<FirebaseFirestore.DocumentSnapshot>[] = [tx.get(userRef)];
-    if (action.action === "provision") {
-      reads.push(tx.get(queueRef(action.uid)));
-      reads.push(tx.get(db.collection("workspace_usernames").doc(action.username)));
-    }
-    const [user, queueSnap, nameSnap] = await Promise.all(reads);
+    const user = await tx.get(userRef);
     if (!user.exists) throw badRequest("no-account", "No such customer.");
     const d = user.data()!;
     const username = String(d.workspace_username ?? "");
 
-    switch (action.action) {
-      case "grant_credit": {
-        if (!username) throw badRequest("no-workspace", "Grant credit once a workspace exists.");
-        const next = applyTopup(asLedger(d), action.usd);
-        tx.update(userRef, { credits: next, updatedAt: FieldValue.serverTimestamp() });
-        enqueueOp(tx, { uid: action.uid, email: d.email, username, op: "set_limit", valueUsd: next.targetLimitUsd });
+    const queueCredit = (change: PendingChange) => {
+      if (!username) throw badRequest("no-workspace", "Credits belong to a live workspace.");
+      const ledger = ledgerFromDoc(d.credits);
+      if (!ledger) throw badRequest("no-ledger", "This account has no credit ledger yet.");
+      tx.update(userRef, { credits: queueChange(ledger, change), updatedAt: FieldValue.serverTimestamp() });
+      enqueueOp(tx, { uid: a.uid, email: d.email, username, op: "sync_limit", valueUsd: 0 });
+    };
+
+    switch (a.action) {
+      case "edit_profile": {
+        tx.update(userRef, {
+          ...(a.name !== undefined ? { name: a.name } : {}),
+          ...(a.country !== undefined ? { country: a.country } : {}),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        audit(tx, admin, a, [a.name, a.country].filter(Boolean).join(" · "));
         break;
       }
-      case "set_included": {
-        if (!username) throw badRequest("no-workspace", "Set the grant once a workspace exists.");
-        const next = setIncluded(asLedger(d), action.usd);
-        tx.update(userRef, { credits: next, updatedAt: FieldValue.serverTimestamp() });
-        enqueueOp(tx, { uid: action.uid, email: d.email, username, op: "set_limit", valueUsd: next.targetLimitUsd });
-        break;
-      }
-      case "suspend":
-      case "resume": {
-        if (!username) throw badRequest("no-workspace", "There is no workspace to act on.");
-        enqueueOp(tx, { uid: action.uid, email: d.email, username, op: action.action, valueUsd: 0 });
-        break;
-      }
-      case "remove": {
-        if (!username) throw badRequest("no-workspace", "There is no workspace to remove.");
-        // The confirmation is checked here, where it cannot be skipped by a
-        // creative client — the typed name must match the workspace exactly.
-        if (action.confirm !== username) {
-          throw badRequest(
-            "confirm",
-            `Type the workspace name (${username}) exactly to confirm removal.`,
-          );
+      case "transfer_email": {
+        const oldEmail = String(d.email ?? "").toLowerCase();
+        if (a.email === oldEmail) throw badRequest("invalid", "That is already their email.");
+        const oldClaim = db.collection(EMAIL_CLAIMS).doc(emailKey(oldEmail));
+        const newClaim = db.collection(EMAIL_CLAIMS).doc(emailKey(a.email));
+        const taken = await tx.get(newClaim);
+        if (taken.exists && taken.data()?.uid !== a.uid) {
+          throw conflict("email-taken", "Another Allr account already uses that email.");
         }
-        enqueueOp(tx, { uid: action.uid, email: d.email, username, op: "remove", valueUsd: 0 });
+        tx.update(userRef, {
+          email: a.email,
+          ...(username ? { workspace_email: a.email } : {}),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        tx.delete(oldClaim);
+        tx.set(newClaim, { uid: a.uid, email: a.email, transferredAt: FieldValue.serverTimestamp() });
+        if (username) {
+          enqueueOp(tx, { uid: a.uid, email: a.email, username, op: "set_email", valueUsd: 0 });
+        }
+        audit(tx, admin, a, `${oldEmail} → ${a.email}`);
+        oldEmailForAuth = oldEmail;
         break;
       }
+      case "grant_credit":
+        queueCredit({
+          type: "grant",
+          grant: { id: randomUUID().slice(0, 8), usd: a.usd, expiresAt: a.expiresAt, note: a.note || undefined },
+        });
+        audit(tx, admin, a, `$${a.usd}${a.expiresAt ? ` until ${a.expiresAt.slice(0, 10)}` : ""}`);
+        break;
+      case "revoke_grant":
+        queueCredit({ type: "revoke", id: a.grantId });
+        audit(tx, admin, a, a.grantId);
+        break;
+      case "set_included":
+        queueCredit({ type: "set_included", usd: a.usd });
+        audit(tx, admin, a, a.usd);
+        break;
+      case "suspend":
+      case "resume":
+        if (!username) throw badRequest("no-workspace", "There is no workspace to act on.");
+        enqueueOp(tx, { uid: a.uid, email: d.email, username, op: a.action, valueUsd: 0 });
+        audit(tx, admin, a, null);
+        break;
+      case "remove":
+        if (!username) throw badRequest("no-workspace", "There is no workspace to remove.");
+        // Checked here, where a creative client cannot skip it.
+        if (a.confirm !== username) {
+          throw badRequest("confirm", `Name the workspace (${username}) exactly to confirm removal.`);
+        }
+        enqueueOp(tx, { uid: a.uid, email: d.email, username, op: "remove", valueUsd: 0 });
+        audit(tx, admin, a, username);
+        break;
       case "provision": {
         if (username) throw conflict("has-workspace", "They already have a workspace.");
-        if (nameSnap!.exists && nameSnap!.data()?.uid !== action.uid) {
+        const [queueSnap, nameSnap] = await Promise.all([
+          tx.get(queueRef(a.uid)),
+          tx.get(db.collection("workspace_usernames").doc(a.username)),
+        ]);
+        if (nameSnap.exists && nameSnap.data()?.uid !== a.uid) {
           throw conflict("username-taken", "That name is taken.");
         }
-        tx.set(nameSnap!.ref, { uid: action.uid, email: d.email, reservedAt: FieldValue.serverTimestamp() });
-        tx.update(userRef, { pending_workspace_username: action.username, updatedAt: FieldValue.serverTimestamp() });
-        enqueueInTransaction(tx, queueSnap!, { uid: action.uid, email: d.email, username: action.username });
+        tx.set(nameSnap.ref, { uid: a.uid, email: d.email, reservedAt: FieldValue.serverTimestamp() });
+        tx.update(userRef, { pending_workspace_username: a.username, updatedAt: FieldValue.serverTimestamp() });
+        enqueueInTransaction(tx, queueSnap, { uid: a.uid, email: d.email, username: a.username });
+        audit(tx, admin, a, a.username);
         break;
       }
     }
-
-    tx.set(db.collection("admin_actions").doc(), {
-      by: admin.email,
-      uid: action.uid,
-      action: action.action,
-      detail: "usd" in action ? action.usd : "username" in action ? action.username : null,
-      at: FieldValue.serverTimestamp(),
-    });
   });
 
-  console.log(`[admin] ${admin.email}: ${action.action} for ${action.uid}`);
-  shipLog("admin", action.action, {
-    by: admin.email,
-    target: action.uid,
-    detail: "usd" in action ? action.usd : "username" in action ? action.username : undefined,
-  }, action.action === "remove" ? "warn" : "info");
+  // Transfer, step 2: retire the old Google identity. The next sign-in with
+  // the new address finds the claim pointing at a uid Auth no longer knows,
+  // and readOrAdoptProfile moves the whole account to that person.
+  if (oldEmailForAuth) {
+    try {
+      await adminAuth().deleteUser(a.uid);
+    } catch (e) {
+      const code = (e as { code?: string })?.code;
+      if (code !== "auth/user-not-found") throw e;
+    }
+  }
+
+  console.log(`[admin] ${admin.email}: ${a.action} for ${a.uid}`);
+  shipLog("admin", a.action, { by: admin.email, target: a.uid },
+    a.action === "remove" || a.action === "transfer_email" ? "warn" : "info");
 }

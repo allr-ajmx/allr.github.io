@@ -3,7 +3,7 @@ import { adminDb } from "@/lib/server/admin";
 import { requireAdminUser } from "@/lib/server/admin-gate";
 import { toResponse } from "@/lib/server/errors";
 import { deriveState } from "@/lib/account/state";
-import { remaining, spentThisCycle } from "@/lib/billing/credits";
+import { ledgerFromDoc, remaining, spentThisCycle } from "@/lib/billing/credits";
 import type { UserProfile } from "@/lib/account/model";
 
 /**
@@ -42,6 +42,7 @@ export async function GET(request: Request) {
             orUsageUsd: r.orUsageUsd ?? null,
             orUsageDailyUsd: r.orUsageDailyUsd ?? null,
             orUsageMonthlyUsd: r.orUsageMonthlyUsd ?? null,
+            orHealth: r.orHealth ?? null,
             seenAt: iso(r.updatedAt),
           }
         : null;
@@ -65,12 +66,17 @@ export async function GET(request: Request) {
         earlyAccessRequestedAt: iso(d.earlyAccessRequestedAt),
       } as unknown as UserProfile;
       const q = queueByUid.get(doc.id);
-      const credits = d.credits
+      const ledger = ledgerFromDoc(d.credits);
+      const rem = ledger ? remaining(ledger) : null;
+      const credits = ledger && rem
         ? {
-            remaining: remaining(d.credits),
-            spentThisCycleUsd: spentThisCycle(d.credits),
-            topupBalanceUsd: Number(d.credits.topupBalanceUsd ?? 0),
-            usageSyncedAt: d.credits.usageSyncedAt ?? null,
+            remaining: { includedUsd: rem.includedUsd, topupUsd: rem.topupUsd, grantsUsd: rem.grantsUsd },
+            includedMonthlyUsd: ledger.includedUsd,
+            grants: rem.grants.map((g) => ({ id: g.id, usd: g.usd, expiresAt: g.expiresAt, note: g.note ?? null })),
+            pendingChanges: (ledger.pending ?? []).length + (ledger.grantsPending ?? 0),
+            spentThisCycleUsd: spentThisCycle(ledger),
+            topupBalanceUsd: ledger.topupBalanceUsd,
+            usageSyncedAt: ledger.usageSyncedAt,
           }
         : null;
       return {

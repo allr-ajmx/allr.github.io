@@ -6,6 +6,7 @@ import { adminDb } from "./admin";
 import { ApiError, badRequest } from "./errors";
 import { parseStamp as parsePure, tokenMatches, type WorkspaceStamp } from "@/lib/admin/stamp";
 import { initialLedgerFields } from "./credits";
+import { enqueueOp } from "./provisioning";
 import { shipLog } from "./logship";
 
 /**
@@ -82,9 +83,17 @@ export async function stampWorkspace(stamp: WorkspaceStamp): Promise<{
         email: stamp.email,
         reservedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
-      // Open the credit ledger once; never reset an existing one.
+      // Open the credit ledger once; never reset an existing one — and make
+      // the key match it right away rather than trusting the minted default.
       if (!user.data()?.credits) {
         tx.update(user.ref, initialLedgerFields());
+        enqueueOp(tx, {
+          uid,
+          email: stamp.email,
+          username: stamp.username,
+          op: "sync_limit",
+          valueUsd: 0,
+        });
       }
     }
   });

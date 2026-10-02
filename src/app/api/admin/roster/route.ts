@@ -23,6 +23,7 @@ type RosterItem = {
   orUsageUsd?: number;
   orUsageDailyUsd?: number;
   orUsageMonthlyUsd?: number;
+  orHealth?: string;
 };
 export async function POST(request: Request) {
   try {
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
           orUsageUsd: Number.isFinite(item.orUsageUsd) ? item.orUsageUsd : null,
           orUsageDailyUsd: Number.isFinite(item.orUsageDailyUsd) ? item.orUsageDailyUsd : null,
           orUsageMonthlyUsd: Number.isFinite(item.orUsageMonthlyUsd) ? item.orUsageMonthlyUsd : null,
+          orHealth: typeof item.orHealth === "string" ? item.orHealth.slice(0, 300) : null,
           ...(known.has(username) ? {} : { firstSeenAt: FieldValue.serverTimestamp() }),
           updatedAt: FieldValue.serverTimestamp(),
         },

@@ -1,0 +1,75 @@
+/**
+ * The admin panel's security boundary: every lever's input validation, run
+ * exactly as the server runs it. A refusal here is a 400 for any client,
+ * crafted or not.
+ */
+
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { ActionRefused, parseAction } from "../src/lib/admin/parse-action.ts";
+
+const NOW = new Date("2026-10-02T12:00:00Z");
+const refused = (body, code) =>
+  assert.throws(() => parseAction(body, NOW), (e) => e instanceof ActionRefused && (!code || e.code === code));
+
+describe("profile edits", () => {
+  it("accepts a name and/or a country, normalising the code", () => {
+    assert.deepEqual(parseAction({ action: "edit_profile", uid: "u", name: " Kamal Gurnani ", country: "in" }, NOW),
+      { action: "edit_profile", uid: "u", name: "Kamal Gurnani", country: "IN" });
+  });
+  it("refuses empty edits, silly names, unknown countries, missing uid", () => {
+    refused({ action: "edit_profile", uid: "u" });
+    refused({ action: "edit_profile", uid: "u", name: "K" });
+    refused({ action: "edit_profile", uid: "u", country: "ZZ" });
+    refused({ action: "edit_profile", name: "Kamal" });
+  });
+});
+
+describe("email transfer", () => {
+  it("lower-cases and accepts a valid address", () => {
+    assert.equal(parseAction({ action: "transfer_email", uid: "u", email: "New@Gmail.com" }, NOW).email, "new@gmail.com");
+  });
+  it("refuses anything that isn't an address", () => {
+    refused({ action: "transfer_email", uid: "u", email: "not-an-email" });
+    refused({ action: "transfer_email", uid: "u" });
+  });
+  it("roster workspaces can be re-pointed too", () => {
+    assert.equal(parseAction({ action: "ws_set_email", username: "shubham", email: "x@y.co" }, NOW).email, "x@y.co");
+    refused({ action: "ws_set_email", username: "Bad Name!", email: "x@y.co" }, "bad-username");
+  });
+});
+
+describe("credit grants", () => {
+  it("accepts an amount, an optional future expiry and a note", () => {
+    const a = parseAction({ action: "grant_credit", uid: "u", usd: "15", expiresAt: "2026-12-31", note: "launch promo" }, NOW);
+    assert.equal(a.usd, 15);
+    assert.equal(a.expiresAt, "2026-12-31T00:00:00.000Z");
+    assert.equal(a.note, "launch promo");
+    assert.equal(parseAction({ action: "grant_credit", uid: "u", usd: 5 }, NOW).expiresAt, null);
+  });
+  it("refuses zero, negative, huge, and past-dated grants", () => {
+    refused({ action: "grant_credit", uid: "u", usd: 0 });
+    refused({ action: "grant_credit", uid: "u", usd: -5 });
+    refused({ action: "grant_credit", uid: "u", usd: 501 });
+    refused({ action: "grant_credit", uid: "u", usd: 5, expiresAt: "2026-09-01" });
+    refused({ action: "grant_credit", uid: "u", usd: 5, expiresAt: "someday" });
+  });
+  it("revoke needs a grant id; included is $0–$500", () => {
+    refused({ action: "revoke_grant", uid: "u" });
+    assert.equal(parseAction({ action: "set_included", uid: "u", usd: 0 }, NOW).usd, 0);
+    refused({ action: "set_included", uid: "u", usd: 900 });
+  });
+});
+
+describe("destructive levers", () => {
+  it("removal must name the workspace; roster removal must match exactly", () => {
+    refused({ action: "remove", uid: "u" }, "confirm");
+    assert.equal(parseAction({ action: "remove", uid: "u", confirm: "Kamal" }, NOW).confirm, "kamal");
+    refused({ action: "ws_remove", username: "kamal", confirm: "other" }, "confirm");
+  });
+  it("unknown actions are refused, not ignored", () => {
+    refused({ action: "drop_database", uid: "u" });
+    refused({ action: "ws_explode", username: "kamal" });
+    refused(null);
+  });
+});

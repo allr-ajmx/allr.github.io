@@ -13,6 +13,7 @@ import {
   applyTopup,
   applyUsage,
   initialLedger,
+  ledgerFromDoc,
   packById,
   remaining,
   spentThisCycle,
@@ -33,16 +34,7 @@ const USERS = "users";
 const PURCHASES = "credit_purchases";
 
 const asLedger = (data: FirebaseFirestore.DocumentData | undefined): CreditLedger | null =>
-  data?.credits
-    ? {
-        includedUsd: Number(data.credits.includedUsd ?? 20),
-        cycleStartUsageUsd: Number(data.credits.cycleStartUsageUsd ?? 0),
-        topupBalanceUsd: Number(data.credits.topupBalanceUsd ?? 0),
-        targetLimitUsd: Number(data.credits.targetLimitUsd ?? 0),
-        usageUsd: Number(data.credits.usageUsd ?? 0),
-        usageSyncedAt: data.credits.usageSyncedAt ?? null,
-      }
-    : null;
+  ledgerFromDoc(data?.credits);
 
 export async function readLedger(uid: string): Promise<CreditLedger | null> {
   const snap = await adminDb().collection(USERS).doc(uid).get();
@@ -125,8 +117,7 @@ export async function applyTopupPayment(payment: RzpPayment): Promise<"applied" 
       uid,
       email: user.data()!.email,
       username: user.data()!.workspace_username ?? "",
-      op: "set_limit",
-      valueUsd: next.targetLimitUsd,
+      op: "sync_limit", valueUsd: next.targetLimitUsd,
     });
     return "applied" as const;
   });
@@ -156,8 +147,7 @@ export function applyMonthlyGrantInTransaction(
     uid: data.uid,
     email: data.email,
     username: data.workspace_username ?? "",
-    op: "set_limit",
-    valueUsd: next.targetLimitUsd,
+    op: "sync_limit", valueUsd: next.targetLimitUsd,
   });
 }
 
@@ -188,7 +178,8 @@ export function summarizeLedger(ledger: CreditLedger) {
   const rem = remaining(ledger);
   return {
     includedUsd: ledger.includedUsd ?? 20,
-    remaining: rem,
+    remaining: { includedUsd: rem.includedUsd, topupUsd: rem.topupUsd, grantsUsd: rem.grantsUsd },
+    grants: rem.grants.map((g) => ({ id: g.id, usd: g.usd, expiresAt: g.expiresAt, note: g.note ?? null })),
     spentThisCycleUsd: spentThisCycle(ledger),
     topupBalanceUsd: ledger.topupBalanceUsd,
     usageSyncedAt: ledger.usageSyncedAt,

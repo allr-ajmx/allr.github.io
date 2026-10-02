@@ -106,7 +106,8 @@ export const fetchCredits = () => call<CreditResponse>("/account/credits/");
 
 export type LedgerSummary = {
   includedUsd: number;
-  remaining: { includedUsd: number; topupUsd: number };
+  remaining: { includedUsd: number; topupUsd: number; grantsUsd: number };
+  grants: { id: string; usd: number; expiresAt: string | null; note: string | null }[];
   spentThisCycleUsd: number;
   topupBalanceUsd: number;
   usageSyncedAt: string | null;
@@ -162,7 +163,10 @@ export type AdminCustomer = {
   pendingUsername: string | null;
   billing: { status: string; planCurrency: string; currentPeriodEnd: string | null } | null;
   credits: {
-    remaining: { includedUsd: number; topupUsd: number };
+    remaining: { includedUsd: number; topupUsd: number; grantsUsd: number };
+    includedMonthlyUsd: number;
+    grants: { id: string; usd: number; expiresAt: string | null; note: string | null }[];
+    pendingChanges: number;
     spentThisCycleUsd: number;
     topupBalanceUsd: number;
     usageSyncedAt: string | null;
@@ -179,6 +183,7 @@ export type AdminCustomer = {
     orUsageUsd: number | null;
     orUsageDailyUsd: number | null;
     orUsageMonthlyUsd: number | null;
+    orHealth: string | null;
     seenAt: string | null;
   } | null;
 };
@@ -198,15 +203,25 @@ export const fetchAdminCustomers = () =>
     pendingOps: { id: string; op: string; username: string; status: string; error: string | null }[];
   }>("/admin-ui/customers/");
 
-export const adminAction = (body: {
+export type AdminActionBody = {
   action:
-    | "grant_credit" | "set_included" | "suspend" | "resume" | "provision" | "remove"
-    | "ws_suspend" | "ws_resume" | "ws_remove";
+    | "edit_profile" | "transfer_email" | "grant_credit" | "revoke_grant" | "set_included"
+    | "suspend" | "resume" | "provision" | "remove"
+    | "ws_suspend" | "ws_resume" | "ws_set_email" | "ws_remove";
   uid?: string;
   usd?: number;
   username?: string;
   confirm?: string;
-}) => call<{ ok: true }>("/admin-ui/actions/", { method: "POST", body: JSON.stringify(body) });
+  name?: string;
+  country?: string;
+  email?: string;
+  expiresAt?: string | null;
+  note?: string;
+  grantId?: string;
+};
+
+export const adminAction = (body: AdminActionBody) =>
+  call<{ ok: true }>("/admin-ui/actions/", { method: "POST", body: JSON.stringify(body) });
 
 export const fetchAdminOperations = () =>
   call<{

@@ -186,17 +186,30 @@ export async function applyWebhookEvent(
 
   const db = adminDb();
   const eventRef = db.collection(EVENTS).doc(eventId);
-  const userRef = db.collection(USERS).doc(uid);
+  // notes.uid is stamped at creation; an account can move to a new uid
+  // afterwards (email transfer, adoption). The subscription id is stable.
+  let userRef = db.collection(USERS).doc(uid);
+  if (!(await userRef.get()).exists) {
+    const moved = await db
+      .collection(USERS)
+      .where("billing.subscriptionId", "==", subscription.id)
+      .limit(1)
+      .get();
+    if (moved.docs[0]) {
+      console.warn(`[billing] ${subscription.id}: uid ${uid} gone, account moved to ${moved.docs[0].id}`);
+      userRef = moved.docs[0].ref;
+    }
+  }
 
   return db.runTransaction(async (tx) => {
     const [seen, user, queueSnap] = await Promise.all([
       tx.get(eventRef),
       tx.get(userRef),
-      tx.get(queueRef(uid)),
+      tx.get(queueRef(userRef.id)),
     ]);
     if (seen.exists) return "duplicate" as const;
     if (!user.exists) {
-      console.error(`[billing] ${eventName}: no profile for uid ${uid}`);
+      console.error(`[billing] ${eventName}: no profile for uid ${uid} or subscription ${subscription.id}`);
       return "ignored" as const;
     }
 
@@ -219,7 +232,7 @@ export async function applyWebhookEvent(
     // without waiting for the hourly sweep. completeOp clears the mark.
     if (nextStatus === "active" && data.enforcement && data.workspace_username) {
       enqueueOp(tx, {
-        uid,
+        uid: userRef.id,
         email: data.email,
         username: data.workspace_username,
         op: "resume",
@@ -254,13 +267,13 @@ export async function applyWebhookEvent(
     const noWorkspace = !String(data.workspace_username ?? "").trim();
     const pending = String(data.pending_workspace_username ?? "").trim();
     if (paid && noWorkspace && pending) {
-      enqueueInTransaction(tx, queueSnap, { uid, email: data.email, username: pending });
+      enqueueInTransaction(tx, queueSnap, { uid: userRef.id, email: data.email, username: pending });
     }
 
     tx.set(eventRef, {
       eventName,
       subscriptionId: subscription.id,
-      uid,
+      uid: userRef.id,
       outcome: "applied",
       receivedAt: FieldValue.serverTimestamp(),
     });

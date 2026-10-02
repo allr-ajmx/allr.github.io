@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "./PageHeader";
 import { useAuth } from "./AuthProvider";
+import { AdminEditPanel } from "./AdminEditPanel";
 import {
   ApiCallFailed,
   adminAction,
   fetchAdminCustomers,
+  type AdminActionBody,
   type AdminCustomer,
 } from "@/lib/firebase/api";
 
@@ -51,16 +53,24 @@ export function AdminPage() {
     }
   }, []);
 
+  const [editing, setEditing] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  /** Run one action. Confirms only when given text; true on success. */
   const act = useCallback(
-    async (body: Parameters<typeof adminAction>[0], confirmText: string) => {
-      if (!window.confirm(confirmText)) return;
+    async (body: AdminActionBody, confirmText: string | null): Promise<boolean> => {
+      if (confirmText && !window.confirm(confirmText)) return false;
       setBusy(true);
       setError(null);
+      setNotice(null);
       try {
         await adminAction(body);
         await refresh();
+        setNotice("Saved. Workspace changes apply within about a minute.");
+        return true;
       } catch (e) {
         setError(e instanceof ApiCallFailed ? e.message : "That didn’t go through.");
+        return false;
       } finally {
         setBusy(false);
       }
@@ -118,6 +128,7 @@ export function AdminPage() {
       </PageHeader>
 
       {error ? <p className="mb-4 font-semibold text-[#A6543C]">{error}</p> : null}
+      {notice ? <p className="mb-4 font-semibold text-green-deep">{notice}</p> : null}
       {!data && !error ? <p className="text-ink-soft">Loading…</p> : null}
 
       {data ? (
@@ -150,6 +161,13 @@ export function AdminPage() {
                 ))}
             </div>
           ) : null}
+
+          {(() => {
+            const row = customers.find((c) => (c.uid || `ws:${c.workspace?.username}`) === editing);
+            return row ? (
+              <AdminEditPanel key={editing!} c={row} busy={busy} act={act} onClose={() => setEditing(null)} />
+            ) : null;
+          })()}
 
           <div className="overflow-x-auto rounded-card border border-line bg-card">
             <table className="w-full min-w-[1100px] border-collapse text-[.88rem]">
@@ -228,7 +246,11 @@ export function AdminPage() {
                         <span className="text-ink-soft">{NE}</span>
                       ) : c.credits ? (
                         <>
-                          <span>${c.credits.remaining.includedUsd.toFixed(2)} incl · ${c.credits.remaining.topupUsd.toFixed(2)} pack</span>
+                          <span>
+                            ${c.credits.remaining.includedUsd.toFixed(2)} incl
+                            {c.credits.remaining.grantsUsd ? ` · $${c.credits.remaining.grantsUsd.toFixed(2)} granted` : ""}
+                            {" · "}${c.credits.remaining.topupUsd.toFixed(2)} pack
+                          </span>
                           <span className="block text-[.78rem] text-ink-soft">spent ${c.credits.spentThisCycleUsd.toFixed(2)} this cycle</span>
                         </>
                       ) : (
@@ -243,6 +265,9 @@ export function AdminPage() {
                           </span>
                           {c.platform.orDisabled ? (
                             <span className="block text-[.76rem] font-bold text-[#A6543C]">disabled</span>
+                          ) : null}
+                          {c.platform.orHealth && c.platform.orHealth !== "ok" ? (
+                            <span className="block max-w-[16rem] text-[.74rem] font-bold text-[#A6543C]">⚠ {c.platform.orHealth}</span>
                           ) : null}
                           <span className="block text-[.76rem] text-ink-soft">
                             today ${Number(c.platform.orUsageDailyUsd ?? 0).toFixed(2)} · month ${Number(c.platform.orUsageMonthlyUsd ?? 0).toFixed(2)}
@@ -261,7 +286,12 @@ export function AdminPage() {
                       {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <RowActions c={c} busy={busy} act={act} />
+                      <RowActions
+                        c={c}
+                        busy={busy}
+                        act={act}
+                        onEdit={() => setEditing(c.uid || `ws:${c.workspace?.username}`)}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -279,122 +309,36 @@ function RowActions({
   c,
   busy,
   act,
+  onEdit,
 }: {
   c: Row;
   busy: boolean;
-  act: (body: Parameters<typeof adminAction>[0], confirm: string) => Promise<void>;
+  act: (body: AdminActionBody, confirmText: string | null) => Promise<boolean>;
+  onEdit: () => void;
 }) {
   const btn =
-    "cursor-pointer rounded-chip border border-line bg-paper px-2 py-1 text-[.75rem] font-bold hover:border-honey-line disabled:opacity-50 disabled:cursor-not-allowed";
-  if (c.rosterOnly && c.workspace) {
-    // No account: credit levers don't exist yet; lifecycle ones do.
-    const name = c.workspace.username;
-    const suspended = Boolean(c.platform?.suspended);
+    "cursor-pointer rounded-chip border border-line bg-paper px-2.5 py-1 text-[.78rem] font-bold hover:border-honey-line disabled:opacity-50 disabled:cursor-not-allowed";
+  if (!c.workspace && !c.rosterOnly) {
     return (
       <div className="flex flex-wrap gap-1.5">
+        <button type="button" disabled={busy} className={btn} onClick={onEdit}>Edit</button>
         <button
           type="button"
           disabled={busy}
           className={btn}
-          onClick={() =>
-            void act(
-              suspended
-                ? { action: "ws_resume", username: name }
-                : { action: "ws_suspend", username: name },
-              `${suspended ? "Resume" : "Suspend"} ${name}?`,
-            )
-          }
+          onClick={() => {
+            const username = window.prompt(`Workspace name for ${c.email}? (comp — no payment required)`, c.pendingUsername ?? "");
+            if (username) void act({ action: "provision", uid: c.uid, username }, `Provision "${username}" for ${c.email}?`);
+          }}
         >
-          {suspended ? "Resume" : "Suspend"}
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          className={`${btn} !border-[#EFCFC4] !text-[#A6543C]`}
-          onClick={() =>
-            void act(
-              { action: "ws_remove", username: name, confirm: name },
-              `Delete ${name}'s workspace?\n\nThis removes their containers and ALL their data permanently. There is no undo.`,
-            )
-          }
-        >
-          Remove…
+          Provision…
         </button>
       </div>
     );
   }
-  if (!c.workspace) {
-    return (
-      <button
-        type="button"
-        disabled={busy}
-        className={btn}
-        onClick={() => {
-          const username = window.prompt(`Workspace name for ${c.email}? (comp — no payment required)`, c.pendingUsername ?? "");
-          if (username) void act({ action: "provision", uid: c.uid, username }, `Provision "${username}" for ${c.email}?`);
-        }}
-      >
-        Provision…
-      </button>
-    );
-  }
   return (
-    <div className="flex flex-wrap gap-1.5">
-      <button
-        type="button"
-        disabled={busy}
-        className={btn}
-        onClick={() => {
-          const usd = Number(window.prompt(`Grant how many dollars of credit to ${c.email}?`, "10"));
-          if (usd > 0) void act({ action: "grant_credit", uid: c.uid, usd }, `Grant $${usd} to ${c.email}? This is free credit.`);
-        }}
-      >
-        + credit
-      </button>
-      <button
-        type="button"
-        disabled={busy}
-        className={btn}
-        onClick={() => {
-          const usd = Number(window.prompt(`Monthly included credit for ${c.email}? (default 20)`, "20"));
-          if (usd >= 0) void act({ action: "set_included", uid: c.uid, usd }, `Set ${c.email}'s monthly included credit to $${usd}?`);
-        }}
-      >
-        included…
-      </button>
-      <button
-        type="button"
-        disabled={busy}
-        className={btn}
-        onClick={() => void act({ action: "suspend", uid: c.uid }, `Suspend ${c.workspace?.username}? Their workspace goes offline until resumed.`)}
-      >
-        Suspend
-      </button>
-      <button
-        type="button"
-        disabled={busy}
-        className={btn}
-        onClick={() => void act({ action: "resume", uid: c.uid }, `Resume ${c.workspace?.username}?`)}
-      >
-        Resume
-      </button>
-      <button
-        type="button"
-        disabled={busy}
-        className={`${btn} !border-[#EFCFC4] !text-[#A6543C]`}
-        onClick={() => {
-          const name = c.workspace!.username;
-          // One confirmation, worded for what it is. The server still
-          // requires the workspace name in the request, so nothing else
-          // can trigger this by accident.
-          void act(
-            { action: "remove", uid: c.uid, confirm: name },
-            `Delete ${name}'s workspace?\n\nThis removes their containers and ALL their data permanently. There is no undo.`,
-          );
-        }}
-      >
-        Remove…
-      </button>
-    </div>
+    <button type="button" disabled={busy} className={btn} onClick={onEdit}>
+      Edit
+    </button>
   );
 }

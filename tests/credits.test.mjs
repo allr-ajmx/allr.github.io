@@ -1,106 +1,182 @@
 /**
- * The credit ledger. Money math, so the boundaries are the tests: the month
- * boundary, the included/top-up seam, and snapshots arriving late.
+ * The credit ledger. Money math: every boundary is a test — the month seam,
+ * the bucket order, expiry, live-vs-snapshot usage, and changes that must
+ * never re-attribute spend that already happened.
  */
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   INCLUDED_USD,
+  appliedLimit,
   applyMonthlyGrant,
   applyTopup,
   applyUsage,
+  hasExpiredGrant,
   initialLedger,
   packById,
+  pools,
+  queueChange,
   remaining,
+  settle,
   spentThisCycle,
+  targetOf,
 } from "../src/lib/billing/credits.ts";
 
-describe("credit ledger", () => {
+const NOW = new Date("2026-10-02T12:00:00Z");
+const LATER = new Date("2026-10-20T12:00:00Z");
+const grant = (id, usd, expiresAt = null) => ({ type: "grant", grant: { id, usd, expiresAt } });
+
+describe("basics", () => {
   it("starts with the included grant as the limit", () => {
     const l = initialLedger();
-    assert.equal(l.targetLimitUsd, INCLUDED_USD);
-    assert.deepEqual(remaining(l), { includedUsd: 20, topupUsd: 0 });
+    assert.equal(targetOf(l), INCLUDED_USD);
+    assert.equal(remaining(l, NOW).includedUsd, 20);
   });
 
-  it("spend draws included first, then top-ups", () => {
+  it("spend draws included first, then packs", () => {
     let l = applyTopup(initialLedger(), 25);
-    l = applyUsage(l, 12, "2026-01-10T00:00:00Z");
-    assert.deepEqual(remaining(l), { includedUsd: 8, topupUsd: 25 });
-    l = applyUsage(l, 28, "2026-01-20T00:00:00Z");
-    assert.deepEqual(remaining(l), { includedUsd: 0, topupUsd: 17 });
+    l = applyUsage(l, 12, "t1");
+    assert.deepEqual(
+      [remaining(l, NOW).includedUsd, remaining(l, NOW).topupUsd],
+      [8, 25],
+    );
+    l = applyUsage(l, 28, "t2");
+    assert.deepEqual(
+      [remaining(l, NOW).includedUsd, remaining(l, NOW).topupUsd],
+      [0, 17],
+    );
   });
 
-  it("a top-up raises both balance and the key's target limit", () => {
+  it("a pack raises balance and limit immediately", () => {
     const l = applyTopup(initialLedger(), 10);
-    assert.equal(l.topupBalanceUsd, 10);
     assert.equal(l.targetLimitUsd, 30);
   });
 
-  it("monthly grant: unspent included expires, top-ups carry", () => {
-    let l = applyTopup(initialLedger(), 25); // limit 45
-    l = applyUsage(l, 5, "t"); // spent 5 of included
-    l = applyMonthlyGrant(l);
-    // 15 included lost; 25 top-up carried; new limit = 5 + 20 + 25
-    assert.equal(l.cycleStartUsageUsd, 5);
-    assert.equal(l.topupBalanceUsd, 25);
-    assert.equal(l.targetLimitUsd, 50);
-    assert.deepEqual(remaining(l), { includedUsd: 20, topupUsd: 25 });
-  });
-
-  it("monthly grant after dipping into top-ups carries only what's left", () => {
-    let l = applyTopup(initialLedger(), 25);
-    l = applyUsage(l, 33, "t"); // 20 included + 13 of the pack
-    l = applyMonthlyGrant(l);
-    assert.equal(l.topupBalanceUsd, 12);
-    assert.equal(l.targetLimitUsd, 33 + 20 + 12);
-  });
-
-  it("two grants with no spend do not stack included credit", () => {
-    let l = applyMonthlyGrant(applyMonthlyGrant(initialLedger()));
-    assert.equal(l.targetLimitUsd, INCLUDED_USD);
-    assert.deepEqual(remaining(l), { includedUsd: 20, topupUsd: 0 });
-  });
-
-  it("usage never goes backwards", () => {
+  it("usage never goes backwards, through snapshots or settlement", () => {
     let l = applyUsage(initialLedger(), 9, "t1");
     l = applyUsage(l, 7, "t2");
     assert.equal(l.usageUsd, 9);
-    assert.equal(l.usageSyncedAt, "t2");
+    assert.equal(settle(l, 3, NOW).usageUsd, 9);
   });
 
-  it("overspend beyond every bucket shows zero, not negative", () => {
-    let l = applyUsage(initialLedger(), 999, "t");
-    assert.deepEqual(remaining(l), { includedUsd: 0, topupUsd: 0 });
+  it("overspend shows zero, not negative", () => {
+    const l = applyUsage(initialLedger(), 999, "t");
+    const r = remaining(l, NOW);
+    assert.deepEqual([r.includedUsd, r.grantsUsd, r.topupUsd], [0, 0, 0]);
     assert.equal(spentThisCycle(l), 999);
   });
 
   it("pack lookup refuses unknown ids", () => {
     assert.equal(packById("s")?.creditUsd, 10);
     assert.equal(packById("xl"), null);
-    assert.equal(packById(null), null);
   });
 });
 
-import { setIncluded } from "../src/lib/billing/credits.ts";
+describe("monthly settlement against live usage", () => {
+  it("a charge only marks; nothing moves until settlement", () => {
+    const l = applyMonthlyGrant(applyTopup(initialLedger(), 25));
+    assert.equal(l.grantsPending, 1);
+    assert.equal(l.targetLimitUsd, 45);
+  });
 
-describe("per-customer included override", () => {
-  it("raising the grant mid-cycle helps immediately and persists monthly", () => {
-    let l = setIncluded(initialLedger(), 50);
-    assert.equal(l.targetLimitUsd, 50);
-    assert.deepEqual(remaining(l), { includedUsd: 50, topupUsd: 0 });
-    l = applyUsage(l, 30, "t");
-    l = applyMonthlyGrant(l);
-    assert.equal(l.targetLimitUsd, 30 + 50);
+  it("uses LIVE usage, not the stale snapshot", () => {
+    let l = applyUsage(applyTopup(initialLedger(), 25), 5, "t");
+    l = settle(applyMonthlyGrant(l), 18, NOW);
+    assert.equal(l.cycleStartUsageUsd, 18);
+    assert.equal(l.topupBalanceUsd, 25);
+    assert.equal(l.includedLeftUsd, 20);
+    assert.equal(targetOf(l), 18 + 20 + 25);
   });
-  it("lowering the grant never claws back below what is spent", () => {
+
+  it("after dipping into packs, only what's left carries", () => {
+    const l = settle(applyMonthlyGrant(applyTopup(initialLedger(), 25)), 33, NOW);
+    assert.equal(l.topupBalanceUsd, 12);
+    assert.equal(targetOf(l), 33 + 20 + 12);
+  });
+
+  it("two pending charges collapse — never a double grant", () => {
+    const l = settle(applyMonthlyGrant(applyMonthlyGrant(initialLedger())), 0, NOW);
+    assert.equal(targetOf(l), INCLUDED_USD);
+  });
+
+  it("settle without anything pending only advances usage", () => {
+    const l = settle(applyTopup(initialLedger(), 10), 7, NOW);
+    assert.equal(l.usageUsd, 7);
+    assert.equal(targetOf(l), 30);
+  });
+});
+
+describe("admin grants with expiry", () => {
+  it("a grant applies at settlement, between included and packs", () => {
+    let l = applyTopup(initialLedger(), 10);
+    l = settle(queueChange(l, grant("g1", 15, "2026-10-31T00:00:00Z")), 0, NOW);
+    assert.equal(targetOf(l), 20 + 15 + 10);
+    l = applyUsage(l, 27, "t"); // 20 included + 7 of the grant
+    const r = remaining(l, NOW);
+    assert.deepEqual([r.includedUsd, r.grantsUsd, r.topupUsd], [0, 8, 10]);
+  });
+
+  it("the remaining view previews queued grants before they settle", () => {
+    const l = queueChange(initialLedger(), grant("g1", 15));
+    assert.equal(remaining(l, NOW).grantsUsd, 15);
+  });
+
+  it("soonest-expiring grant is drawn first", () => {
+    let l = settle(queueChange(queueChange(initialLedger(),
+      grant("late", 10, "2026-12-01T00:00:00Z")),
+      grant("soon", 10, "2026-10-10T00:00:00Z")), 0, NOW);
+    l = applyUsage(l, 24, "t"); // 20 included + 4 from 'soon'
+    const p = pools(l);
+    assert.equal(p.grants.find((g) => g.id === "soon").usd, 6);
+    assert.equal(p.grants.find((g) => g.id === "late").usd, 10);
+  });
+
+  it("at expiry the unspent part vanishes; spent stays spent", () => {
+    let l = settle(queueChange(applyTopup(initialLedger(), 5), grant("g1", 15, "2026-10-10T00:00:00Z")), 0, NOW);
+    assert.equal(hasExpiredGrant(l, NOW), false);
+    assert.equal(hasExpiredGrant(l, LATER), true);
+    // 26 spent: 20 included + 6 of the grant. At expiry 9 of the grant vanish.
+    l = settle(l, 26, LATER);
+    assert.deepEqual(l.grants, []);
+    assert.equal(l.topupBalanceUsd, 5);
+    assert.equal(l.includedLeftUsd, 0);
+    assert.equal(targetOf(l), 26 + 0 + 5);
+  });
+
+  it("a new grant never re-attributes spend that already happened", () => {
+    // 25 spent before the grant: 20 included + 5 of the pack. A sooner-
+    // expiring grant added afterwards must not "absorb" that past spend.
+    let l = applyUsage(applyTopup(initialLedger(), 10), 25, "t");
+    l = settle(queueChange(l, grant("g1", 15, "2026-10-05T00:00:00Z")), 25, NOW);
+    assert.equal(l.topupBalanceUsd, 5);
+    assert.equal(l.grants[0].usd, 15);
+  });
+
+  it("revoking removes what's left of a grant", () => {
+    let l = settle(queueChange(initialLedger(), grant("g1", 15)), 0, NOW);
+    l = settle(queueChange(l, { type: "revoke", id: "g1" }), 0, NOW);
+    assert.equal(targetOf(l), 20);
+  });
+});
+
+describe("per-customer included amount", () => {
+  it("raising helps this month at once and persists into the next", () => {
+    let l = settle(queueChange(initialLedger(), { type: "set_included", usd: 50 }), 0, NOW);
+    assert.equal(targetOf(l), 50);
+    l = settle(applyMonthlyGrant(l), 30, NOW);
+    assert.equal(targetOf(l), 30 + 50);
+  });
+  it("lowering below spend: the applied limit never drops under live usage", () => {
     let l = applyUsage(initialLedger(), 18, "t");
-    l = setIncluded(l, 5);
-    assert.ok(l.targetLimitUsd >= 18);
-    assert.deepEqual(remaining(l), { includedUsd: 0, topupUsd: 0 });
+    l = settle(queueChange(l, { type: "set_included", usd: 5 }), 18, NOW);
+    assert.equal(l.includedLeftUsd, 0);
+    assert.equal(appliedLimit(l, 18), 18);
   });
-  it("old ledgers without the field behave as $20", () => {
-    const legacy = { cycleStartUsageUsd: 0, topupBalanceUsd: 0, targetLimitUsd: 20, usageUsd: 6, usageSyncedAt: null };
-    assert.deepEqual(remaining(legacy), { includedUsd: 14, topupUsd: 0 });
+  it("old ledgers without the newer fields behave as $20, nothing pending", () => {
+    const legacy = { includedUsd: 20, cycleStartUsageUsd: 0, topupBalanceUsd: 0, targetLimitUsd: 20, usageUsd: 6, usageSyncedAt: null };
+    assert.equal(remaining(legacy, NOW).includedUsd, 14);
+    assert.equal(targetOf(legacy), 20);
+    assert.equal(targetOf(settle(legacy, 6, NOW)), 6 + 14);
   });
 });

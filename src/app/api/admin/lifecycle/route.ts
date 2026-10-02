@@ -4,6 +4,7 @@ import { toResponse } from "@/lib/server/errors";
 import { requireAdminToken } from "@/lib/server/workspace-admin";
 import { enqueueOp } from "@/lib/server/provisioning";
 import { shipLog } from "@/lib/server/logship";
+import { hasExpiredGrant, ledgerFromDoc } from "@/lib/billing/credits";
 import {
   decide,
   enforcementAfterSuspend,
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
     const summary = {
       dryRun,
       checked: 0,
+      grantsExpired: [] as string[],
       suspended: [] as string[],
       resumed: [] as string[],
       removed: [] as string[],
@@ -44,6 +46,17 @@ export async function POST(request: Request) {
       const username = String(d.workspace_username ?? "").trim();
       if (!username) continue;
       summary.checked++;
+
+      // Credit-grant expiry: accounting, not lifecycle — runs even in dry-run,
+      // because the customer was promised that date. Settlement happens on
+      // the worker against live usage (sync_limit), never here.
+      const ledger = ledgerFromDoc(d.credits);
+      if (ledger && hasExpiredGrant(ledger, now)) {
+        await db.runTransaction(async (tx) => {
+          enqueueOp(tx, { uid: d.uid, email: d.email, username, op: "sync_limit", valueUsd: 0 });
+        });
+        summary.grantsExpired.push(username);
+      }
 
       const enforcement = (d.enforcement ?? null) as Enforcement;
       const decision = decide(
@@ -103,6 +116,9 @@ export async function POST(request: Request) {
       console.log(`[lifecycle] ${decision.action} ${username}: ${decision.reason}`);
     }
 
+    if (summary.grantsExpired.length) {
+      shipLog("billing", "credit grants expired", { workspaces: summary.grantsExpired.join(", ") });
+    }
     if (summary.suspended.length || summary.resumed.length || summary.removed.length) {
       shipLog("orchestrator", dryRun ? "lifecycle sweep (dry-run)" : "lifecycle sweep ENFORCED", {
         suspended: summary.suspended.join("; "),
