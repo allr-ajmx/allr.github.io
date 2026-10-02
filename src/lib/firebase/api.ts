@@ -186,7 +186,15 @@ export type AdminCustomer = {
 export const fetchAdminCustomers = () =>
   call<{
     customers: AdminCustomer[];
-    workspaceOnly: { username: string; email: string; updatedAt: string | null; suspended?: boolean; agentTag?: string | null }[];
+    workspaceOnly: {
+      username: string;
+      email: string;
+      updatedAt: string | null;
+      firstSeenAt: string | null;
+      suspended?: boolean;
+      agentTag?: string | null;
+      platform: AdminCustomer["platform"];
+    }[];
     pendingOps: { id: string; op: string; username: string; status: string; error: string | null }[];
   }>("/admin-ui/customers/");
 

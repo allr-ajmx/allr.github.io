@@ -50,10 +50,18 @@ export async function GET(request: Request) {
     const customers = users.docs.map((doc) => {
       const d = doc.data();
       // deriveState wants the API shape; billing/trial pass through as stored.
+      // Firestore Timestamps must become ISO strings before deriveState:
+      // new Date(Timestamp) is Invalid Date, which reads as "trial ended".
       const profileish = {
         ...d,
         billing: d.billing ?? null,
-        trial: d.trial ?? null,
+        trial: d.trial
+          ? {
+              ...d.trial,
+              startedAt: iso(d.trial.startedAt),
+              endsAt: iso(d.trial.endsAt),
+            }
+          : null,
         earlyAccessRequestedAt: iso(d.earlyAccessRequestedAt),
       } as unknown as UserProfile;
       const q = queueByUid.get(doc.id);
@@ -109,8 +117,10 @@ export async function GET(request: Request) {
         username: r.username,
         email: r.email,
         updatedAt: iso(r.updatedAt),
+        firstSeenAt: iso(r.firstSeenAt) || iso(r.updatedAt),
         suspended: Boolean(r.suspended),
         agentTag: r.agentTag ?? null,
+        platform: platform(r.username),
       }));
 
     return Response.json({

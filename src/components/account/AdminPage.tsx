@@ -18,6 +18,12 @@ import {
 
 type Data = Awaited<ReturnType<typeof fetchAdminCustomers>>;
 
+/** A table row: a site account, or a manual-era workspace with no account. */
+type Row = AdminCustomer & { rosterOnly?: boolean };
+
+/** Shown where a manual-era workspace has no such thing (no account yet). */
+const NE = "NE";
+
 const STATE_LABEL: Record<string, string> = {
   needsProfile: "no profile",
   registered: "registered",
@@ -27,6 +33,7 @@ const STATE_LABEL: Record<string, string> = {
   trialEnded: "trial ended",
   subscribed: "subscribed",
   pastDue: "past due",
+  noAccount: "no account",
 };
 
 export function AdminPage() {
@@ -74,7 +81,29 @@ export function AdminPage() {
     );
   }
 
-  const customers = data?.customers ?? [];
+  const customers: Row[] = [
+    ...(data?.customers ?? []),
+    // Manual-era workspaces nobody has signed in for yet: same table, NE
+    // where a value doesn't exist; "joined" is the day the roster first saw it.
+    ...(data?.workspaceOnly ?? []).map(
+      (w): Row => ({
+        rosterOnly: true,
+        uid: "",
+        email: w.email,
+        name: "",
+        country: "",
+        createdAt: w.firstSeenAt,
+        state: "noAccount" as Row["state"],
+        workspace: { username: w.username, address: `https://${w.username}.allr.work` },
+        pendingUsername: null,
+        billing: null,
+        credits: null,
+        queue: null,
+        enforcement: null,
+        platform: w.platform ?? null,
+      }),
+    ),
+  ];
   const counts = customers.reduce<Record<string, number>>((acc, c) => {
     acc[c.state] = (acc[c.state] ?? 0) + 1;
     return acc;
@@ -122,55 +151,6 @@ export function AdminPage() {
             </div>
           ) : null}
 
-          {(data.workspaceOnly ?? []).length > 0 ? (
-            <div className="rounded-card border border-line bg-card p-4">
-              <p className="mb-2 text-[.8rem] font-bold tracking-[0.05em] text-ink-soft uppercase">
-                Workspaces without a site account (manually created)
-              </p>
-              <div className="flex flex-wrap gap-2 text-[.85rem]">
-                {data.workspaceOnly.map((w) => (
-                  <span key={w.username} className="inline-flex items-center gap-2 rounded-chip border border-line bg-paper px-3 py-1.5">
-                    <span>
-                      <b>{w.username}</b> · {w.email}
-                      {w.suspended ? <span className="ml-1.5 font-bold text-[#A6543C]">· suspended</span> : null}
-                      {w.agentTag ? <span className="text-ink-soft"> · agent {w.agentTag}</span> : null}
-                    </span>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      className="cursor-pointer text-[.78rem] font-bold text-honey-deep hover:underline disabled:opacity-50"
-                      onClick={() =>
-                        void act(
-                          { action: w.suspended ? "ws_resume" : "ws_suspend", username: w.username },
-                          `${w.suspended ? "Resume" : "Suspend"} ${w.username}?`,
-                        )
-                      }
-                    >
-                      {w.suspended ? "Resume" : "Suspend"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      className="cursor-pointer text-[.78rem] font-bold text-[#A6543C] hover:underline disabled:opacity-50"
-                      onClick={() =>
-                        void act(
-                          { action: "ws_remove", username: w.username, confirm: w.username },
-                          `Delete ${w.username}'s workspace?\n\nThis removes their containers and ALL their data permanently. There is no undo.`,
-                        )
-                      }
-                    >
-                      Remove
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <p className="mt-2 text-[.78rem] text-ink-soft">
-                These connect automatically the moment their owner signs in on
-                allr.work with that email.
-              </p>
-            </div>
-          ) : null}
-
           <div className="overflow-x-auto rounded-card border border-line bg-card">
             <table className="w-full min-w-[1100px] border-collapse text-[.88rem]">
               <thead>
@@ -187,10 +167,13 @@ export function AdminPage() {
               </thead>
               <tbody>
                 {customers.map((c) => (
-                  <tr key={c.uid} className="border-b border-line-soft align-top last:border-0">
+                  <tr key={c.uid || `ws:${c.workspace?.username}`} className="border-b border-line-soft align-top last:border-0">
                     <td className="px-4 py-3">
-                      <span className="block font-bold">{c.name || "—"}</span>
+                      <span className="block font-bold">{c.name || (c.rosterOnly ? NE : "—")}</span>
                       <span className="block text-ink-soft">{c.email}</span>
+                      {c.rosterOnly ? (
+                        <span className="block text-[.74rem] text-ink-soft">manual workspace · connects when they sign in</span>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3">
                       <span className="font-semibold">{STATE_LABEL[c.state] ?? c.state}</span>
@@ -226,7 +209,9 @@ export function AdminPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {c.billing ? (
+                      {c.rosterOnly ? (
+                        <span className="text-ink-soft">{NE}</span>
+                      ) : c.billing ? (
                         <>
                           <span className="font-semibold">{c.billing.status}</span>
                           <span className="block text-[.78rem] text-ink-soft">
@@ -239,7 +224,9 @@ export function AdminPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {c.credits ? (
+                      {c.rosterOnly ? (
+                        <span className="text-ink-soft">{NE}</span>
+                      ) : c.credits ? (
                         <>
                           <span>${c.credits.remaining.includedUsd.toFixed(2)} incl · ${c.credits.remaining.topupUsd.toFixed(2)} pack</span>
                           <span className="block text-[.78rem] text-ink-soft">spent ${c.credits.spentThisCycleUsd.toFixed(2)} this cycle</span>
@@ -293,12 +280,49 @@ function RowActions({
   busy,
   act,
 }: {
-  c: AdminCustomer;
+  c: Row;
   busy: boolean;
   act: (body: Parameters<typeof adminAction>[0], confirm: string) => Promise<void>;
 }) {
   const btn =
     "cursor-pointer rounded-chip border border-line bg-paper px-2 py-1 text-[.75rem] font-bold hover:border-honey-line disabled:opacity-50 disabled:cursor-not-allowed";
+  if (c.rosterOnly && c.workspace) {
+    // No account: credit levers don't exist yet; lifecycle ones do.
+    const name = c.workspace.username;
+    const suspended = Boolean(c.platform?.suspended);
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          disabled={busy}
+          className={btn}
+          onClick={() =>
+            void act(
+              suspended
+                ? { action: "ws_resume", username: name }
+                : { action: "ws_suspend", username: name },
+              `${suspended ? "Resume" : "Suspend"} ${name}?`,
+            )
+          }
+        >
+          {suspended ? "Resume" : "Suspend"}
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          className={`${btn} !border-[#EFCFC4] !text-[#A6543C]`}
+          onClick={() =>
+            void act(
+              { action: "ws_remove", username: name, confirm: name },
+              `Delete ${name}'s workspace?\n\nThis removes their containers and ALL their data permanently. There is no undo.`,
+            )
+          }
+        >
+          Remove…
+        </button>
+      </div>
+    );
+  }
   if (!c.workspace) {
     return (
       <button

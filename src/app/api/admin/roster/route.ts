@@ -33,6 +33,15 @@ export async function POST(request: Request) {
     if (!Array.isArray(body?.items)) throw badRequest("invalid", "Send {items: […]}.");
 
     const db = adminDb();
+    // Manual-era workspaces have no trustworthy creation date: the first time
+    // the roster sees one, that day becomes its date — once, never moved.
+    const refs = body.items
+      .filter((i) => typeof i?.username === "string" && i.username.trim())
+      .slice(0, 200)
+      .map((i) => db.collection("workspace_roster").doc(i.username.trim().toLowerCase()));
+    const existing = refs.length ? await db.getAll(...refs) : [];
+    const known = new Set(existing.filter((d) => d.exists && d.data()?.firstSeenAt).map((d) => d.id));
+
     const batch = db.batch();
     const seen: string[] = [];
     for (const item of body.items.slice(0, 200)) {
@@ -54,6 +63,7 @@ export async function POST(request: Request) {
           orUsageUsd: Number.isFinite(item.orUsageUsd) ? item.orUsageUsd : null,
           orUsageDailyUsd: Number.isFinite(item.orUsageDailyUsd) ? item.orUsageDailyUsd : null,
           orUsageMonthlyUsd: Number.isFinite(item.orUsageMonthlyUsd) ? item.orUsageMonthlyUsd : null,
+          ...(known.has(username) ? {} : { firstSeenAt: FieldValue.serverTimestamp() }),
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
