@@ -4,12 +4,13 @@
  * `/account/welcome` is deliberately absent: registration is a gate, not a
  * destination, and it must not appear as somewhere you can wander back to.
  *
- * Items marked `soon` are honest placeholders — no payment or self-serve
- * checkout is surfaced from this rail yet.
+ * Items marked `soon` are honest placeholders for pages that have no content
+ * yet. Billing and Credits are live and carry no chip.
  */
 
 export type AccountNavIcon =
   | "overview"
+  | "apps"
   | "profile"
   | "products"
   | "revenue"
@@ -50,6 +51,7 @@ export const ACCOUNT_NAV_SECTIONS: readonly AccountNavSection[] = [
     label: "Workspace",
     items: [
       { href: "/account/", label: "Overview", icon: "overview" },
+      { href: "/account/apps/", label: "Apps", icon: "apps" },
       { href: "/account/products/", label: "Product management", icon: "products", soon: true },
       { href: "/account/revenue/", label: "Revenue", icon: "revenue", soon: true },
     ],
@@ -67,8 +69,8 @@ export const ACCOUNT_NAV_SECTIONS: readonly AccountNavSection[] = [
     id: "plan",
     label: "Plan",
     items: [
-      { href: "/account/credits/", label: "Credit management", icon: "credits", soon: true },
-      { href: "/account/billing/", label: "Billing", icon: "billing", soon: true },
+      { href: "/account/billing/", label: "Billing", icon: "billing" },
+      { href: "/account/credits/", label: "Credits", icon: "credits" },
     ],
   },
   {

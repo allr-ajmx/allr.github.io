@@ -1,5 +1,6 @@
 "use client";
 
+import type { HistoryItem } from "@/lib/billing/history";
 import { getAllrAuth } from "./app";
 import type {
   EarlyAccessRequest,
@@ -137,6 +138,9 @@ export const startTopup = (pack: string) =>
 export const fetchUrls = () => call<{ urls: PublishedUrl[] }>("/account/urls/");
 
 export const fetchBilling = () => call<BillingSummary>("/account/billing/");
+
+export const fetchBillingHistory = () =>
+  call<{ items: HistoryItem[]; invoicesUnavailable: boolean }>("/account/billing/history/");
 
 export const startSubscription = (username?: string) =>
   call<SubscribeResponse>("/account/billing/subscribe/", {

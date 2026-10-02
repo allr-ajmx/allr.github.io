@@ -27,6 +27,14 @@ export function NavIcon({
           />
         </svg>
       );
+    case "apps":
+      return (
+        <svg {...common}>
+          <rect x="2.5" y="4" width="9.5" height="7.5" rx="1.2" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M5.5 15h3.5M7.25 11.5V15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <rect x="13.5" y="6.5" width="4" height="9.5" rx="1" stroke="currentColor" strokeWidth="1.5" />
+        </svg>
+      );
     case "profile":
       return (
         <svg {...common}>
