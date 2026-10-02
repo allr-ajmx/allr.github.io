@@ -100,14 +100,19 @@ export async function claimNext(): Promise<
   { uid: string; email: string; username: string } | null
 > {
   const db = adminDb();
+  // No orderBy: status-in + createdAt ordering would demand a composite
+  // index, and a missing index is a silent 500 in production. The queue
+  // holds a handful of docs; oldest-first is settled in memory.
   const candidates = await db
     .collection(QUEUE)
     .where("status", "in", ["queued", "claimed"])
-    .orderBy("createdAt")
-    .limit(5)
+    .limit(20)
     .get();
+  const ordered = [...candidates.docs].sort(
+    (a, b) => (a.createTime?.toMillis() ?? 0) - (b.createTime?.toMillis() ?? 0),
+  );
 
-  for (const doc of candidates.docs) {
+  for (const doc of ordered) {
     const claimed = await db.runTransaction(async (tx) => {
       const fresh = await tx.get(doc.ref);
       const data = fresh.data();
@@ -190,14 +195,17 @@ export function enqueueOp(tx: FirebaseFirestore.Transaction, op: WorkspaceOp): v
 
 export async function claimNextOp(): Promise<(WorkspaceOp & { id: string }) | null> {
   const db = adminDb();
+  // Index-free for the same reason as claimNext; see the note there.
   const candidates = await db
     .collection(OPS)
     .where("status", "in", ["queued", "claimed"])
-    .orderBy("createdAt")
-    .limit(5)
+    .limit(20)
     .get();
+  const ordered = [...candidates.docs].sort(
+    (a, b) => (a.createTime?.toMillis() ?? 0) - (b.createTime?.toMillis() ?? 0),
+  );
 
-  for (const doc of candidates.docs) {
+  for (const doc of ordered) {
     const claimed = await db.runTransaction(async (tx) => {
       const fresh = await tx.get(doc.ref);
       const data = fresh.data();

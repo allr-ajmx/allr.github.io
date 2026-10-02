@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     const [users, queue, ops, roster] = await Promise.all([
       db.collection("users").orderBy("createdAt", "desc").limit(500).get(),
       db.collection("provision_queue").get(),
-      db.collection("workspace_ops").where("status", "in", ["queued", "claimed", "failed"]).get(),
+      db.collection("workspace_ops").where("status", "in", ["queued", "claimed", "failed"]).limit(100).get(),
       db.collection("workspace_roster").get(),
     ]);
 
