@@ -20,6 +20,19 @@ import type { Billing } from "./model.ts";
 
 export const REMOVE_AFTER_DAYS = 14;
 
+/**
+ * When a payment-suspended workspace becomes removable — derived from when it
+ * was suspended, exactly as decide() does, never from the stored removeAfter
+ * (written under whatever window applied at suspension time).
+ */
+export function removalDate(
+  e: { reason?: string; suspendedAt?: string | null } | null | undefined,
+): string | null {
+  if (!e || e.reason !== "payment" || !e.suspendedAt) return null;
+  const t = Date.parse(e.suspendedAt);
+  return Number.isFinite(t) ? new Date(t + REMOVE_AFTER_DAYS * 86_400_000).toISOString() : null;
+}
+
 export type SuspendReason = "payment" | "trial";
 
 export type Enforcement = {

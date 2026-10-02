@@ -75,7 +75,8 @@ export async function POST(request: Request) {
     // The push is the VPS's whole fleet: a row it no longer lists was removed
     // there. Marked, not deleted — one odd push must not erase history, and
     // the next push that lists it again brings it back.
-    if (seen.length) {
+    // Only a complete list can prove absence: past the 200-item cap, skip it.
+    if (seen.length && body.items.length <= 200) {
       const listed = new Set(seen);
       const all = await db.collection("workspace_roster").get();
       for (const doc of all.docs) {

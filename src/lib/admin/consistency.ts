@@ -17,7 +17,12 @@ export type ConsistencyInput = {
   rosterSeenAt: string | null;
   /** Is the queue entry's workspace (queueUsername) live on the VPS roster? */
   queueWorkspaceOnVps: boolean;
+  /** ISO time the queue entry last changed (a fresh build), if any. */
+  queueUpdatedAt?: string | null;
 };
+
+/** A just-built workspace reaches the roster on the next push (~5 min). */
+const FRESH_BUILD_MS = 15 * 60_000;
 
 const BUILD_PENDING = new Set(["queued", "claimed", "failed"]);
 
@@ -45,7 +50,14 @@ export function consistencyIssues(c: ConsistencyInput, now = Date.now()): Issue[
   }
   if (ws) {
     const seen = c.rosterSeenAt ? Date.parse(c.rosterSeenAt) : NaN;
-    if (!Number.isFinite(seen)) {
+    const justBuilt =
+      c.queueStatus === "provisioned" &&
+      c.queueUsername === ws &&
+      !!c.queueUpdatedAt &&
+      now - Date.parse(c.queueUpdatedAt) < FRESH_BUILD_MS;
+    if (!Number.isFinite(seen) && justBuilt) {
+      // Not reported yet — expected for a few minutes after a build.
+    } else if (!Number.isFinite(seen)) {
       out.push({ code: "not-on-vps", message: `Workspace ${ws} is not on the VPS (never reported, or removed there) — the account still points at it.` });
     } else if (now - seen > ROSTER_STALE_MS) {
       out.push({

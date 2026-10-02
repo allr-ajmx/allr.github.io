@@ -4,6 +4,7 @@ import { requireAdminUser } from "@/lib/server/admin-gate";
 import { toResponse } from "@/lib/server/errors";
 import { deriveState } from "@/lib/account/state";
 import { consistencyIssues } from "@/lib/admin/consistency";
+import { removalDate } from "@/lib/billing/lifecycle";
 import { ledgerFromDoc, remaining, spentThisCycle } from "@/lib/billing/credits";
 import type { UserProfile } from "@/lib/account/model";
 
@@ -104,6 +105,7 @@ export async function GET(request: Request) {
           workspaceUsername: d.workspace_username ?? null,
           queueStatus: q?.status ?? null,
           queueUsername: q?.username ?? null,
+          queueUpdatedAt: iso(q?.updatedAt) || null,
           queueWorkspaceOnVps: Boolean(q?.username && rosterByUsername.get(q.username) && !rosterByUsername.get(q.username)?.gone),
           rosterSeenAt: (() => {
             const r = rosterByUsername.get(d.workspace_username);
@@ -118,7 +120,7 @@ export async function GET(request: Request) {
           ? {
               reason: d.enforcement.reason,
               suspendedAt: d.enforcement.suspendedAt ?? null,
-              removeAfter: d.enforcement.removeAfter ?? null,
+              removeAfter: removalDate(d.enforcement),
             }
           : null,
       };

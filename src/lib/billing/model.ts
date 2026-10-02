@@ -52,6 +52,12 @@ export type Billing = {
   providerStatus: string;
   /** ISO 8601 — when `status` last changed. The grace clock runs from here. */
   statusSince: string | null;
+  /**
+   * The person cancelled; it ends at currentPeriodEnd. Razorpay keeps the
+   * subscription `active` until then, so this flag is the only record of it.
+   * Belongs to `subscriptionId` — a different subscription starts it false.
+   */
+  cancelAtPeriodEnd?: boolean;
   /** ISO 8601. */
   updatedAt: string;
 };

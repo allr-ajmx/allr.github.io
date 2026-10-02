@@ -12,6 +12,7 @@ import { shipLog } from "./logship";
 import { triageSubscriptionEvent } from "@/lib/billing/triage";
 import {
   cancelSubscriptionNow,
+  fetchPayment,
   lastPaidPayment,
   refundPayment,
   cancelSubscriptionAtCycleEnd,
@@ -37,6 +38,8 @@ import type { UserProfile } from "@/lib/account/model";
 const USERS = "users";
 /** One document per delivered webhook, so redelivery cannot double-apply. */
 const EVENTS = "billing_events";
+/** Razorpay subscription statuses that can never charge again. */
+const TERMINAL = new Set(["cancelled", "completed", "expired"]);
 
 const iso = (value: unknown): string | null =>
   value instanceof Timestamp ? value.toDate().toISOString() : null;
@@ -69,10 +72,11 @@ function billingFrom(
   sub: RzpSubscription,
   planCurrency: Billing["planCurrency"],
   customerId: string,
-  prior?: Pick<Billing, "status" | "statusSince"> | null,
+  prior?: Pick<Billing, "status" | "statusSince" | "subscriptionId" | "cancelAtPeriodEnd"> | null,
 ): Omit<Billing, "updatedAt"> {
   const status = normalizeProviderStatus(sub.status);
   return {
+    cancelAtPeriodEnd: prior?.subscriptionId === sub.id ? Boolean(prior?.cancelAtPeriodEnd) : false,
     status,
     statusSince:
       prior && prior.status === status
@@ -157,15 +161,21 @@ export async function startSubscription(
 export async function cancelSubscription(caller: Caller): Promise<Billing> {
   const profile = await readOrAdoptProfile(caller);
   const billing = profile?.billing;
-  if (!profile || !billing || billing.status === "ended") {
-    throw badRequest("not-subscribed", "There is no subscription to cancel.");
+  if (!profile || !billing || billing.status !== "active") {
+    throw badRequest("not-subscribed", "There is no active subscription to cancel.");
+  }
+  if (billing.cancelAtPeriodEnd) {
+    throw conflict("already-cancelled", "Your subscription is already cancelled.");
   }
 
   const sub = await cancelSubscriptionAtCycleEnd(billing.subscriptionId);
   shipLog("billing", "subscription cancelled at cycle end", { email: caller.email, sub: sub.id });
-  const next = billingFrom(sub, billing.planCurrency, billing.customerId, billing);
-  // Razorpay reports `cancelled` only at cycle end; until then the person
-  // stays `active` with an end date, which is exactly what the UI should say.
+  const next = {
+    ...billingFrom(sub, billing.planCurrency, billing.customerId, billing),
+    cancelAtPeriodEnd: true,
+  };
+  // Razorpay reports `cancelled` only at cycle end; until then the status
+  // stays `active` and cancelAtPeriodEnd is what says it is ending.
   await writeBilling(caller.uid, next);
   return { ...next, updatedAt: new Date().toISOString() };
 }
@@ -253,9 +263,15 @@ export async function applyWebhookEvent(
     ]);
     if (seen.exists) return "duplicate" as const;
     if (!user.exists) {
-      tx.set(eventRef, ignoredEventDoc(eventName, "no account for this uid or subscription", {
-        uid, subscriptionId: subscription.id,
-      }));
+      // A closing event for an account we deleted (we cancel before deleting)
+      // is expected, not lost money: record it quietly.
+      const closing = TERMINAL.has(subscription.status);
+      tx.set(eventRef, {
+        ...ignoredEventDoc(eventName, "no account for this uid or subscription", {
+          uid, subscriptionId: subscription.id,
+        }),
+        ...(closing ? { outcome: "ignored-closed" } : {}),
+      });
       return "ignored" as const;
     }
 
@@ -299,6 +315,10 @@ export async function applyWebhookEvent(
           ? new Date(subscription.current_end * 1000).toISOString()
           : (prior?.currentPeriodEnd ?? null),
         providerStatus: subscription.status,
+        // Every event rewrites billing whole: carry the cancellation forward
+        // for the same subscription, never onto a new one.
+        cancelAtPeriodEnd:
+          prior?.subscriptionId === subscription.id ? Boolean(prior?.cancelAtPeriodEnd) : false,
         updatedAt: FieldValue.serverTimestamp(),
       },
       updatedAt: FieldValue.serverTimestamp(),
@@ -343,38 +363,79 @@ export { iso as _isoForTests };
  *
  * Returns a human-readable summary for the audit trail.
  */
-export async function stopBillingForRemoval(uid: string, refund: boolean): Promise<string> {
+export class PaidAgain extends Error {
+  constructor(subscriptionId: string) {
+    super(`subscription ${subscriptionId} is active again on Razorpay`);
+  }
+}
+
+/**
+ * Ask Razorpay, not our copy: the local status can lag a webhook. Returns a
+ * summary for the audit trail. Never cancels a subscription Razorpay says is
+ * paid up when `refusePaid` (the lifecycle sweep) — the customer paid between
+ * the sweep's read and now, and deleting them would take their money and
+ * their work.
+ */
+export async function stopBillingForRemoval(
+  uid: string,
+  refund: boolean,
+  { refusePaid = false }: { refusePaid?: boolean } = {},
+): Promise<string> {
   const ref = adminDb().collection(USERS).doc(uid);
   const snap = await ref.get();
   const billing = snap.data()?.billing as { subscriptionId?: string; status?: string } | undefined;
   if (!billing?.subscriptionId) return "no subscription";
 
+  const subId = billing.subscriptionId;
+  const live = await fetchSubscription(subId);
   const parts: string[] = [];
-  if (billing.status !== "ended") {
-    const sub = await cancelSubscriptionNow(billing.subscriptionId);
-    await ref.update({
+  const markEnded = (providerStatus: string) =>
+    ref.update({
       "billing.status": "ended",
-      "billing.providerStatus": sub.status,
+      "billing.providerStatus": providerStatus,
       "billing.statusSince": new Date().toISOString(),
       "billing.updatedAt": FieldValue.serverTimestamp(),
     });
-    parts.push(`cancelled ${billing.subscriptionId}`);
+
+  if (TERMINAL.has(live.status)) {
+    if (billing.status !== "ended") await markEnded(live.status);
+    parts.push(`subscription already ${live.status}`);
   } else {
-    parts.push("subscription already ended");
+    if (refusePaid && live.status === "active") throw new PaidAgain(subId);
+    try {
+      const sub = await cancelSubscriptionNow(subId);
+      await markEnded(sub.status);
+      parts.push(`cancelled ${subId}`);
+    } catch (e) {
+      // Never paid (checkout opened, mandate not set up): it cannot charge.
+      if (live.status !== "created") throw e;
+      parts.push(`unpaid checkout ${subId} left to expire`);
+    }
   }
 
   if (refund) {
-    const last = await lastPaidPayment(billing.subscriptionId);
+    const last = await lastPaidPayment(subId);
     if (!last) {
       parts.push("no paid charge to refund");
     } else {
-      const r = await refundPayment(last.paymentId);
-      parts.push(`refunded ${last.paymentId} (${r.amount / 100})`);
+      const payment = await fetchPayment(last.paymentId);
+      if ((payment.amount_refunded ?? 0) >= payment.amount) {
+        parts.push(`${last.paymentId} already refunded`);
+      } else {
+        const r = await refundPayment(last.paymentId);
+        parts.push(`refunded ${last.paymentId} (${r.amount / 100})`);
+      }
     }
   }
 
   const summary = parts.join("; ");
   shipLog("billing", "billing stopped for removal", { uid, detail: summary }, "warn");
+  // Recorded now, where admins look: money may have moved even if the removal
+  // that follows fails.
+  await adminDb()
+    .collection(EVENTS)
+    .add({ eventName: "removal.billing_stopped", uid, outcome: summary, receivedAt: FieldValue.serverTimestamp() })
+    .catch((e) => console.error(`[billing] could not record billing stop for ${uid}`, e));
   return summary;
 }
 
@@ -394,8 +455,14 @@ export async function stopBillingForDeletion(billing: {
     await cancelSubscriptionNow(billing.subscriptionId);
     return `cancelled ${billing.subscriptionId}`;
   } catch (e) {
-    if (billing.status !== "pending") throw e;
-    console.warn(`[billing] could not cancel unpaid ${billing.subscriptionId}`, e);
-    return `unpaid checkout ${billing.subscriptionId} left to expire (${(e as Error).message})`;
+    // Our copy may lag: if Razorpay already closed it, or it was never paid
+    // for, nothing can charge — proceed. Anything else stays a refusal.
+    const live = await fetchSubscription(billing.subscriptionId).catch(() => null);
+    if (live && TERMINAL.has(live.status)) return `subscription ${billing.subscriptionId} already ${live.status}`;
+    if (live?.status === "created" || (!live && billing.status === "pending")) {
+      console.warn(`[billing] could not cancel unpaid ${billing.subscriptionId}`, e);
+      return `unpaid checkout ${billing.subscriptionId} left to expire`;
+    }
+    throw e;
   }
 }

@@ -3,7 +3,7 @@ import { adminDb } from "@/lib/server/admin";
 import { toResponse } from "@/lib/server/errors";
 import { requireAdminToken } from "@/lib/server/workspace-admin";
 import { enqueueOp } from "@/lib/server/provisioning";
-import { stopBillingForRemoval } from "@/lib/server/billing";
+import { PaidAgain, stopBillingForRemoval } from "@/lib/server/billing";
 import { shipLog } from "@/lib/server/logship";
 import { hasExpiredGrant, ledgerFromDoc } from "@/lib/billing/credits";
 import {
@@ -92,9 +92,13 @@ export async function POST(request: Request) {
         // the workspace is deleted. If that fails, skip this workspace this
         // hour rather than delete something still being billed.
         try {
-          await stopBillingForRemoval(doc.id, false);
+          await stopBillingForRemoval(doc.id, false, { refusePaid: true });
         } catch (e) {
-          console.error(`[lifecycle] not removing ${username}: billing stop failed`, e);
+          // Paid meanwhile: leave it; the webhook / next sweep resumes them.
+          const paid = e instanceof PaidAgain;
+          console.error(`[lifecycle] not removing ${username}: ${paid ? "they paid" : "billing stop failed"}`, e);
+          shipLog("orchestrator", paid ? "removal skipped: customer paid" : "removal skipped: billing stop failed",
+            { username, error: String((e as Error)?.message ?? e) }, paid ? "warn" : "error");
           continue;
         }
       }

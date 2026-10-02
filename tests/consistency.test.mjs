@@ -55,3 +55,11 @@ describe("consistency issues", () => {
       ["queued-with-workspace"]);
   });
 });
+
+describe("a workspace built minutes ago", () => {
+  it("isn't flagged before the VPS's next roster push, but is after 15 minutes", () => {
+    const fresh = { workspaceUsername: "k", queueStatus: "provisioned", queueUsername: "k" };
+    assert.deepEqual(codes({ ...fresh, queueUpdatedAt: new Date(NOW - 2 * 60_000).toISOString() }), []);
+    assert.deepEqual(codes({ ...fresh, queueUpdatedAt: new Date(NOW - 20 * 60_000).toISOString() }), ["not-on-vps"]);
+  });
+});

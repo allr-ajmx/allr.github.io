@@ -288,17 +288,30 @@ async function deleteAccount(admin: Caller, a: Extract<AdminAction, { action: "d
       throw conflict("has-workspace", "A workspace appeared meanwhile; remove it first.");
     }
     const q = queue.data();
-    if (q?.status === "claimed") {
-      throw conflict("provisioning", "The VPS is building their workspace right now; wait for it, then remove it.");
+    if (q?.status === "claimed" || q?.status === "queued") {
+      throw conflict("provisioning", "Their workspace is being built right now; wait for it, then remove it.");
     }
     const claim = await tx.get(db.collection(EMAIL_CLAIMS).doc(emailKey(email)));
+    // A build that failed partway, or finished without ever being linked,
+    // left a workspace on the VPS that no account points at. Queue its
+    // removal (keyed by name, not uid, so it survives this deletion).
+    const leftover = String(q?.username ?? "");
+    let orphan = false;
+    if (leftover && (q?.status === "failed" || q?.status === "provisioned")) {
+      const roster = await tx.get(db.collection("workspace_roster").doc(leftover));
+      orphan = q?.status === "failed" || (roster.exists && !roster.data()?.gone);
+    }
+    if (orphan) {
+      enqueueOp(tx, { uid: "", email, username: leftover, op: "remove", valueUsd: 0 });
+    }
 
     if (queue.exists) tx.delete(queue.ref);
     names.docs.forEach((n) => tx.delete(n.ref));
     ops.docs.forEach((o) => tx.delete(o.ref));
     if (claim.exists && claim.data()?.uid === a.uid) tx.delete(claim.ref);
     tx.delete(userRef);
-    audit(tx, admin, a, `${email} · ${billingDetail} · names: ${names.docs.map((n) => n.id).join(",") || "none"}`);
+    audit(tx, admin, a, `${email} · ${billingDetail} · names: ${names.docs.map((n) => n.id).join(",") || "none"}` +
+      (orphan ? ` · removing leftover workspace ${leftover}` : ""));
   });
 
   try {

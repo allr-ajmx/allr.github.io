@@ -151,7 +151,27 @@ export const cancelSubscriptionNow = (id: string) =>
     body: JSON.stringify({ cancel_at_cycle_end: 0 }),
   });
 
-type RzpInvoice = { id: string; status: string; payment_id?: string | null; paid_at?: number | null; amount_paid?: number };
+export type RzpInvoice = {
+  id: string;
+  status: string;
+  payment_id?: string | null;
+  paid_at?: number | null;
+  amount_paid?: number;
+  amount?: number;
+  currency?: string;
+  date?: number | null;
+  short_url?: string | null;
+  billing_start?: number | null;
+  billing_end?: number | null;
+};
+
+/** A subscription's invoices (newest charges first after sorting by the caller). */
+export async function listSubscriptionInvoices(subscriptionId: string): Promise<RzpInvoice[]> {
+  const list = await rzp<{ items?: RzpInvoice[] }>(
+    `/invoices?subscription_id=${encodeURIComponent(subscriptionId)}&count=50`,
+  );
+  return list.items ?? [];
+}
 
 /** The most recent paid charge of a subscription, if any. */
 export async function lastPaidPayment(subscriptionId: string): Promise<{ paymentId: string; amount: number } | null> {
@@ -164,7 +184,10 @@ export async function lastPaidPayment(subscriptionId: string): Promise<{ payment
   return paid ? { paymentId: paid.payment_id!, amount: paid.amount_paid ?? 0 } : null;
 }
 
-/** Full refund of one payment. Razorpay refunds are idempotent per payment up to its amount. */
+export const fetchPayment = (id: string) =>
+  rzp<{ id: string; amount: number; amount_refunded?: number; status: string }>(`/payments/${id}`);
+
+/** Full refund of one payment. Razorpay refuses a second refund once nothing is left to refund. */
 export const refundPayment = (paymentId: string) =>
   rzp<{ id: string; amount: number; status: string }>(`/payments/${paymentId}/refund`, {
     method: "POST",
