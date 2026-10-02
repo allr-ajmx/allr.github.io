@@ -5,7 +5,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "./admin";
 import { badRequest, conflict } from "./errors";
 import type { Caller } from "./session";
-import { enqueueInTransaction, enqueueOp, queueRef } from "./provisioning";
+import { enqueueInTransaction, enqueueOp, queueRef, retryNow } from "./provisioning";
 import { stopBillingForRemoval } from "./billing";
 import { shipLog } from "./logship";
 import { ledgerFromDoc, queueChange, type PendingChange } from "@/lib/billing/credits";
@@ -88,10 +88,23 @@ async function applyRosterAction(
 }
 
 export async function applyAdminAction(admin: Caller, action: AdminAction): Promise<void> {
+  if (action.action === "retry") {
+    await retryNow(action.kind, action.id);
+    await adminDb().collection("admin_actions").add({
+      by: admin.email,
+      uid: action.kind === "provision" ? action.id : null,
+      username: null,
+      action: "retry",
+      detail: `${action.kind} ${action.id}`,
+      at: FieldValue.serverTimestamp(),
+    });
+    shipLog("admin", "retry", { by: admin.email, target: `${action.kind}:${action.id}` });
+    return;
+  }
   if (action.action.startsWith("ws_")) {
     return applyRosterAction(admin, action as Extract<AdminAction, { action: `ws_${string}` }>);
   }
-  const a = action as Exclude<AdminAction, { action: `ws_${string}` }>;
+  const a = action as Exclude<AdminAction, { action: `ws_${string}` | "retry" }>;
   const db = adminDb();
   const userRef = db.collection(USERS).doc(a.uid);
   let oldEmailForAuth: string | null = null;

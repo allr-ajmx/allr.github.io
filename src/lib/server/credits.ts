@@ -22,6 +22,8 @@ import {
 } from "@/lib/billing/credits";
 import { hasWorkspace } from "@/lib/account/state";
 import { shipLog } from "./logship";
+import { recordIgnoredWebhook } from "./billing";
+import { triageTopup } from "@/lib/billing/triage";
 
 /**
  * Credits, server half. The ledger lives on `users/{uid}.credits`; every
@@ -81,17 +83,24 @@ export async function startTopup(caller: Caller, packId: unknown) {
  * business. The order is re-fetched from Razorpay — notes from our own server
  * to our own server, never trusted off the wire.
  */
-export async function applyTopupPayment(payment: RzpPayment): Promise<"applied" | "ignored" | "duplicate"> {
+export async function applyTopupPayment(
+  payment: RzpPayment,
+  eventId = "",
+): Promise<"applied" | "ignored" | "duplicate"> {
   if (payment.status !== "captured" || !payment.order_id) return "ignored";
   const order = await fetchOrder(payment.order_id);
-  if (order.notes?.kind !== "topup") return "ignored";
-
-  const uid = order.notes.uid;
-  const creditUsd = Number(order.notes.credit_usd);
-  if (!uid || !Number.isFinite(creditUsd) || creditUsd <= 0) {
-    console.error(`[credits] topup order ${order.id} has bad notes`, order.notes);
+  const triage = triageTopup(order);
+  const ids = { paymentId: payment.id, orderId: order.id };
+  if (!triage.act) {
+    if (triage.record) {
+      await recordIgnoredWebhook(eventId || `payment:${payment.id}`, "payment.captured", triage.reason,
+        { ...ids, uid: typeof order.notes?.uid === "string" ? order.notes.uid : null });
+    }
     return "ignored";
   }
+
+  const uid = String(order.notes!.uid);
+  const creditUsd = Number(order.notes!.credit_usd);
 
   const db = adminDb();
   const purchaseRef = db.collection(PURCHASES).doc(payment.id);
@@ -100,7 +109,7 @@ export async function applyTopupPayment(payment: RzpPayment): Promise<"applied" 
   const outcome = await db.runTransaction(async (tx) => {
     const [seen, user] = await Promise.all([tx.get(purchaseRef), tx.get(userRef)]);
     if (seen.exists) return "duplicate" as const;
-    if (!user.exists) return "ignored" as const;
+    if (!user.exists) return "unmatched" as const;
 
     const ledger = asLedger(user.data()) ?? initialLedger();
     const next = applyTopup(ledger, creditUsd);
@@ -122,6 +131,11 @@ export async function applyTopupPayment(payment: RzpPayment): Promise<"applied" 
     return "applied" as const;
   });
 
+  if (outcome === "unmatched") {
+    await recordIgnoredWebhook(eventId || `payment:${payment.id}`, "payment.captured",
+      `paid top-up of $${creditUsd} for an account that no longer exists`, { ...ids, uid });
+    return "ignored";
+  }
   if (outcome === "applied") {
     console.log(`[credits] topup +$${creditUsd} for ${uid}`);
     shipLog("billing", "top-up applied", { uid, usd: creditUsd, payment: payment.id });

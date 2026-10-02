@@ -148,19 +148,50 @@ export function AdminPage() {
             </button>
           </div>
 
-          {failedQueues.length > 0 || (data.pendingOps ?? []).some((o) => o.status === "failed") ? (
-            <div className="rounded-card border border-[#EFCFC4] bg-[#F9E9E4] p-4 text-[.9rem]">
-              <p className="mb-1 font-bold text-[#A6543C]">Needs attention</p>
-              {failedQueues.map((c) => (
-                <p key={c.uid}>Provisioning failed for {c.email}: {c.queue?.error ?? "unknown"}</p>
-              ))}
-              {(data.pendingOps ?? [])
-                .filter((o) => o.status === "failed")
-                .map((o) => (
-                  <p key={o.id}>Op {o.op} for {o.username || o.id} failed: {o.error ?? "unknown"}</p>
+          {(() => {
+            const ops = data.pendingOps ?? [];
+            const failedOps = ops.filter((o) => o.status === "failed");
+            const retryingQueues = customers.filter((c) => c.queue?.status === "queued" && (c.queue.attempts ?? 0) > 0);
+            const retryingOps = ops.filter((o) => o.status === "queued" && o.attempts > 0);
+            if (!failedQueues.length && !failedOps.length && !retryingQueues.length && !retryingOps.length) return null;
+            const when = (at: string | null | undefined) =>
+              at ? ` — next try ${new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "";
+            const retryBtn =
+              "ml-2 cursor-pointer rounded-control border border-[#EFCFC4] bg-card px-2 py-0.5 text-[.8rem] font-bold text-[#A6543C] hover:bg-white disabled:opacity-50";
+            return (
+              <div className="rounded-card border border-[#EFCFC4] bg-[#F9E9E4] p-4 text-[.9rem]">
+                <p className="mb-1 font-bold text-[#A6543C]">Needs attention</p>
+                {failedQueues.map((c) => (
+                  <p key={c.uid} className="py-0.5">
+                    Provisioning failed for {c.email} after {c.queue?.attempts || 1} attempt(s): {c.queue?.error ?? "unknown"}
+                    <button type="button" className={retryBtn} disabled={busy}
+                      onClick={() => void act({ action: "retry", kind: "provision", id: c.uid }, null)}>
+                      Retry
+                    </button>
+                  </p>
                 ))}
-            </div>
-          ) : null}
+                {failedOps.map((o) => (
+                  <p key={o.id} className="py-0.5">
+                    Op {o.op} for {o.username || o.id} failed after {o.attempts || 1} attempt(s): {o.error ?? "unknown"}
+                    <button type="button" className={retryBtn} disabled={busy}
+                      onClick={() => void act({ action: "retry", kind: "op", id: o.id }, null)}>
+                      Retry
+                    </button>
+                  </p>
+                ))}
+                {retryingQueues.map((c) => (
+                  <p key={`r-${c.uid}`} className="py-0.5 text-ink-soft">
+                    Provisioning for {c.email} failed {c.queue?.attempts}×, retrying automatically{when(c.queue?.retryAt)}: {c.queue?.error ?? "unknown"}
+                  </p>
+                ))}
+                {retryingOps.map((o) => (
+                  <p key={`r-${o.id}`} className="py-0.5 text-ink-soft">
+                    Op {o.op} for {o.username || o.id} failed {o.attempts}×, retrying automatically{when(o.retryAt)}: {o.error ?? "unknown"}
+                  </p>
+                ))}
+              </div>
+            );
+          })()}
 
           {(() => {
             const row = customers.find((c) => (c.uid || `ws:${c.workspace?.username}`) === editing);

@@ -81,3 +81,17 @@ describe("removal billing choice", () => {
     assert.equal(parseAction({ action: "remove", uid: "u", confirm: "k", refund: true }, NOW).refund, true);
   });
 });
+
+describe("retry", () => {
+  it("accepts the ids we mint for provisions and ops", () => {
+    assert.deepEqual(parseAction({ action: "retry", kind: "provision", id: "AbC123xyz" }, NOW),
+      { action: "retry", kind: "provision", id: "AbC123xyz" });
+    assert.equal(parseAction({ action: "retry", kind: "op", id: "ws:kamal:sync_limit" }, NOW).id, "ws:kamal:sync_limit");
+  });
+  it("refuses unknown kinds and ids that could address another path", () => {
+    refused({ action: "retry", kind: "billing", id: "u1" });
+    refused({ action: "retry", kind: "op", id: "" });
+    refused({ action: "retry", kind: "op", id: "users/u1" });
+    refused({ action: "retry", kind: "op", id: "../x" });
+  });
+});

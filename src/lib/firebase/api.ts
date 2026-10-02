@@ -171,7 +171,7 @@ export type AdminCustomer = {
     topupBalanceUsd: number;
     usageSyncedAt: string | null;
   } | null;
-  queue: { status: string; error: string | null } | null;
+  queue: { status: string; error: string | null; attempts?: number; retryAt?: string | null } | null;
   enforcement: { reason: string; suspendedAt: string | null; removeAfter: string | null } | null;
   platform: {
     suspended: boolean;
@@ -200,15 +200,20 @@ export const fetchAdminCustomers = () =>
       agentTag?: string | null;
       platform: AdminCustomer["platform"];
     }[];
-    pendingOps: { id: string; op: string; username: string; status: string; error: string | null }[];
+    pendingOps: {
+      id: string; op: string; username: string; status: string; error: string | null;
+      attempts: number; retryAt: string | null;
+    }[];
   }>("/admin-ui/customers/");
 
 export type AdminActionBody = {
   action:
     | "edit_profile" | "transfer_email" | "grant_credit" | "revoke_grant" | "set_included"
     | "suspend" | "resume" | "provision" | "remove"
-    | "ws_suspend" | "ws_resume" | "ws_set_email" | "ws_remove";
+    | "ws_suspend" | "ws_resume" | "ws_set_email" | "ws_remove" | "retry";
   uid?: string;
+  kind?: "provision" | "op";
+  id?: string;
   usd?: number;
   username?: string;
   confirm?: string;

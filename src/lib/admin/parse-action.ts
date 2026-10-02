@@ -36,7 +36,12 @@ export type AdminAction =
   | { action: "ws_suspend"; username: string }
   | { action: "ws_resume"; username: string }
   | { action: "ws_set_email"; username: string; email: string }
-  | { action: "ws_remove"; username: string; confirm: string };
+  | { action: "ws_remove"; username: string; confirm: string }
+  /** Put a failed provision (id = uid) or op (id = op doc id) back in the queue. */
+  | { action: "retry"; kind: "provision" | "op"; id: string };
+
+/** Firestore doc ids we mint: `<uid>`, `<uid>:<op>`, `ws:<username>:<op>`. */
+const DOC_ID_RE = /^[A-Za-z0-9_.:-]{1,200}$/;
 
 export const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
@@ -78,6 +83,13 @@ export function parseAction(body: unknown, now: Date = new Date()): AdminAction 
       default:
         throw badRequest("invalid", "Unknown action.");
     }
+  }
+
+  if (b.action === "retry") {
+    const id = str(b.id);
+    if (b.kind !== "provision" && b.kind !== "op") throw badRequest("invalid", "Retry what?");
+    if (!DOC_ID_RE.test(id) || id.includes("..")) throw badRequest("invalid", "Bad id.");
+    return { action: "retry", kind: b.kind, id };
   }
 
   const uid = str(b.uid);

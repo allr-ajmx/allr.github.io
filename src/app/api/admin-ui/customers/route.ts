@@ -98,7 +98,9 @@ export async function GET(request: Request) {
             }
           : null,
         credits,
-        queue: q ? { status: q.status, error: q.error ?? null } : null,
+        queue: q
+          ? { status: q.status, error: q.error ?? null, attempts: Number(q.attempts ?? 0), retryAt: iso(q.retryAt) || null }
+          : null,
         platform: platform(d.workspace_username),
         enforcement: d.enforcement
           ? {
@@ -138,6 +140,8 @@ export async function GET(request: Request) {
         username: d.data().username,
         status: d.data().status,
         error: d.data().error ?? null,
+        attempts: Number(d.data().attempts ?? 0),
+        retryAt: iso(d.data().retryAt) || null,
       })),
     });
   } catch (error) {

@@ -7,6 +7,7 @@ import type { Caller } from "./session";
 import { checkUsernameShape } from "@/lib/admin/username";
 import { appliedLimit, initialLedger as initialCreditLedger, ledgerFromDoc, settle } from "@/lib/billing/credits";
 import { shipLog } from "./logship";
+import { isDue, nextAttempt } from "@/lib/admin/retry";
 
 /**
  * Self-serve provisioning, the site's half.
@@ -26,6 +27,9 @@ const QUEUE = "provision_queue";
 const OPS = "workspace_ops";
 
 export type QueueStatus = "queued" | "claimed" | "provisioned" | "failed";
+
+/** A queued doc whose retry backoff hasn't elapsed isn't claimable yet. */
+const due = (d: FirebaseFirestore.DocumentData) => isDue(d.retryAt?.toDate?.() as Date | undefined);
 
 export async function usernameAvailable(username: string): Promise<boolean> {
   const snap = await adminDb().collection(USERNAMES).doc(username).get();
@@ -108,9 +112,9 @@ export async function claimNext(): Promise<
     .where("status", "in", ["queued", "claimed"])
     .limit(20)
     .get();
-  const ordered = [...candidates.docs].sort(
-    (a, b) => (a.createTime?.toMillis() ?? 0) - (b.createTime?.toMillis() ?? 0),
-  );
+  const ordered = [...candidates.docs]
+    .filter((d) => due(d.data()))
+    .sort((a, b) => (a.createTime?.toMillis() ?? 0) - (b.createTime?.toMillis() ?? 0));
 
   for (const doc of ordered) {
     const claimed = await db.runTransaction(async (tx) => {
@@ -145,14 +149,23 @@ export async function completeClaim(
   const ref = queueRef(uid);
   const snap = await ref.get();
   if (!snap.exists) throw new ApiError(404, "no-entry", `Nothing queued for ${uid}.`);
+  const retry = ok ? null : nextAttempt(Number(snap.data()?.attempts ?? 0));
   await ref.update({
-    status: (ok ? "provisioned" : "failed") satisfies QueueStatus,
+    status: (ok ? "provisioned" : retry!.status) satisfies QueueStatus,
     error: ok ? null : (error ?? "unknown").slice(0, 500),
+    attempts: ok ? Number(snap.data()?.attempts ?? 0) : retry!.attempts,
+    retryAt: ok ? null : retry!.retryAt,
     updatedAt: FieldValue.serverTimestamp(),
   });
-  if (!ok) console.error(`[provision] ${uid} failed: ${error}`);
-  shipLog("orchestrator", ok ? "workspace provisioned" : "provisioning FAILED",
-    { uid, error: ok ? undefined : error }, ok ? "info" : "error");
+  if (!ok) console.error(`[provision] ${uid} failed (attempt ${retry!.attempts}): ${error}`);
+  shipLog(
+    "orchestrator",
+    ok ? "workspace provisioned"
+      : retry!.status === "failed" ? `provisioning FAILED after ${retry!.attempts} attempts`
+      : `provisioning failed, retrying (attempt ${retry!.attempts})`,
+    { uid, error: ok ? undefined : error },
+    ok ? "info" : retry!.status === "failed" ? "error" : "warn",
+  );
 }
 
 /** What the billing page shows while the container ship comes in. */
@@ -193,6 +206,8 @@ export function enqueueOp(tx: FirebaseFirestore.Transaction, op: WorkspaceOp): v
       ...op,
       status: "queued",
       error: null,
+      attempts: 0,
+      retryAt: null,
       gen: FieldValue.increment(1),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -209,9 +224,9 @@ export async function claimNextOp(): Promise<(WorkspaceOp & { id: string; gen: n
     .where("status", "in", ["queued", "claimed"])
     .limit(20)
     .get();
-  const ordered = [...candidates.docs].sort(
-    (a, b) => (a.createTime?.toMillis() ?? 0) - (b.createTime?.toMillis() ?? 0),
-  );
+  const ordered = [...candidates.docs]
+    .filter((d) => due(d.data()))
+    .sort((a, b) => (a.createTime?.toMillis() ?? 0) - (b.createTime?.toMillis() ?? 0));
 
   for (const doc of ordered) {
     const claimed = await db.runTransaction(async (tx) => {
@@ -253,7 +268,7 @@ export async function completeOp(
 ): Promise<void> {
   const db = adminDb();
   const ref = db.collection(OPS).doc(id);
-  const data0 = await db.runTransaction(async (tx) => {
+  const outcome = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new ApiError(404, "no-op", `No op ${id}.`);
     const d = snap.data()!;
@@ -261,17 +276,27 @@ export async function completeOp(
     // queued so the worker applies the latest state, instead of marking the
     // newer request done unseen.
     const superseded = claimedGen !== undefined && Number(d.gen ?? 0) !== claimedGen;
+    const retry = !ok && !superseded ? nextAttempt(Number(d.attempts ?? 0)) : null;
     tx.update(ref, {
-      status: superseded ? "queued" : ok ? "done" : "failed",
+      status: superseded ? "queued" : ok ? "done" : retry!.status,
       error: ok ? null : (error ?? "unknown").slice(0, 500),
+      attempts: superseded || ok ? 0 : retry!.attempts,
+      retryAt: retry?.retryAt ?? null,
       updatedAt: FieldValue.serverTimestamp(),
     });
-    return d;
+    return { d, retry };
   });
-  shipLog("orchestrator", `op ${data0.op} ${ok ? "done" : "FAILED"}`,
-    { target: data0.username || data0.email, error: ok ? undefined : error }, ok ? "info" : "error");
+  const { d: data0, retry: retried } = outcome;
+  shipLog(
+    "orchestrator",
+    ok ? `op ${data0.op} done`
+      : retried?.status === "queued" ? `op ${data0.op} failed, retrying (attempt ${retried.attempts})`
+      : `op ${data0.op} FAILED`,
+    { target: data0.username || data0.email, error: ok ? undefined : error },
+    ok ? "info" : retried?.status === "queued" ? "warn" : "error",
+  );
   if (!ok) {
-    console.error(`[ops] ${id} failed: ${error}`);
+    console.error(`[ops] ${id} failed (attempt ${retried?.attempts ?? "-"}): ${error}`);
     return;
   }
   // A completed resume lifts the enforcer's mark; the sweep would otherwise
@@ -390,5 +415,27 @@ export async function resolveLimit(
       updatedAt: FieldValue.serverTimestamp(),
     });
     return { limitUsd: appliedLimit(ledger, liveUsageUsd) };
+  });
+}
+
+
+/** Admin "Retry": put a failed provision or op back in the queue, fresh. */
+export async function retryNow(kind: "provision" | "op", id: string): Promise<void> {
+  const db = adminDb();
+  const ref = kind === "provision" ? queueRef(id) : db.collection(OPS).doc(id);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new ApiError(404, "no-entry", "Nothing to retry.");
+    if (snap.data()?.status !== "failed") {
+      throw new ApiError(409, "not-failed", "Only failed items can be retried.");
+    }
+    tx.update(ref, {
+      status: "queued",
+      attempts: 0,
+      retryAt: null,
+      error: null,
+      ...(kind === "op" ? { gen: FieldValue.increment(1) } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
   });
 }

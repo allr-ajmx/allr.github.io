@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     // Credit top-ups arrive as captured one-time payments; idempotent by
     // payment id inside, so no event-id bookkeeping is needed here.
     if (name === "payment.captured" && event.payload?.payment?.entity) {
-      const outcome = await applyTopupPayment(event.payload.payment.entity);
+      const outcome = await applyTopupPayment(event.payload.payment.entity, eventId);
       console.log(`[billing] ${name} ${eventId}: ${outcome}`);
       return Response.json({ outcome });
     }

@@ -65,9 +65,10 @@ export async function GET(request: Request) {
         return {
           at: iso(x.receivedAt),
           kind: "billing" as const,
-          summary: `${x.eventName} · ${who(x.uid)}`,
-          detail: x.outcome ?? null,
-          status: null,
+          summary: `${x.eventName} · ${x.uid ? who(x.uid) : x.subscriptionId ?? x.paymentId ?? "unknown account"}`,
+          detail: x.reason ? `${x.outcome}: ${x.reason}` : x.outcome ?? null,
+          // Unmatched money is the one billing event an admin must act on.
+          status: x.outcome === "ignored" && x.reason ? "failed" : null,
         };
       }),
       ...credits.docs.map((d) => {

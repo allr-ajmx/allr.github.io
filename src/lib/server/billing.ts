@@ -9,6 +9,7 @@ import type { Caller } from "./session";
 import { enqueueInTransaction, enqueueOp, queueRef, readQueue } from "./provisioning";
 import { applyMonthlyGrantInTransaction } from "./credits";
 import { shipLog } from "./logship";
+import { triageSubscriptionEvent } from "@/lib/billing/triage";
 import {
   cancelSubscriptionNow,
   lastPaidPayment,
@@ -174,18 +175,58 @@ export async function cancelSubscription(caller: Caller): Promise<Billing> {
  * the event exactly once, keyed by Razorpay's event id, and maps it to a
  * person through `notes.uid` stamped at creation.
  */
+/**
+ * A webhook we could not match to an account. Money may have moved, so it is
+ * written where an admin looks (billing_events → the Operations feed) — not
+ * just a console line that scrolls away.
+ */
+export function ignoredEventDoc(
+  eventName: string,
+  reason: string,
+  ids: { uid?: string | null; subscriptionId?: string | null; paymentId?: string | null; orderId?: string | null },
+) {
+  return {
+    eventName,
+    outcome: "ignored",
+    reason,
+    uid: ids.uid ?? null,
+    subscriptionId: ids.subscriptionId ?? null,
+    paymentId: ids.paymentId ?? null,
+    orderId: ids.orderId ?? null,
+    receivedAt: FieldValue.serverTimestamp(),
+  };
+}
+
+export async function recordIgnoredWebhook(
+  eventId: string,
+  eventName: string,
+  reason: string,
+  ids: Parameters<typeof ignoredEventDoc>[2],
+): Promise<void> {
+  console.error(`[billing] ignored ${eventName} (${eventId}): ${reason}`, ids);
+  shipLog("billing", `webhook ignored: ${reason}`, { event: eventName, eventId, ...ids }, "error");
+  try {
+    const events = adminDb().collection(EVENTS);
+    // Keyed by event id so Razorpay's redeliveries collapse to one row.
+    await (eventId ? events.doc(eventId) : events.doc()).set(ignoredEventDoc(eventName, reason, ids));
+  } catch (e) {
+    console.error(`[billing] could not record ignored ${eventName} (${eventId})`, e);
+  }
+}
+
 export async function applyWebhookEvent(
   eventId: string,
   eventName: string,
   subscription: RzpSubscription | undefined,
 ): Promise<"applied" | "duplicate" | "ignored"> {
-  if (!eventName.startsWith("subscription.") || !subscription) return "ignored";
-
-  const uid = subscription.notes?.uid;
-  if (!uid) {
-    console.error(`[billing] ${eventName} ${subscription.id} carries no uid note`);
+  const triage = triageSubscriptionEvent(eventName, subscription);
+  if (!triage.act || !subscription) {
+    if (!triage.act && triage.record) {
+      await recordIgnoredWebhook(eventId, eventName, triage.reason, { subscriptionId: subscription?.id ?? null });
+    }
     return "ignored";
   }
+  const uid = String(subscription.notes?.uid);
 
   const db = adminDb();
   const eventRef = db.collection(EVENTS).doc(eventId);
@@ -212,7 +253,9 @@ export async function applyWebhookEvent(
     ]);
     if (seen.exists) return "duplicate" as const;
     if (!user.exists) {
-      console.error(`[billing] ${eventName}: no profile for uid ${uid} or subscription ${subscription.id}`);
+      tx.set(eventRef, ignoredEventDoc(eventName, "no account for this uid or subscription", {
+        uid, subscriptionId: subscription.id,
+      }));
       return "ignored" as const;
     }
 
