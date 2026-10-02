@@ -75,6 +75,7 @@ function toProfile(data: FirebaseFirestore.DocumentData): UserProfile {
     workspace_email: data.workspace_email ?? null,
     workspace_address: data.workspace_address ?? null,
     pendingWorkspaceUsername: data.pending_workspace_username ?? null,
+    enforcement: data.enforcement ?? null,
     billing: data.billing
       ? {
           status: data.billing.status,
@@ -83,6 +84,7 @@ function toProfile(data: FirebaseFirestore.DocumentData): UserProfile {
           customerId: data.billing.customerId ?? "",
           currentPeriodEnd: data.billing.currentPeriodEnd ?? null,
           providerStatus: data.billing.providerStatus ?? "",
+          statusSince: data.billing.statusSince ?? null,
           updatedAt: iso(data.billing.updatedAt),
         }
       : null,
@@ -240,6 +242,7 @@ export async function createProfile(
       trial: null,
       billing: null,
       pending_workspace_username: null,
+      enforcement: null,
     });
 
     tx.set(claimRef, {

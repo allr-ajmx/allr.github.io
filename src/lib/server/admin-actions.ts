@@ -6,6 +6,7 @@ import { badRequest, conflict } from "./errors";
 import type { Caller } from "./session";
 import { enqueueInTransaction, enqueueOp, queueRef } from "./provisioning";
 import { checkUsernameShape } from "@/lib/admin/username";
+import { shipLog } from "./logship";
 import {
   applyTopup,
   initialLedger,
@@ -38,10 +39,30 @@ export type AdminAction =
   | { action: "grant_credit"; uid: string; usd: number }
   | { action: "set_included"; uid: string; usd: number }
   | { action: "suspend" | "resume"; uid: string }
-  | { action: "provision"; uid: string; username: string };
+  | { action: "provision"; uid: string; username: string }
+  /** Destructive: containers and data. `confirm` must equal the username. */
+  | { action: "remove"; uid: string; confirm: string }
+  /** Roster-only workspaces (no site account yet): keyed by username. */
+  | { action: "ws_suspend"; username: string }
+  | { action: "ws_resume"; username: string }
+  | { action: "ws_remove"; username: string; confirm: string };
 
 export function parseAction(body: unknown): AdminAction {
   const b = (body ?? {}) as Record<string, unknown>;
+  // Roster-only targets carry a username and no uid.
+  if (b.action === "ws_suspend" || b.action === "ws_resume" || b.action === "ws_remove") {
+    const verdict = checkUsernameShape(b.username);
+    if (!verdict.ok) throw badRequest("bad-username", verdict.reason);
+    if (b.action === "ws_remove") {
+      if (typeof b.confirm !== "string" || b.confirm.trim().toLowerCase() !== verdict.username) {
+        throw badRequest("confirm", "Name the workspace exactly to confirm removal.");
+      }
+      return { action: "ws_remove", username: verdict.username, confirm: verdict.username };
+    }
+    return b.action === "ws_suspend"
+      ? { action: "ws_suspend", username: verdict.username }
+      : { action: "ws_resume", username: verdict.username };
+  }
   const uid = typeof b.uid === "string" ? b.uid : "";
   if (!uid) throw badRequest("invalid", "uid is required.");
   const usd = Number(b.usd);
@@ -59,6 +80,11 @@ export function parseAction(body: unknown): AdminAction {
     case "suspend":
     case "resume":
       return { action: b.action, uid };
+    case "remove":
+      if (typeof b.confirm !== "string" || !b.confirm.trim()) {
+        throw badRequest("confirm", "Type the workspace name to confirm removal.");
+      }
+      return { action: "remove", uid, confirm: b.confirm.trim().toLowerCase() };
     case "provision": {
       const verdict = checkUsernameShape(b.username);
       if (!verdict.ok) throw badRequest("bad-username", verdict.reason);
@@ -71,6 +97,30 @@ export function parseAction(body: unknown): AdminAction {
 
 export async function applyAdminAction(admin: Caller, action: AdminAction): Promise<void> {
   const db = adminDb();
+
+  // Roster-only workspaces: the roster row is the identity; ops carry no uid.
+  if (action.action === "ws_suspend" || action.action === "ws_resume" || action.action === "ws_remove") {
+    const roster = await db.collection("workspace_roster").doc(action.username).get();
+    if (!roster.exists) throw badRequest("no-workspace", "No such workspace on the roster.");
+    const email = String(roster.data()?.email ?? "");
+    const op = action.action === "ws_suspend" ? "suspend" : action.action === "ws_resume" ? "resume" : "remove";
+    await db.runTransaction(async (tx) => {
+      enqueueOp(tx, { uid: "", email, username: action.username, op, valueUsd: 0 });
+      tx.set(db.collection("admin_actions").doc(), {
+        by: admin.email,
+        uid: null,
+        username: action.username,
+        action: action.action,
+        detail: null,
+        at: FieldValue.serverTimestamp(),
+      });
+    });
+    console.log(`[admin] ${admin.email}: ${action.action} for roster workspace ${action.username}`);
+    shipLog("admin", action.action, { by: admin.email, target: action.username },
+      action.action === "ws_remove" ? "warn" : "info");
+    return;
+  }
+
   const userRef = db.collection(USERS).doc(action.uid);
 
   await db.runTransaction(async (tx) => {
@@ -105,6 +155,19 @@ export async function applyAdminAction(admin: Caller, action: AdminAction): Prom
         enqueueOp(tx, { uid: action.uid, email: d.email, username, op: action.action, valueUsd: 0 });
         break;
       }
+      case "remove": {
+        if (!username) throw badRequest("no-workspace", "There is no workspace to remove.");
+        // The confirmation is checked here, where it cannot be skipped by a
+        // creative client — the typed name must match the workspace exactly.
+        if (action.confirm !== username) {
+          throw badRequest(
+            "confirm",
+            `Type the workspace name (${username}) exactly to confirm removal.`,
+          );
+        }
+        enqueueOp(tx, { uid: action.uid, email: d.email, username, op: "remove", valueUsd: 0 });
+        break;
+      }
       case "provision": {
         if (username) throw conflict("has-workspace", "They already have a workspace.");
         if (nameSnap!.exists && nameSnap!.data()?.uid !== action.uid) {
@@ -127,4 +190,9 @@ export async function applyAdminAction(admin: Caller, action: AdminAction): Prom
   });
 
   console.log(`[admin] ${admin.email}: ${action.action} for ${action.uid}`);
+  shipLog("admin", action.action, {
+    by: admin.email,
+    target: action.uid,
+    detail: "usd" in action ? action.usd : "username" in action ? action.username : undefined,
+  }, action.action === "remove" ? "warn" : "info");
 }

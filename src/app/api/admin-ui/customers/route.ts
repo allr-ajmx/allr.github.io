@@ -40,6 +40,8 @@ export async function GET(request: Request) {
             orDisabled: r.orDisabled ?? null,
             orLimitUsd: r.orLimitUsd ?? null,
             orUsageUsd: r.orUsageUsd ?? null,
+            orUsageDailyUsd: r.orUsageDailyUsd ?? null,
+            orUsageMonthlyUsd: r.orUsageMonthlyUsd ?? null,
             seenAt: iso(r.updatedAt),
           }
         : null;
@@ -84,6 +86,13 @@ export async function GET(request: Request) {
         credits,
         queue: q ? { status: q.status, error: q.error ?? null } : null,
         platform: platform(d.workspace_username),
+        enforcement: d.enforcement
+          ? {
+              reason: d.enforcement.reason,
+              suspendedAt: d.enforcement.suspendedAt ?? null,
+              removeAfter: d.enforcement.removeAfter ?? null,
+            }
+          : null,
       };
     });
 

@@ -20,6 +20,7 @@ import {
   type TopupPackId,
 } from "@/lib/billing/credits";
 import { hasWorkspace } from "@/lib/account/state";
+import { shipLog } from "./logship";
 
 /**
  * Credits, server half. The ledger lives on `users/{uid}.credits`; every
@@ -130,7 +131,10 @@ export async function applyTopupPayment(payment: RzpPayment): Promise<"applied" 
     return "applied" as const;
   });
 
-  if (outcome === "applied") console.log(`[credits] topup +$${creditUsd} for ${uid}`);
+  if (outcome === "applied") {
+    console.log(`[credits] topup +$${creditUsd} for ${uid}`);
+    shipLog("billing", "top-up applied", { uid, usd: creditUsd, payment: payment.id });
+  }
   return outcome;
 }
 

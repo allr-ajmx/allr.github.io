@@ -129,10 +129,38 @@ export function AdminPage() {
               </p>
               <div className="flex flex-wrap gap-2 text-[.85rem]">
                 {data.workspaceOnly.map((w) => (
-                  <span key={w.username} className="rounded-chip border border-line bg-paper px-3 py-1.5">
-                    <b>{w.username}</b> · {w.email}
-                    {w.suspended ? <span className="ml-1.5 font-bold text-[#A6543C]">· suspended</span> : null}
-                    {w.agentTag ? <span className="text-ink-soft"> · agent {w.agentTag}</span> : null}
+                  <span key={w.username} className="inline-flex items-center gap-2 rounded-chip border border-line bg-paper px-3 py-1.5">
+                    <span>
+                      <b>{w.username}</b> · {w.email}
+                      {w.suspended ? <span className="ml-1.5 font-bold text-[#A6543C]">· suspended</span> : null}
+                      {w.agentTag ? <span className="text-ink-soft"> · agent {w.agentTag}</span> : null}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className="cursor-pointer text-[.78rem] font-bold text-honey-deep hover:underline disabled:opacity-50"
+                      onClick={() =>
+                        void act(
+                          { action: w.suspended ? "ws_resume" : "ws_suspend", username: w.username },
+                          `${w.suspended ? "Resume" : "Suspend"} ${w.username}?`,
+                        )
+                      }
+                    >
+                      {w.suspended ? "Resume" : "Suspend"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className="cursor-pointer text-[.78rem] font-bold text-[#A6543C] hover:underline disabled:opacity-50"
+                      onClick={() =>
+                        void act(
+                          { action: "ws_remove", username: w.username, confirm: w.username },
+                          `Delete ${w.username}'s workspace?\n\nThis removes their containers and ALL their data permanently. There is no undo.`,
+                        )
+                      }
+                    >
+                      Remove
+                    </button>
                   </span>
                 ))}
               </div>
@@ -168,6 +196,14 @@ export function AdminPage() {
                       <span className="font-semibold">{STATE_LABEL[c.state] ?? c.state}</span>
                       {c.queue && c.queue.status !== "provisioned" ? (
                         <span className="block text-[.78rem] text-ink-soft">queue: {c.queue.status}</span>
+                      ) : null}
+                      {c.enforcement ? (
+                        <span className="block text-[.76rem] font-bold text-[#A6543C]">
+                          off: {c.enforcement.reason}
+                          {c.enforcement.removeAfter
+                            ? ` · deletes ${new Date(c.enforcement.removeAfter).toLocaleDateString()}`
+                            : ""}
+                        </span>
                       ) : null}
                     </td>
                     <td className="px-4 py-3">
@@ -221,6 +257,9 @@ export function AdminPage() {
                           {c.platform.orDisabled ? (
                             <span className="block text-[.76rem] font-bold text-[#A6543C]">disabled</span>
                           ) : null}
+                          <span className="block text-[.76rem] text-ink-soft">
+                            today ${Number(c.platform.orUsageDailyUsd ?? 0).toFixed(2)} · month ${Number(c.platform.orUsageMonthlyUsd ?? 0).toFixed(2)}
+                          </span>
                           {c.platform.seenAt ? (
                             <span className="block text-[.76rem] text-ink-soft">seen {new Date(c.platform.seenAt).toLocaleTimeString()}</span>
                           ) : null}
@@ -314,6 +353,23 @@ function RowActions({
         onClick={() => void act({ action: "resume", uid: c.uid }, `Resume ${c.workspace?.username}?`)}
       >
         Resume
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        className={`${btn} !border-[#EFCFC4] !text-[#A6543C]`}
+        onClick={() => {
+          const name = c.workspace!.username;
+          // One confirmation, worded for what it is. The server still
+          // requires the workspace name in the request, so nothing else
+          // can trigger this by accident.
+          void act(
+            { action: "remove", uid: c.uid, confirm: name },
+            `Delete ${name}'s workspace?\n\nThis removes their containers and ALL their data permanently. There is no undo.`,
+          );
+        }}
+      >
+        Remove…
       </button>
     </div>
   );

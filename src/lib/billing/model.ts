@@ -50,6 +50,8 @@ export type Billing = {
   currentPeriodEnd: string | null;
   /** The raw Razorpay subscription status behind `status`, for debugging. */
   providerStatus: string;
+  /** ISO 8601 — when `status` last changed. The grace clock runs from here. */
+  statusSince: string | null;
   /** ISO 8601. */
   updatedAt: string;
 };

@@ -6,6 +6,7 @@ import { adminDb } from "./admin";
 import { ApiError, badRequest } from "./errors";
 import { parseStamp as parsePure, tokenMatches, type WorkspaceStamp } from "@/lib/admin/stamp";
 import { initialLedgerFields } from "./credits";
+import { shipLog } from "./logship";
 
 /**
  * The one door through which workspaces reach profiles.
@@ -92,5 +93,9 @@ export async function stampWorkspace(stamp: WorkspaceStamp): Promise<{
   console.log(
     `[admin] workspace ${cleared ? "cleared" : `set to ${stamp.username}`} for ${stamp.email} (${uid})`,
   );
+  shipLog("orchestrator", cleared ? "workspace stamp cleared" : "workspace stamped", {
+    email: stamp.email,
+    username: stamp.username,
+  });
   return { uid, cleared };
 }

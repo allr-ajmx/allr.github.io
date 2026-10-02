@@ -168,6 +168,7 @@ export type AdminCustomer = {
     usageSyncedAt: string | null;
   } | null;
   queue: { status: string; error: string | null } | null;
+  enforcement: { reason: string; suspendedAt: string | null; removeAfter: string | null } | null;
   platform: {
     suspended: boolean;
     agentTag: string | null;
@@ -176,6 +177,8 @@ export type AdminCustomer = {
     orDisabled: boolean | null;
     orLimitUsd: number | null;
     orUsageUsd: number | null;
+    orUsageDailyUsd: number | null;
+    orUsageMonthlyUsd: number | null;
     seenAt: string | null;
   } | null;
 };
@@ -188,8 +191,22 @@ export const fetchAdminCustomers = () =>
   }>("/admin-ui/customers/");
 
 export const adminAction = (body: {
-  action: "grant_credit" | "set_included" | "suspend" | "resume" | "provision";
-  uid: string;
+  action:
+    | "grant_credit" | "set_included" | "suspend" | "resume" | "provision" | "remove"
+    | "ws_suspend" | "ws_resume" | "ws_remove";
+  uid?: string;
   usd?: number;
   username?: string;
+  confirm?: string;
 }) => call<{ ok: true }>("/admin-ui/actions/", { method: "POST", body: JSON.stringify(body) });
+
+export const fetchAdminOperations = () =>
+  call<{
+    events: {
+      at: string;
+      kind: "lifecycle" | "admin" | "billing" | "credit" | "ops" | "provision";
+      summary: string;
+      detail: string | null;
+      status: string | null;
+    }[];
+  }>("/admin-ui/operations/");

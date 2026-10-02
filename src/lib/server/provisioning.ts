@@ -6,6 +6,7 @@ import { ApiError, badRequest, conflict } from "./errors";
 import type { Caller } from "./session";
 import { checkUsernameShape } from "@/lib/admin/username";
 import { initialLedger as initialCreditLedger } from "@/lib/billing/credits";
+import { shipLog } from "./logship";
 
 /**
  * Self-serve provisioning, the site's half.
@@ -145,6 +146,8 @@ export async function completeClaim(
     updatedAt: FieldValue.serverTimestamp(),
   });
   if (!ok) console.error(`[provision] ${uid} failed: ${error}`);
+  shipLog("orchestrator", ok ? "workspace provisioned" : "provisioning FAILED",
+    { uid, error: ok ? undefined : error }, ok ? "info" : "error");
 }
 
 /** What the billing page shows while the container ship comes in. */
@@ -164,7 +167,7 @@ export type WorkspaceOp = {
   uid: string;
   email: string;
   username: string;
-  op: "set_limit" | "suspend" | "resume";
+  op: "set_limit" | "suspend" | "resume" | "remove";
   valueUsd: number;
 };
 
@@ -174,7 +177,8 @@ export type WorkspaceOp = {
  * not the history.
  */
 export function enqueueOp(tx: FirebaseFirestore.Transaction, op: WorkspaceOp): void {
-  const ref = adminDb().collection(OPS).doc(`${op.uid}:${op.op}`);
+  // Account-less (roster-only) workspaces key by username instead of uid.
+  const ref = adminDb().collection(OPS).doc(`${op.uid || `ws:${op.username}`}:${op.op}`);
   tx.set(ref, {
     ...op,
     status: "queued",
@@ -218,15 +222,32 @@ export async function claimNextOp(): Promise<(WorkspaceOp & { id: string }) | nu
 }
 
 export async function completeOp(id: string, ok: boolean, error?: string): Promise<void> {
-  const ref = adminDb().collection(OPS).doc(id);
+  const db = adminDb();
+  const ref = db.collection(OPS).doc(id);
   const snap = await ref.get();
   if (!snap.exists) throw new ApiError(404, "no-op", `No op ${id}.`);
+  const data0 = snap.data()!;
   await ref.update({
     status: ok ? "done" : "failed",
     error: ok ? null : (error ?? "unknown").slice(0, 500),
     updatedAt: FieldValue.serverTimestamp(),
   });
-  if (!ok) console.error(`[ops] ${id} failed: ${error}`);
+  shipLog("orchestrator", `op ${data0.op} ${ok ? "done" : "FAILED"}`,
+    { target: data0.username || data0.email, error: ok ? undefined : error }, ok ? "info" : "error");
+  if (!ok) {
+    console.error(`[ops] ${id} failed: ${error}`);
+    return;
+  }
+  // A completed resume lifts the enforcer's mark; the sweep would otherwise
+  // keep asking. (An admin resume on an enforced account counts too — the
+  // admin has spoken.)
+  const data = snap.data()!;
+  if (data.op === "resume" && data.uid) {
+    await db.collection(USERS).doc(data.uid).update({
+      enforcement: null,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
 }
 
 
@@ -275,5 +296,6 @@ export async function adoptFromRoster(
   });
 
   console.log(`[adopt] roster workspace ${username} connected to ${email} (${uid})`);
+  shipLog("orchestrator", "roster workspace adopted at sign-in", { email, username });
   return true;
 }

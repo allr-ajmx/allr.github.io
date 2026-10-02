@@ -9,6 +9,7 @@
  */
 
 import type { Billing } from "@/lib/billing/model";
+import type { Enforcement } from "@/lib/billing/lifecycle";
 
 export type AccountType = "individual" | "business";
 
@@ -88,6 +89,9 @@ export type UserProfile = {
    * describes, and never trusted from a checkout callback.
    */
   billing: Billing | null;
+
+  /** The lifecycle enforcer's mark: set when it suspends, cleared on resume. */
+  enforcement: Enforcement;
 };
 
 /**

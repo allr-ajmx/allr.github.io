@@ -6,8 +6,9 @@ import { badRequest, conflict } from "./errors";
 import { reserveUsername } from "./provisioning";
 import { readOrAdoptProfile } from "./profiles";
 import type { Caller } from "./session";
-import { enqueueInTransaction, queueRef, readQueue } from "./provisioning";
+import { enqueueInTransaction, enqueueOp, queueRef, readQueue } from "./provisioning";
 import { applyMonthlyGrantInTransaction } from "./credits";
+import { shipLog } from "./logship";
 import {
   cancelSubscriptionAtCycleEnd,
   createCustomer,
@@ -64,9 +65,15 @@ function billingFrom(
   sub: RzpSubscription,
   planCurrency: Billing["planCurrency"],
   customerId: string,
+  prior?: Pick<Billing, "status" | "statusSince"> | null,
 ): Omit<Billing, "updatedAt"> {
+  const status = normalizeProviderStatus(sub.status);
   return {
-    status: normalizeProviderStatus(sub.status),
+    status,
+    statusSince:
+      prior && prior.status === status
+        ? (prior.statusSince ?? new Date().toISOString())
+        : new Date().toISOString(),
     planCurrency,
     subscriptionId: sub.id,
     customerId: sub.customer_id ?? customerId,
@@ -128,7 +135,7 @@ export async function startSubscription(
     if (existing.status === "pending" || existing.status === "pastDue") {
       const sub = await fetchSubscription(existing.subscriptionId);
       if (normalizeProviderStatus(sub.status) !== "ended") {
-        await writeBilling(caller.uid, billingFrom(sub, existing.planCurrency, existing.customerId));
+        await writeBilling(caller.uid, billingFrom(sub, existing.planCurrency, existing.customerId, existing));
         return { subscriptionId: sub.id, keyId: razorpayKeyId(), plan };
       }
     }
@@ -137,6 +144,7 @@ export async function startSubscription(
   const customer = await createCustomer(profile.name, caller.email);
   const sub = await createSubscription(planIdFor(currency), customer.id, caller.uid);
   await writeBilling(caller.uid, billingFrom(sub, currency, customer.id));
+  shipLog("billing", "subscription created", { email: caller.email, currency, sub: sub.id });
 
   return { subscriptionId: sub.id, keyId: razorpayKeyId(), plan };
 }
@@ -150,7 +158,8 @@ export async function cancelSubscription(caller: Caller): Promise<Billing> {
   }
 
   const sub = await cancelSubscriptionAtCycleEnd(billing.subscriptionId);
-  const next = billingFrom(sub, billing.planCurrency, billing.customerId);
+  shipLog("billing", "subscription cancelled at cycle end", { email: caller.email, sub: sub.id });
+  const next = billingFrom(sub, billing.planCurrency, billing.customerId, billing);
   // Razorpay reports `cancelled` only at cycle end; until then the person
   // stays `active` with an end date, which is exactly what the UI should say.
   await writeBilling(caller.uid, next);
@@ -204,9 +213,26 @@ export async function applyWebhookEvent(
       return "ignored" as const;
     }
 
+    const data = user.data()!;
+    const nextStatus = normalizeProviderStatus(subscription.status);
+    // Payment is current again: the fast path undoes a billing suspension
+    // without waiting for the hourly sweep. completeOp clears the mark.
+    if (nextStatus === "active" && data.enforcement && data.workspace_username) {
+      enqueueOp(tx, {
+        uid,
+        email: data.email,
+        username: data.workspace_username,
+        op: "resume",
+        valueUsd: 0,
+      });
+    }
     tx.update(userRef, {
       billing: {
-        status: normalizeProviderStatus(subscription.status),
+        status: nextStatus,
+        statusSince:
+          prior && prior.status === nextStatus
+            ? (prior.statusSince ?? new Date().toISOString())
+            : new Date().toISOString(),
         planCurrency: prior?.planCurrency ?? "USD",
         subscriptionId: subscription.id,
         customerId: subscription.customer_id ?? prior?.customerId ?? "",
@@ -218,7 +244,6 @@ export async function applyWebhookEvent(
       },
       updatedAt: FieldValue.serverTimestamp(),
     });
-    const data = user.data()!;
     // A successful monthly charge settles the credit cycle: included expires,
     // top-ups carry, the key's limit is re-targeted.
     if (eventName === "subscription.charged") {
@@ -240,6 +265,10 @@ export async function applyWebhookEvent(
       receivedAt: FieldValue.serverTimestamp(),
     });
     return "applied" as const;
+  }).then((outcome) => {
+    shipLog("billing", `webhook ${eventName}`, { uid, sub: subscription.id, outcome },
+      normalizeProviderStatus(subscription.status) === "pastDue" ? "warn" : "info");
+    return outcome;
   });
 }
 

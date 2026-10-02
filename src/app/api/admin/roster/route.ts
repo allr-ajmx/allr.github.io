@@ -21,6 +21,8 @@ type RosterItem = {
   orDisabled?: boolean;
   orLimitUsd?: number;
   orUsageUsd?: number;
+  orUsageDailyUsd?: number;
+  orUsageMonthlyUsd?: number;
 };
 export async function POST(request: Request) {
   try {
@@ -50,6 +52,8 @@ export async function POST(request: Request) {
           orDisabled: item.orDisabled ?? null,
           orLimitUsd: Number.isFinite(item.orLimitUsd) ? item.orLimitUsd : null,
           orUsageUsd: Number.isFinite(item.orUsageUsd) ? item.orUsageUsd : null,
+          orUsageDailyUsd: Number.isFinite(item.orUsageDailyUsd) ? item.orUsageDailyUsd : null,
+          orUsageMonthlyUsd: Number.isFinite(item.orUsageMonthlyUsd) ? item.orUsageMonthlyUsd : null,
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },

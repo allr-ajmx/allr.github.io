@@ -89,3 +89,27 @@ worker adopts instead of re-creating when a paid signup's email already owns
 a workspace, and every stamp claims the username. Pasted (non-minted)
 OpenRouter keys cannot be limit-managed; `set_limit` ops for them are
 recorded as skipped.
+
+## Lifecycle enforcement
+
+Billing truth becomes platform action automatically (`src/lib/billing/lifecycle.ts`
+decides; `/api/admin/lifecycle/` sweeps hourly on the worker's request;
+webhooks handle the instant cases):
+
+- payment lands → workspace created, or **resumed** if the enforcer had
+  suspended it (fast path straight from the webhook)
+- `pastDue` → `GRACE_DAYS` (2) after the status flip → **suspended** (offline,
+  data kept); the customer's billing page says so
+- cancelled → runs to the end of the paid period, then suspended
+- suspended for **payment** and still unpaid `REMOVE_AFTER_DAYS` (7) later →
+  **removed** — containers and data deleted, the one destructive act
+- trial that never paid → suspended after grace, **never removed automatically**
+- an admin's manual suspension is invisible to the enforcer: never auto-resumed,
+  never auto-removed
+
+The sweep runs in **dry-run by default** — decisions are logged on the box
+("would suspend …") but nothing acts until `ALLR_LIFECYCLE_ENFORCE=1` is set
+in the VPS root `.env`. Arm it only after watching a few sweeps judge real
+data correctly. Every acted decision is written to `lifecycle_events`; the admin table shows
+`off: payment · deletes <date>` countdowns. Enforcement marks live on the
+profile (`enforcement`) and are cleared when a resume op completes.

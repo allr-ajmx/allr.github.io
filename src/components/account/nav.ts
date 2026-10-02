@@ -38,7 +38,10 @@ export type AccountNavSection = {
 export const ADMIN_NAV_SECTION: AccountNavSection = {
   id: "admin",
   label: "Allr admin",
-  items: [{ href: "/account/admin/", label: "Customers", icon: "keys" }],
+  items: [
+    { href: "/account/admin/", label: "Customers", icon: "keys" },
+    { href: "/account/admin/ops/", label: "Operations", icon: "revenue" },
+  ],
 };
 
 export const ACCOUNT_NAV_SECTIONS: readonly AccountNavSection[] = [
