@@ -32,6 +32,9 @@ export type AdminAction =
   /** Destructive: containers and data. `confirm` must equal the username.
    *  Also cancels the subscription; `refund` refunds the last paid charge. */
   | { action: "remove"; uid: string; confirm: string; refund: boolean }
+  /** Destructive: the site account itself (no workspace may remain).
+   *  `confirm` must equal the account's email. */
+  | { action: "delete_account"; uid: string; confirm: string }
   /** Roster-only workspaces (no site account yet): keyed by username. */
   | { action: "ws_suspend"; username: string }
   | { action: "ws_resume"; username: string }
@@ -137,6 +140,9 @@ export function parseAction(body: unknown, now: Date = new Date()): AdminAction 
     case "remove":
       if (!str(b.confirm)) throw badRequest("confirm", "Name the workspace to confirm removal.");
       return { action: "remove", uid, confirm: str(b.confirm).toLowerCase(), refund: b.refund === true };
+    case "delete_account":
+      if (!str(b.confirm)) throw badRequest("confirm", "Name the account's email to confirm deletion.");
+      return { action: "delete_account", uid, confirm: str(b.confirm).toLowerCase() };
     case "provision": {
       const verdict = checkUsernameShape(b.username);
       if (!verdict.ok) throw badRequest("bad-username", verdict.reason);

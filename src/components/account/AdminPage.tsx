@@ -153,7 +153,8 @@ export function AdminPage() {
             const failedOps = ops.filter((o) => o.status === "failed");
             const retryingQueues = customers.filter((c) => c.queue?.status === "queued" && (c.queue.attempts ?? 0) > 0);
             const retryingOps = ops.filter((o) => o.status === "queued" && o.attempts > 0);
-            if (!failedQueues.length && !failedOps.length && !retryingQueues.length && !retryingOps.length) return null;
+            const inconsistent = customers.filter((c) => (c.issues ?? []).length > 0);
+            if (!failedQueues.length && !failedOps.length && !retryingQueues.length && !retryingOps.length && !inconsistent.length) return null;
             const when = (at: string | null | undefined) =>
               at ? ` — next try ${new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "";
             const retryBtn =
@@ -179,6 +180,14 @@ export function AdminPage() {
                     </button>
                   </p>
                 ))}
+                {inconsistent.flatMap((c) => (c.issues ?? []).map((i) => (
+                  <p key={`i-${c.uid}-${i.code}`} className="py-0.5">
+                    <b>{c.email}</b>: {i.message}
+                    <button type="button" className={retryBtn} disabled={busy} onClick={() => setEditing(c.uid)}>
+                      Open
+                    </button>
+                  </p>
+                )))}
                 {retryingQueues.map((c) => (
                   <p key={`r-${c.uid}`} className="py-0.5 text-ink-soft">
                     Provisioning for {c.email} failed {c.queue?.attempts}×, retrying automatically{when(c.queue?.retryAt)}: {c.queue?.error ?? "unknown"}

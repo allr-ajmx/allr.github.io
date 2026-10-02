@@ -230,6 +230,23 @@ export function AdminEditPanel({
               </div>
             </Section>
           ) : null}
+
+          {!c.rosterOnly ? (
+            <Section title="Account">
+              <p className="mb-2 text-[.82rem] text-ink-soft">
+                {ws
+                  ? "To delete this account, remove its workspace first."
+                  : "Deletes the account completely: cancels any subscription, frees reserved names and the email, and removes the Google login. They can sign up again from scratch. Payment history is kept."}
+              </p>
+              <button type="button" className={danger} disabled={busy || Boolean(ws)}
+                onClick={() => void act({ action: "delete_account", uid: c.uid, confirm: c.email },
+                  `Delete the account ${c.email}?\n\n` +
+                  (c.billing && c.billing.status !== "ended" ? "Their subscription is cancelled now. " : "") +
+                  "Profile, reserved names and login are removed. There is no undo.")}>
+                Delete account…
+              </button>
+            </Section>
+          ) : null}
         </div>
       </aside>
     </div>

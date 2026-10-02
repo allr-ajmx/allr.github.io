@@ -3,6 +3,7 @@ import { adminDb } from "@/lib/server/admin";
 import { requireAdminUser } from "@/lib/server/admin-gate";
 import { toResponse } from "@/lib/server/errors";
 import { deriveState } from "@/lib/account/state";
+import { consistencyIssues } from "@/lib/admin/consistency";
 import { ledgerFromDoc, remaining, spentThisCycle } from "@/lib/billing/credits";
 import type { UserProfile } from "@/lib/account/model";
 
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
     const rosterByUsername = new Map(roster.docs.map((d) => [d.id, d.data()]));
     const platform = (username: string | null | undefined) => {
       const r = username ? rosterByUsername.get(username) : undefined;
-      return r
+      return r && !r.gone
         ? {
             suspended: Boolean(r.suspended),
             agentTag: r.agentTag ?? null,
@@ -98,6 +99,16 @@ export async function GET(request: Request) {
             }
           : null,
         credits,
+        issues: consistencyIssues({
+          billingStatus: d.billing?.status ?? null,
+          workspaceUsername: d.workspace_username ?? null,
+          queueStatus: q?.status ?? null,
+          queueUsername: q?.username ?? null,
+          rosterSeenAt: (() => {
+            const r = rosterByUsername.get(d.workspace_username);
+            return r && !r.gone ? iso(r.updatedAt) || null : null;
+          })(),
+        }),
         queue: q
           ? { status: q.status, error: q.error ?? null, attempts: Number(q.attempts ?? 0), retryAt: iso(q.retryAt) || null }
           : null,
@@ -120,6 +131,7 @@ export async function GET(request: Request) {
     );
     const workspaceOnly = roster.docs
       .map((d) => d.data())
+      .filter((r) => !r.gone)
       .filter((r) => !accountEmails.has(String(r.email).toLowerCase()) && !claimedUsernames.has(r.username))
       .map((r) => ({
         username: r.username,

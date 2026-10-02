@@ -95,3 +95,14 @@ describe("retry", () => {
     refused({ action: "retry", kind: "op", id: "../x" });
   });
 });
+
+describe("delete account", () => {
+  it("requires the account's email as confirmation, case-insensitively", () => {
+    refused({ action: "delete_account", uid: "u" }, "confirm");
+    assert.deepEqual(parseAction({ action: "delete_account", uid: "u", confirm: " A@B.co " }, NOW),
+      { action: "delete_account", uid: "u", confirm: "a@b.co" });
+  });
+  it("needs a uid", () => {
+    refused({ action: "delete_account", confirm: "a@b.co" });
+  });
+});

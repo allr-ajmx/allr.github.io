@@ -1,0 +1,54 @@
+/**
+ * Cross-system consistency, pure. Billing (Razorpay via webhooks), the
+ * provisioning queue, the account's workspace fields and the VPS roster are
+ * four records of one truth; when they disagree, no single view may present
+ * its own half as fact. Every disagreement becomes a named issue an admin sees.
+ */
+
+/** A roster row not refreshed for this long means the VPS no longer reports it. */
+export const ROSTER_STALE_MS = 30 * 60_000;
+
+export type ConsistencyInput = {
+  billingStatus: string | null;
+  workspaceUsername: string | null;
+  queueStatus: string | null;
+  queueUsername: string | null;
+  /** When the VPS last reported this workspace (ISO), null if never. */
+  rosterSeenAt: string | null;
+};
+
+export type Issue = { code: string; message: string };
+
+/** Paid and no workspace yet: the only state in which a workspace is owed. */
+export function awaitingWorkspace(billingStatus: string | null | undefined, hasWorkspace: boolean): boolean {
+  return billingStatus === "active" && !hasWorkspace;
+}
+
+export function consistencyIssues(c: ConsistencyInput, now = Date.now()): Issue[] {
+  const out: Issue[] = [];
+  const ws = c.workspaceUsername;
+  if (awaitingWorkspace(c.billingStatus, Boolean(ws)) && !c.queueStatus) {
+    out.push({ code: "paid-not-queued", message: "Paid, but nothing is queued to build their workspace. Use Provision…" });
+  }
+  if (!ws && c.queueStatus === "provisioned") {
+    out.push({
+      code: "built-not-stamped",
+      message: `The VPS reported ${c.queueUsername ?? "a workspace"} built, but the account was never linked to it.`,
+    });
+  }
+  if (ws) {
+    const seen = c.rosterSeenAt ? Date.parse(c.rosterSeenAt) : NaN;
+    if (!Number.isFinite(seen)) {
+      out.push({ code: "not-on-vps", message: `Workspace ${ws} is not on the VPS (never reported, or removed there) — the account still points at it.` });
+    } else if (now - seen > ROSTER_STALE_MS) {
+      out.push({
+        code: "vps-silent",
+        message: `The VPS hasn't reported ${ws} for ${Math.round((now - seen) / 60_000)} min — removed outside the panel, or the worker is down.`,
+      });
+    }
+    if (c.queueStatus === "queued" || c.queueStatus === "claimed") {
+      out.push({ code: "queued-with-workspace", message: `Has workspace ${ws} yet a build is still queued.` });
+    }
+  }
+  return out;
+}

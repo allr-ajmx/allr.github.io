@@ -12,6 +12,7 @@ import {
 } from "@/lib/firebase/api";
 import { checkUsernameShape } from "@/lib/admin/username";
 import type { BillingSummary } from "@/lib/billing/model";
+import { awaitingWorkspace } from "@/lib/admin/consistency";
 
 /**
  * The workspace is the plan, and paying for it is what creates it: pick a
@@ -158,7 +159,7 @@ export function BillingPage() {
   const billing = summary?.billing ?? null;
   const plan = summary?.plan ?? null;
   const paid = billing?.status === "active";
-  const provisioning = summary && paid && !summary.hasWorkspace;
+  const provisioning = summary && awaitingWorkspace(billing?.status, summary.hasWorkspace);
   const needsName = summary ? !summary.hasWorkspace && !paid : false;
   const nameReady = !needsName || nameCheck.state === "ok" || (!!summary?.pendingUsername && username === summary.pendingUsername);
   const periodEnd = billing?.currentPeriodEnd

@@ -172,6 +172,8 @@ export type AdminCustomer = {
     usageSyncedAt: string | null;
   } | null;
   queue: { status: string; error: string | null; attempts?: number; retryAt?: string | null } | null;
+  /** Where billing, queue, account and VPS disagree. */
+  issues?: { code: string; message: string }[];
   enforcement: { reason: string; suspendedAt: string | null; removeAfter: string | null } | null;
   platform: {
     suspended: boolean;
@@ -209,7 +211,7 @@ export const fetchAdminCustomers = () =>
 export type AdminActionBody = {
   action:
     | "edit_profile" | "transfer_email" | "grant_credit" | "revoke_grant" | "set_included"
-    | "suspend" | "resume" | "provision" | "remove"
+    | "suspend" | "resume" | "provision" | "remove" | "delete_account"
     | "ws_suspend" | "ws_resume" | "ws_set_email" | "ws_remove" | "retry";
   uid?: string;
   kind?: "provision" | "op";

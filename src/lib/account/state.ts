@@ -1,4 +1,5 @@
 import type { UserProfile } from "./model";
+import { awaitingWorkspace } from "../admin/consistency.ts";
 
 /**
  * Where somebody is in the early-access journey.
@@ -48,8 +49,9 @@ export function deriveState(
   // Having an account and being in the queue are different things, and the
   // difference is the whole point of asking.
   if (!hasWorkspace(profile)) {
-    // Paid and waiting for containers: neither registered nor live.
-    if (profile.billing && profile.billing.status !== "ended") return "provisioning";
+    // Paid and waiting for containers: neither registered nor live. An opened
+    // but unpaid checkout ("pending") is not payment — nothing is queued for it.
+    if (awaitingWorkspace(profile.billing?.status, false)) return "provisioning";
     return profile.earlyAccessRequestedAt ? "requested" : "registered";
   }
   // Payment outranks the trial: once a subscription exists, the trial is

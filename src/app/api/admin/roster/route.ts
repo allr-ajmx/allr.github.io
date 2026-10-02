@@ -65,11 +65,24 @@ export async function POST(request: Request) {
           orUsageDailyUsd: Number.isFinite(item.orUsageDailyUsd) ? item.orUsageDailyUsd : null,
           orUsageMonthlyUsd: Number.isFinite(item.orUsageMonthlyUsd) ? item.orUsageMonthlyUsd : null,
           orHealth: typeof item.orHealth === "string" ? item.orHealth.slice(0, 300) : null,
+          gone: false,
           ...(known.has(username) ? {} : { firstSeenAt: FieldValue.serverTimestamp() }),
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },
       );
+    }
+    // The push is the VPS's whole fleet: a row it no longer lists was removed
+    // there. Marked, not deleted — one odd push must not erase history, and
+    // the next push that lists it again brings it back.
+    if (seen.length) {
+      const listed = new Set(seen);
+      const all = await db.collection("workspace_roster").get();
+      for (const doc of all.docs) {
+        if (!listed.has(doc.id) && !doc.data().gone) {
+          batch.update(doc.ref, { gone: true, goneAt: FieldValue.serverTimestamp() });
+        }
+      }
     }
     await batch.commit();
     // Usage riding along feeds the same meters the dedicated push does.

@@ -6,7 +6,7 @@ import { adminAuth, adminDb } from "./admin";
 import { badRequest, conflict } from "./errors";
 import type { Caller } from "./session";
 import { enqueueInTransaction, enqueueOp, queueRef, retryNow } from "./provisioning";
-import { stopBillingForRemoval } from "./billing";
+import { stopBillingForDeletion, stopBillingForRemoval } from "./billing";
 import { shipLog } from "./logship";
 import { ledgerFromDoc, queueChange, type PendingChange } from "@/lib/billing/credits";
 import {
@@ -104,7 +104,8 @@ export async function applyAdminAction(admin: Caller, action: AdminAction): Prom
   if (action.action.startsWith("ws_")) {
     return applyRosterAction(admin, action as Extract<AdminAction, { action: `ws_${string}` }>);
   }
-  const a = action as Exclude<AdminAction, { action: `ws_${string}` | "retry" }>;
+  if (action.action === "delete_account") return deleteAccount(admin, action);
+  const a = action as Exclude<AdminAction, { action: `ws_${string}` | "retry" | "delete_account" }>;
   const db = adminDb();
   const userRef = db.collection(USERS).doc(a.uid);
   let oldEmailForAuth: string | null = null;
@@ -212,7 +213,25 @@ export async function applyAdminAction(admin: Caller, action: AdminAction): Prom
         }
         tx.set(nameSnap.ref, { uid: a.uid, email: d.email, reservedAt: FieldValue.serverTimestamp() });
         tx.update(userRef, { pending_workspace_username: a.username, updatedAt: FieldValue.serverTimestamp() });
-        enqueueInTransaction(tx, queueSnap, { uid: a.uid, email: d.email, username: a.username });
+        const q = queueSnap.data();
+        if (q && (q.status === "queued" || q.status === "claimed")) {
+          throw conflict("already-queued", `Already provisioning (${q.username}). Wait for it, or Retry if it fails.`);
+        }
+        if (q) {
+          // A failed or stale entry (no workspace came of it): start over, fresh.
+          tx.set(queueSnap.ref, {
+            uid: a.uid, email: d.email, username: a.username,
+            status: "queued", error: null, attempts: 0, retryAt: null,
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        } else {
+          enqueueInTransaction(tx, queueSnap, { uid: a.uid, email: d.email, username: a.username });
+        }
+        const held = String(d.pending_workspace_username ?? "");
+        if (held && held !== a.username) {
+          const heldRef = db.collection("workspace_usernames").doc(held);
+          tx.delete(heldRef);
+        }
         audit(tx, admin, a, a.username);
         break;
       }
@@ -234,4 +253,62 @@ export async function applyAdminAction(admin: Caller, action: AdminAction): Prom
   console.log(`[admin] ${admin.email}: ${a.action} for ${a.uid}`);
   shipLog("admin", a.action, { by: admin.email, target: a.uid },
     a.action === "remove" || a.action === "transfer_email" ? "warn" : "info");
+}
+
+/**
+ * Delete a site account completely, leaving nothing that could block a fresh
+ * sign-up or be charged: subscription, queue entry, name reservations, email
+ * claim, pending ops, profile and Firebase login. A workspace must be removed
+ * first (Remove workspace) — that path owns the containers and data.
+ * Financial history (billing_events, credit_purchases) is kept.
+ */
+async function deleteAccount(admin: Caller, a: Extract<AdminAction, { action: "delete_account" }>) {
+  const db = adminDb();
+  const userRef = db.collection(USERS).doc(a.uid);
+  const pre = (await userRef.get()).data();
+  if (!pre) throw badRequest("no-account", "No such customer.");
+  const email = String(pre.email ?? "").toLowerCase();
+  if (a.confirm !== email) throw badRequest("confirm", `Type the account's email (${email}) to confirm.`);
+  if (pre.workspace_username) {
+    throw conflict("has-workspace", `Remove the workspace (${pre.workspace_username}) first.`);
+  }
+
+  // Step 1, outside the transaction: stop money. A refusal aborts everything.
+  const billingDetail = await stopBillingForDeletion(pre.billing);
+
+  await db.runTransaction(async (tx) => {
+    const [user, queue, names, ops] = await Promise.all([
+      tx.get(userRef),
+      tx.get(queueRef(a.uid)),
+      tx.get(db.collection("workspace_usernames").where("uid", "==", a.uid)),
+      tx.get(db.collection("workspace_ops").where("uid", "==", a.uid)),
+    ]);
+    if (!user.exists) throw badRequest("no-account", "No such customer.");
+    if (user.data()?.workspace_username) {
+      throw conflict("has-workspace", "A workspace appeared meanwhile; remove it first.");
+    }
+    const q = queue.data();
+    if (q?.status === "claimed") {
+      throw conflict("provisioning", "The VPS is building their workspace right now; wait for it, then remove it.");
+    }
+    const claim = await tx.get(db.collection(EMAIL_CLAIMS).doc(emailKey(email)));
+
+    if (queue.exists) tx.delete(queue.ref);
+    names.docs.forEach((n) => tx.delete(n.ref));
+    ops.docs.forEach((o) => tx.delete(o.ref));
+    if (claim.exists && claim.data()?.uid === a.uid) tx.delete(claim.ref);
+    tx.delete(userRef);
+    audit(tx, admin, a, `${email} · ${billingDetail} · names: ${names.docs.map((n) => n.id).join(",") || "none"}`);
+  });
+
+  try {
+    await adminAuth().deleteUser(a.uid);
+  } catch (e) {
+    if ((e as { code?: string })?.code !== "auth/user-not-found") {
+      // The data is gone; a lingering login only recreates an empty profile.
+      console.error(`[admin] account ${a.uid} deleted but Firebase login removal failed`, e);
+    }
+  }
+  console.warn(`[admin] ${admin.email}: delete_account ${email} (${a.uid}) · ${billingDetail}`);
+  shipLog("admin", "delete_account", { by: admin.email, target: email, billing: billingDetail }, "warn");
 }

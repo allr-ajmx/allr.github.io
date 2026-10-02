@@ -377,3 +377,25 @@ export async function stopBillingForRemoval(uid: string, refund: boolean): Promi
   shipLog("billing", "billing stopped for removal", { uid, detail: summary }, "warn");
   return summary;
 }
+
+/**
+ * The account is being deleted. Any subscription still able to charge is
+ * cancelled first; a refusal from Razorpay aborts the deletion — except for a
+ * never-paid ("pending") checkout, which cannot charge without the person
+ * completing it, and whose late payment would now be recorded as unmatched.
+ */
+export async function stopBillingForDeletion(billing: {
+  subscriptionId?: string;
+  status?: string;
+} | undefined): Promise<string> {
+  if (!billing?.subscriptionId) return "no subscription";
+  if (billing.status === "ended") return `subscription ${billing.subscriptionId} already ended`;
+  try {
+    await cancelSubscriptionNow(billing.subscriptionId);
+    return `cancelled ${billing.subscriptionId}`;
+  } catch (e) {
+    if (billing.status !== "pending") throw e;
+    console.warn(`[billing] could not cancel unpaid ${billing.subscriptionId}`, e);
+    return `unpaid checkout ${billing.subscriptionId} left to expire (${(e as Error).message})`;
+  }
+}

@@ -161,6 +161,10 @@ describe("deriveState provisioning", () => {
   it("paid but no workspace yet is provisioning, not registered", () => {
     assert.equal(deriveState(paidNoWorkspace), "provisioning");
   });
+  it("an opened but unpaid checkout is not provisioning (nothing is queued for it)", () => {
+    const pending = { ...paidNoWorkspace, billing: { ...paidNoWorkspace.billing, status: "pending" } };
+    assert.equal(deriveState(pending), "registered");
+  });
   it("an ended subscription without a workspace falls back to registered", () => {
     const ended = { ...paidNoWorkspace, billing: { ...paidNoWorkspace.billing, status: "ended" } };
     assert.equal(deriveState(ended), "registered");
