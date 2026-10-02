@@ -7,7 +7,7 @@ import type { Caller } from "./session";
 import { checkUsernameShape } from "@/lib/admin/username";
 import { appliedLimit, initialLedger as initialCreditLedger, ledgerFromDoc, settle } from "@/lib/billing/credits";
 import { shipLog } from "./logship";
-import { isDue, nextAttempt } from "@/lib/admin/retry";
+import { isDue, nextAttempt, shouldEnqueue } from "@/lib/admin/retry";
 
 /**
  * Self-serve provisioning, the site's half.
@@ -26,7 +26,8 @@ const QUEUE = "provision_queue";
 /** Small imperatives for the VPS worker: set_limit today, suspend/resume next. */
 const OPS = "workspace_ops";
 
-export type QueueStatus = "queued" | "claimed" | "provisioned" | "failed";
+/** "released": the workspace this entry built has since been unlinked (removed). */
+export type QueueStatus = "queued" | "claimed" | "provisioned" | "failed" | "released";
 
 /** A queued doc whose retry backoff hasn't elapsed isn't claimable yet. */
 const due = (d: FirebaseFirestore.DocumentData) => isDue(d.retryAt?.toDate?.() as Date | undefined);
@@ -76,19 +77,25 @@ export async function reserveUsername(caller: Caller, raw: unknown): Promise<str
 
 /**
  * Put a paid account on the queue. Runs inside the webhook's transaction so
- * "payment recorded" and "provisioning queued" cannot come apart. Idempotent:
- * an entry that exists is left alone whatever its status.
+ * "payment recorded" and "provisioning queued" cannot come apart.
+ *
+ * Idempotent for a build in flight (queued, claimed) and for a failed one,
+ * which waits for the retry policy or an admin. An entry whose build is over
+ * (provisioned, released) belongs to a workspace that is gone — callers only
+ * enqueue for accounts without one — so a new payment starts a fresh build.
  */
 export function enqueueInTransaction(
   tx: FirebaseFirestore.Transaction,
   queueSnap: FirebaseFirestore.DocumentSnapshot,
   entry: { uid: string; email: string; username: string },
 ): void {
-  if (queueSnap.exists) return;
+  if (!shouldEnqueue(queueSnap.data()?.status)) return;
   tx.set(queueSnap.ref, {
     ...entry,
     status: "queued" satisfies QueueStatus,
     error: null,
+    attempts: 0,
+    retryAt: null,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });

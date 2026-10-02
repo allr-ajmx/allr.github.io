@@ -58,7 +58,7 @@ export type Billing = {
 
 /** Where self-serve provisioning stands, straight off the queue. */
 export type ProvisioningStatus = {
-  status: "queued" | "claimed" | "provisioned" | "failed";
+  status: "queued" | "claimed" | "provisioned" | "failed" | "released";
   error: string | null;
 };
 

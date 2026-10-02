@@ -7,7 +7,7 @@ import { describe, it } from "node:test";
 import { ROSTER_STALE_MS, awaitingWorkspace, consistencyIssues } from "../src/lib/admin/consistency.ts";
 
 const NOW = Date.parse("2026-10-02T12:00:00Z");
-const base = { billingStatus: null, workspaceUsername: null, queueStatus: null, queueUsername: null, rosterSeenAt: null };
+const base = { billingStatus: null, workspaceUsername: null, queueStatus: null, queueUsername: null, rosterSeenAt: null, queueWorkspaceOnVps: false };
 const codes = (x) => consistencyIssues({ ...base, ...x }, NOW).map((i) => i.code);
 
 describe("awaitingWorkspace — the one rule both the admin and the customer see", () => {
@@ -34,8 +34,17 @@ describe("consistency issues", () => {
     assert.deepEqual(codes({ billingStatus: "active" }), ["paid-not-queued"]);
     assert.deepEqual(codes({ billingStatus: "active", queueStatus: "queued" }), []);
   });
-  it("VPS built it but the account never got linked", () => {
-    assert.deepEqual(codes({ queueStatus: "provisioned", queueUsername: "k" }), ["built-not-stamped"]);
+  it("VPS built it, it's still there, but the account never got linked", () => {
+    assert.deepEqual(codes({ queueStatus: "provisioned", queueUsername: "k", queueWorkspaceOnVps: true }), ["built-not-stamped"]);
+  });
+  it("built then removed is history, not an alarm (regression: aruntest)", () => {
+    assert.deepEqual(codes({ queueStatus: "provisioned", queueUsername: "k", queueWorkspaceOnVps: false }), []);
+    assert.deepEqual(codes({ queueStatus: "released", queueUsername: "k" }), []);
+  });
+  it("paying again after a removal, with only an old entry, is paid-not-queued", () => {
+    assert.deepEqual(codes({ billingStatus: "active", queueStatus: "released" }), ["paid-not-queued"]);
+    assert.deepEqual(codes({ billingStatus: "active", queueStatus: "provisioned" }), ["paid-not-queued"]);
+    assert.deepEqual(codes({ billingStatus: "active", queueStatus: "failed" }), []);
   });
   it("a linked workspace the VPS never or no longer reports", () => {
     assert.deepEqual(codes({ workspaceUsername: "k" }), ["not-on-vps"]);

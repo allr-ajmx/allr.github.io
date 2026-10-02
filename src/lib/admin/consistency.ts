@@ -15,7 +15,11 @@ export type ConsistencyInput = {
   queueUsername: string | null;
   /** When the VPS last reported this workspace (ISO), null if never. */
   rosterSeenAt: string | null;
+  /** Is the queue entry's workspace (queueUsername) live on the VPS roster? */
+  queueWorkspaceOnVps: boolean;
 };
+
+const BUILD_PENDING = new Set(["queued", "claimed", "failed"]);
 
 export type Issue = { code: string; message: string };
 
@@ -27,10 +31,13 @@ export function awaitingWorkspace(billingStatus: string | null | undefined, hasW
 export function consistencyIssues(c: ConsistencyInput, now = Date.now()): Issue[] {
   const out: Issue[] = [];
   const ws = c.workspaceUsername;
-  if (awaitingWorkspace(c.billingStatus, Boolean(ws)) && !c.queueStatus) {
+  // A finished or released entry is history, not a pending build.
+  if (awaitingWorkspace(c.billingStatus, Boolean(ws)) && !BUILD_PENDING.has(c.queueStatus ?? "")) {
     out.push({ code: "paid-not-queued", message: "Paid, but nothing is queued to build their workspace. Use Provision…" });
   }
-  if (!ws && c.queueStatus === "provisioned") {
+  // Built and still on the VPS, but the account has no link: a lost stamp.
+  // (Built then removed is normal; older entries predate "released".)
+  if (!ws && c.queueStatus === "provisioned" && c.queueWorkspaceOnVps) {
     out.push({
       code: "built-not-stamped",
       message: `The VPS reported ${c.queueUsername ?? "a workspace"} built, but the account was never linked to it.`,

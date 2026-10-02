@@ -23,3 +23,12 @@ export function nextAttempt(attempts: number, now = Date.now()): RetryDecision {
 export function isDue(retryAt: Date | null | undefined, now = Date.now()): boolean {
   return !retryAt || retryAt.getTime() <= now;
 }
+
+/**
+ * May a payment (re)start a build, given the existing queue entry's status?
+ * In flight or failed: no — one build at a time, failures go to the retry
+ * policy or an admin. Finished (provisioned/released) or none: yes.
+ */
+export function shouldEnqueue(existingStatus: unknown): boolean {
+  return !(existingStatus === "queued" || existingStatus === "claimed" || existingStatus === "failed");
+}

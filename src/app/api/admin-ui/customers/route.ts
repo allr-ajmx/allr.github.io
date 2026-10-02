@@ -104,6 +104,7 @@ export async function GET(request: Request) {
           workspaceUsername: d.workspace_username ?? null,
           queueStatus: q?.status ?? null,
           queueUsername: q?.username ?? null,
+          queueWorkspaceOnVps: Boolean(q?.username && rosterByUsername.get(q.username) && !rosterByUsername.get(q.username)?.gone),
           rosterSeenAt: (() => {
             const r = rosterByUsername.get(d.workspace_username);
             return r && !r.gone ? iso(r.updatedAt) || null : null;

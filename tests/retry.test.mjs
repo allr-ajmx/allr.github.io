@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { BACKOFF_MS, MAX_ATTEMPTS, isDue, nextAttempt } from "../src/lib/admin/retry.ts";
+import { BACKOFF_MS, MAX_ATTEMPTS, isDue, nextAttempt, shouldEnqueue } from "../src/lib/admin/retry.ts";
 
 const NOW = Date.parse("2026-10-02T12:00:00Z");
 
@@ -42,5 +42,14 @@ describe("claimability", () => {
   it("backoff in the future → not due; elapsed → due", () => {
     assert.equal(isDue(new Date(NOW + 1), NOW), false);
     assert.equal(isDue(new Date(NOW), NOW), true);
+  });
+});
+
+describe("a payment (re)starting a build", () => {
+  it("never doubles a build in flight, nor overrides a failed one awaiting retry", () => {
+    for (const st of ["queued", "claimed", "failed"]) assert.equal(shouldEnqueue(st), false, st);
+  });
+  it("starts fresh when the old entry's workspace is history (regression: re-subscribe after removal)", () => {
+    for (const st of [undefined, "provisioned", "released"]) assert.equal(shouldEnqueue(st), true, String(st));
   });
 });

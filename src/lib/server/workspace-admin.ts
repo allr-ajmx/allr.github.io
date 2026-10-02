@@ -6,7 +6,7 @@ import { adminDb } from "./admin";
 import { ApiError, badRequest } from "./errors";
 import { parseStamp as parsePure, tokenMatches, type WorkspaceStamp } from "@/lib/admin/stamp";
 import { initialLedgerFields } from "./credits";
-import { enqueueOp } from "./provisioning";
+import { enqueueOp, queueRef } from "./provisioning";
 import { shipLog } from "./logship";
 
 /**
@@ -66,6 +66,7 @@ export async function stampWorkspace(stamp: WorkspaceStamp): Promise<{
 
   const db2 = adminDb();
   await db2.runTransaction(async (tx) => {
+    const queue = await tx.get(queueRef(uid));
     tx.update(user.ref, {
       workspace_username: stamp.username,
       workspace_email: stamp.workspaceEmail,
@@ -95,6 +96,10 @@ export async function stampWorkspace(stamp: WorkspaceStamp): Promise<{
           valueUsd: 0,
         });
       }
+    } else if (queue.data()?.status === "provisioned") {
+      // The workspace that entry built is unlinked now: close the entry, so it
+      // reads as history, and a future payment queues a fresh build.
+      tx.update(queue.ref, { status: "released", updatedAt: FieldValue.serverTimestamp() });
     }
   });
 
