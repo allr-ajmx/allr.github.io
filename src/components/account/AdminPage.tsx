@@ -21,7 +21,7 @@ import {
 type Data = Awaited<ReturnType<typeof fetchAdminCustomers>>;
 
 /** A table row: a site account, or a manual-era workspace with no account. */
-type Row = AdminCustomer & { rosterOnly?: boolean };
+type Row = AdminCustomer & { rosterOnly?: boolean; matchUid?: string | null; matchEmail?: string | null };
 
 /** Shown where a manual-era workspace has no such thing (no account yet). */
 const NE = "NE";
@@ -111,6 +111,8 @@ export function AdminPage() {
         queue: null,
         enforcement: null,
         platform: w.platform ?? null,
+        matchUid: w.matchUid ?? null,
+        matchEmail: w.matchEmail ?? null,
       }),
     ),
   ];
@@ -290,7 +292,15 @@ export function AdminPage() {
                         <span className="text-ink-soft">{NE}</span>
                       ) : c.billing ? (
                         <>
-                          <span className="font-semibold">{c.billing.status}</span>
+                          <span className="font-semibold">
+                            {c.billing.status}
+                            {c.billing.plan ? ` · ${c.billing.plan === "workspace" ? "Workspace" : "Workspace + AI"}` : ""}
+                          </span>
+                          {c.billing.upcoming ? (
+                            <span className="block text-[.78rem] text-honey-deep">
+                              → {c.billing.upcoming.plan === "workspace" ? "Workspace" : "Workspace + AI"} ({c.billing.upcoming.status === "authenticated" ? "set" : "checkout open"})
+                            </span>
+                          ) : null}
                           <span className="block text-[.78rem] text-ink-soft">
                             {c.billing.planCurrency}
                             {c.billing.currentPeriodEnd ? ` · to ${new Date(c.billing.currentPeriodEnd).toLocaleDateString()}` : ""}
@@ -391,6 +401,27 @@ function RowActions({
           }}
         >
           Provision…
+        </button>
+      </div>
+    );
+  }
+  if (c.rosterOnly && c.matchUid) {
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        <button type="button" disabled={busy} className={btn} onClick={onEdit}>Edit</button>
+        <button
+          type="button"
+          disabled={busy}
+          className={btn}
+          title={`Link this workspace to the account ${c.matchEmail}`}
+          onClick={() =>
+            void act(
+              { action: "link_workspace", uid: c.matchUid!, username: c.workspace!.username },
+              `Link ${c.workspace!.username} to the account ${c.matchEmail}?\n\nThey'll see it as their workspace when they sign in. Mark it complimentary afterwards if they shouldn't pay.`,
+            )
+          }
+        >
+          Link to account
         </button>
       </div>
     );

@@ -5,7 +5,7 @@ import { adminDb } from "./admin";
 import { ApiError, badRequest, conflict } from "./errors";
 import type { Caller } from "./session";
 import { checkUsernameShape } from "@/lib/admin/username";
-import { appliedLimit, forNewKey, initialLedger as initialCreditLedger, ledgerFromDoc, settle } from "@/lib/billing/credits";
+import { appliedLimit, forNewKey, ledgerFromDoc, settle } from "@/lib/billing/credits";
 import { shipLog } from "./logship";
 import { isDue, nextAttempt, shouldEnqueue } from "@/lib/admin/retry";
 
@@ -329,77 +329,6 @@ export async function completeOp(
  * Nothing to pay, nothing to pick; the trial stamps itself on the next read
  * like any provisioned workspace.
  */
-/** A roster row older than this is no longer being reported by the VPS. */
-const ROSTER_FRESH_MS = 30 * 60_000;
-
-export async function adoptFromRoster(
-  uid: string,
-  email: string,
-): Promise<boolean> {
-  const db = adminDb();
-  const rows = await db
-    .collection("workspace_roster")
-    .where("email", "==", email.trim().toLowerCase())
-    .limit(10)
-    .get();
-  // Only a workspace the VPS is still reporting: a removed one lingers on the
-  // roster until the next push (and, before rows were marked gone, forever) —
-  // adopting it would hand someone a workspace that doesn't exist.
-  const now = Date.now();
-  const live = rows.docs
-    .map((d) => d.data())
-    .filter((r) => r.username && !r.gone)
-    .filter((r) => {
-      const seen = r.updatedAt?.toDate?.()?.getTime?.() ?? 0;
-      return now - seen < ROSTER_FRESH_MS;
-    });
-  const row = live[0];
-  if (!row) return false;
-
-  const username = String(row.username);
-  // A removal queued, running or finished after the VPS last reported it
-  // means it is going or gone, whatever the roster still says.
-  const removals = await db
-    .collection(OPS)
-    .where("username", "==", username)
-    .where("op", "==", "remove")
-    .limit(5)
-    .get();
-  const reportedAt = row.updatedAt?.toDate?.()?.getTime?.() ?? 0;
-  const removing = removals.docs.some((o) => {
-    const x = o.data();
-    if (x.status === "queued" || x.status === "claimed") return true;
-    const at = x.updatedAt?.toDate?.()?.getTime?.() ?? 0;
-    return x.status === "done" && at >= reportedAt;
-  });
-  if (removing) return false;
-  const userRef = db.collection(USERS).doc(uid);
-  const nameRef = db.collection(USERNAMES).doc(username);
-
-  await db.runTransaction(async (tx) => {
-    const [user, name] = await Promise.all([tx.get(userRef), tx.get(nameRef)]);
-    if (!user.exists) return;
-    const d = user.data()!;
-    if (String(d.workspace_username ?? "").trim()) return; // raced: already set
-    if (name.exists && name.data()?.uid !== uid) return; // somebody else's name
-
-    tx.update(userRef, {
-      workspace_username: username,
-      workspace_email: email,
-      workspace_address: `https://${username}.allr.work`,
-      pending_workspace_username: null,
-      ...(d.credits ? {} : { credits: initialCreditLedger() }),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    tx.set(nameRef, { uid, email, reservedAt: FieldValue.serverTimestamp() }, { merge: true });
-  });
-
-  console.log(`[adopt] roster workspace ${username} connected to ${email} (${uid})`);
-  shipLog("orchestrator", "roster workspace adopted at sign-in", { email, username });
-  return true;
-}
-
-
 /**
  * The user doc an op refers to. Ops carry the uid they were queued under,
  * but an account can move to a new uid (email transfer, stranded-identity

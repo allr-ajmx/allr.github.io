@@ -51,6 +51,13 @@ export type LifecycleInput = {
   }) | null;
   trialEndsAt: string | null;
   enforcement: Enforcement;
+  /**
+   * An admin made this workspace complimentary (until a date, or open-ended):
+   * it is never paused for billing, and one already paused is brought back.
+   */
+  complimentary?: boolean;
+  /** The current subscription is ending because a new plan is set to take over. */
+  switching?: boolean;
 };
 
 export type LifecycleDecision =
@@ -67,6 +74,13 @@ export function decide(input: LifecycleInput, now: Date = new Date()): Lifecycle
   if (!input.hasWorkspace) return { action: "none" };
   const b = input.billing;
   const e = input.enforcement;
+
+  // Complimentary outranks every billing rule.
+  if (input.complimentary) {
+    return e ? { action: "resume", reason: "complimentary" } : { action: "none" };
+  }
+  // Mid plan change: the old subscription ending is the handover, not a lapse.
+  if (input.switching && !e) return { action: "none" };
 
   // Paid up: undo our own suspension (payment or trial), touch nothing else.
   if (b?.status === "active") {
@@ -124,4 +138,11 @@ export function enforcementAfterSuspend(
         ? new Date(now.getTime() + REMOVE_AFTER_DAYS * DAY).toISOString()
         : null,
   };
+}
+
+/** A complimentary grant: open-ended (until null) or until a date. */
+export type Complimentary = { until: string | null; note: string; by: string; at: string } | null;
+
+export function complimentaryActive(c: Complimentary, now: Date = new Date()): boolean {
+  return !!c && (!c.until || Date.parse(c.until) > now.getTime());
 }

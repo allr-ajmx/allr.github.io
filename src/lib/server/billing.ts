@@ -6,11 +6,9 @@ import { badRequest, conflict } from "./errors";
 import { reserveUsername } from "./provisioning";
 import { readOrAdoptProfile } from "./profiles";
 import type { Caller } from "./session";
-import { enqueueInTransaction, enqueueOp, queueRef, readQueue } from "./provisioning";
-import { applyMonthlyGrantInTransaction } from "./credits";
+import { readQueue } from "./provisioning";
 import { shipLog } from "./logship";
-import { triageSubscriptionEvent } from "@/lib/billing/triage";
-import { grantsMonth, nextPaidCount } from "@/lib/billing/reconcile";
+import { syncSubscription } from "./subscriptions";
 import {
   cancelSubscriptionNow,
   fetchPayment,
@@ -23,17 +21,24 @@ import {
   createSubscription,
   planIdFor,
   razorpayKeyId,
-  type RzpSubscription,
 } from "./razorpay";
 import {
   PLAN_INTERVAL,
-  PLAN_PRICING,
-  normalizeProviderStatus,
   planCurrencyFor,
   type Billing,
   type BillingSummary,
+  type PlanCurrency,
   type SubscribeResponse,
 } from "@/lib/billing/model";
+import {
+  LEGACY_PLAN,
+  PLANS,
+  PLAN_KEYS,
+  changeKind,
+  isPlanKey,
+  prorate,
+  type PlanKey,
+} from "@/lib/billing/plans";
 import { hasWorkspace } from "@/lib/account/state";
 import type { UserProfile } from "@/lib/account/model";
 
@@ -50,9 +55,26 @@ export function readBilling(profile: UserProfile): Billing | null {
   return profile.billing ?? null;
 }
 
+/** A plan as the person sees it, in their currency. */
+export function planView(key: PlanKey, currency: PlanCurrency) {
+  const p = PLANS[key];
+  return {
+    key,
+    name: p.name,
+    aiUsd: p.aiUsd,
+    currency,
+    amountMinor: p.price[currency],
+    display: p.display[currency],
+    interval: PLAN_INTERVAL,
+  };
+}
+
 export async function summarize(profile: UserProfile): Promise<BillingSummary> {
-  const currency = planCurrencyFor(profile.country);
+  // A subscriber pays in the currency their subscription was made in.
+  const currency = profile.billing?.planCurrency ?? planCurrencyFor(profile.country);
   const workspace = hasWorkspace(profile);
+  const current: PlanKey =
+    profile.billing && profile.billing.status !== "ended" ? profile.billing.plan : LEGACY_PLAN;
   return {
     billing: readBilling(profile),
     // Paying is the gate now; the workspace is what payment buys.
@@ -61,50 +83,12 @@ export async function summarize(profile: UserProfile): Promise<BillingSummary> {
     pendingUsername: profile.pendingWorkspaceUsername,
     provisioning:
       !workspace && (profile.billing || profile.promo) ? await readQueue(profile.uid) : null,
-    plan: {
-      currency,
-      amountMinor: PLAN_PRICING[currency].amountMinor,
-      display: PLAN_PRICING[currency].display,
-      interval: PLAN_INTERVAL,
-    },
+    plan: planView(current, currency),
+    plans: PLAN_KEYS.map((k) => {
+      const v = planView(k, currency);
+      return { key: v.key, name: v.name, aiUsd: v.aiUsd, amountMinor: v.amountMinor, display: v.display };
+    }),
   };
-}
-
-function billingFrom(
-  sub: RzpSubscription,
-  planCurrency: Billing["planCurrency"],
-  customerId: string,
-  prior?: Pick<Billing, "status" | "statusSince" | "subscriptionId" | "cancelAtPeriodEnd" | "paidCount"> | null,
-): Omit<Billing, "updatedAt"> {
-  const status = normalizeProviderStatus(sub.status);
-  return {
-    // Granted-for count: kept for the same subscription (only charges move
-    // it); a brand-new subscription starts at Razorpay's count (0).
-    paidCount: prior?.subscriptionId === sub.id ? (prior?.paidCount ?? null) : (sub.paid_count ?? 0),
-    cancelAtPeriodEnd: prior?.subscriptionId === sub.id ? Boolean(prior?.cancelAtPeriodEnd) : false,
-    status,
-    statusSince:
-      prior && prior.status === status
-        ? (prior.statusSince ?? new Date().toISOString())
-        : new Date().toISOString(),
-    planCurrency,
-    subscriptionId: sub.id,
-    customerId: sub.customer_id ?? customerId,
-    currentPeriodEnd: sub.current_end
-      ? new Date(sub.current_end * 1000).toISOString()
-      : null,
-    providerStatus: sub.status,
-  };
-}
-
-async function writeBilling(uid: string, billing: Omit<Billing, "updatedAt">) {
-  await adminDb()
-    .collection(USERS)
-    .doc(uid)
-    .update({
-      billing: { ...billing, updatedAt: FieldValue.serverTimestamp() },
-      updatedAt: FieldValue.serverTimestamp(),
-    });
 }
 
 /**
@@ -116,7 +100,10 @@ async function writeBilling(uid: string, billing: Omit<Billing, "updatedAt">) {
 export async function startSubscription(
   caller: Caller,
   requestedUsername?: unknown,
+  requestedPlan: unknown = LEGACY_PLAN,
 ): Promise<SubscribeResponse> {
+  if (!isPlanKey(requestedPlan)) throw badRequest("bad-plan", "Pick one of the plans.");
+  const planKey = requestedPlan;
   let profile = await readOrAdoptProfile(caller);
   if (!profile) throw badRequest("no-profile", "Make an account first.");
 
@@ -131,12 +118,7 @@ export async function startSubscription(
   }
 
   const currency = planCurrencyFor(profile.country);
-  const plan = {
-    currency,
-    amountMinor: PLAN_PRICING[currency].amountMinor,
-    display: PLAN_PRICING[currency].display,
-    interval: PLAN_INTERVAL,
-  };
+  const plan = planView(planKey, currency);
 
   const existing = profile.billing;
   if (existing) {
@@ -146,18 +128,21 @@ export async function startSubscription(
     // A checkout that was opened and abandoned, or a mandate that is failing:
     // the same subscription is the one to finish or fix.
     if (existing.status === "pending" || existing.status === "pastDue") {
-      // null: Razorpay doesn't know it (a test-mode leftover) — start afresh below.
-      const sub = await fetchSubscriptionOrMissing(existing.subscriptionId);
-      if (sub && normalizeProviderStatus(sub.status) === "active") {
-        // Paid after all — the webhook never told us. Apply it now rather
-        // than open a second checkout for money already taken.
-        await applyWebhookEvent(`reconcile:${sub.id}:${sub.status}:${sub.paid_count ?? "?"}`,
-          "subscription.charged", sub, { source: "reconcile" });
-        throw conflict("already-subscribed", "Your payment went through — your workspace is on its way.");
-      }
-      if (sub && normalizeProviderStatus(sub.status) !== "ended") {
-        await writeBilling(caller.uid, billingFrom(sub, existing.planCurrency, existing.customerId, existing));
-        return { subscriptionId: sub.id, keyId: razorpayKeyId(), plan };
+      // Bring our record up to Razorpay's present state first. A checkout
+      // that was in fact paid (the webhook never told us) is applied — and
+      // flagged as a miss — rather than reopened for money already taken; one
+      // Razorpay doesn't know (a test-mode leftover) ends, and we start afresh.
+      await syncSubscription(existing.subscriptionId, { source: "reconcile", uidHint: caller.uid });
+      const now = (await readOrAdoptProfile(caller))?.billing;
+      if (now?.subscriptionId === existing.subscriptionId) {
+        if (now.status === "active") {
+          throw conflict("already-subscribed", "Your payment went through — your workspace is on its way.");
+        }
+        // A failing mandate is fixed on its own plan; an abandoned checkout is
+        // reused only for the same plan (choosing another starts a new one).
+        if (now.status === "pastDue" || (now.status === "pending" && now.plan === planKey)) {
+          return { subscriptionId: now.subscriptionId, keyId: razorpayKeyId(), plan };
+        }
       }
     }
   }
@@ -175,8 +160,8 @@ export async function startSubscription(
   });
   try {
     const customer = await createCustomer(profile.name, caller.email);
-    const sub = await createSubscription(planIdFor(currency), customer.id, caller.uid);
-    await writeBilling(caller.uid, billingFrom(sub, currency, customer.id));
+    const sub = await createSubscription(planIdFor(currency, planKey), customer.id, caller.uid);
+    await syncSubscription(sub.id, { source: "checkout", uidHint: caller.uid, planCurrency: currency }, sub);
     shipLog("billing", "subscription created", { email: caller.email, currency, sub: sub.id });
     return { subscriptionId: sub.id, keyId: razorpayKeyId(), plan };
   } finally {
@@ -185,6 +170,117 @@ export async function startSubscription(
 }
 
 /** Cancel at the end of the paid period — nobody loses time they paid for. */
+export type PlanChangeResponse = {
+  subscriptionId: string;
+  keyId: string;
+  kind: "upgrade" | "downgrade";
+  plan: ReturnType<typeof planView>;
+  /** Charged now with the authorisation (upgrade); 0 for a downgrade. */
+  chargeNowMinor: number;
+  /** AI credit granted now until the renewal date (upgrade). */
+  creditNowUsd: number;
+  /** When the new plan's monthly price starts: the current renewal date. */
+  startsAt: string;
+};
+
+/**
+ * Switch plan, the standard way: an upgrade takes effect now (the prorated
+ * difference is charged now, the same share of AI credit granted until the
+ * renewal date); a downgrade takes effect at the renewal date. Either way the
+ * billing date doesn't move.
+ *
+ * Mechanics (UPI and e-mandate subscriptions can't be changed in place): a
+ * NEW subscription on the new plan, starting at the renewal date, with an
+ * upgrade's difference charged upfront in the same checkout. Once its mandate
+ * is set, the billing core grants the credit and tells the current
+ * subscription to end at the renewal date; at the renewal it takes over.
+ */
+export async function startPlanChange(caller: Caller, requestedPlan: unknown): Promise<PlanChangeResponse> {
+  if (!isPlanKey(requestedPlan)) throw badRequest("bad-plan", "Pick one of the plans.");
+  const to = requestedPlan;
+  const profile = await readOrAdoptProfile(caller);
+  const billing = profile?.billing;
+  if (!profile || !billing || billing.status !== "active") {
+    throw badRequest("not-subscribed", "Changing plan needs an active subscription.");
+  }
+  if (billing.cancelAtPeriodEnd) {
+    throw conflict("cancelled", "Your subscription is cancelled. Once it ends, subscribe again on the plan you want.");
+  }
+  const kind = changeKind(billing.plan, to);
+  if (!kind) throw badRequest("same-plan", `You're already on ${PLANS[to].name}.`);
+
+  const currency = billing.planCurrency;
+  const plan = planView(to, currency);
+  const up = billing.upcoming;
+  if (up?.status === "authenticated") {
+    throw conflict("change-scheduled",
+      `A switch to ${PLANS[up.plan].name} is already set for ${up.startsAt?.slice(0, 10) ?? "your renewal date"}.`);
+  }
+  if (up && up.status === "created" && up.plan === to) {
+    // The same change, checkout reopened: reuse it.
+    return {
+      subscriptionId: up.subscriptionId, keyId: razorpayKeyId(), kind, plan,
+      chargeNowMinor: up.chargeMinor, creditNowUsd: up.creditUsd, startsAt: up.startsAt ?? billing.currentPeriodEnd ?? "",
+    };
+  }
+
+  const end = billing.currentPeriodEnd ? new Date(billing.currentPeriodEnd) : null;
+  const now = new Date();
+  if (!end || end.getTime() - now.getTime() < 60 * 60_000) {
+    throw conflict("renewal-now", "Your renewal is happening right now — try changing plan again after it.");
+  }
+  const start = billing.currentPeriodStart ? new Date(billing.currentPeriodStart) : new Date(end.getTime() - 30 * 86_400_000);
+  const p = kind === "upgrade" ? prorate(billing.plan, to, currency, start, end, now) : { chargeMinor: 0, creditUsd: 0, fraction: 0 };
+
+  const lock = adminDb().collection("billing_locks").doc(caller.uid);
+  await adminDb().runTransaction(async (tx) => {
+    const held = await tx.get(lock);
+    const at = held.data()?.at?.toMillis?.() ?? 0;
+    if (held.exists && Date.now() - at < 60_000) {
+      throw conflict("checkout-busy", "Checkout is already opening — give it a moment.");
+    }
+    tx.set(lock, { at: FieldValue.serverTimestamp() });
+  });
+  try {
+    const customerId = billing.customerId || (await createCustomer(profile.name, caller.email)).id;
+    const sub = await createSubscription(planIdFor(currency, to), customerId, caller.uid, {
+      startAt: Math.floor(end.getTime() / 1000),
+      upfront: p.chargeMinor > 0
+        ? { name: `${PLANS[to].name} for the rest of this cycle`, amountMinor: p.chargeMinor, currency }
+        : undefined,
+      notes: { replaces: billing.subscriptionId, change: kind },
+    });
+    const ref = adminDb().collection(USERS).doc(caller.uid);
+    await adminDb().runTransaction(async (tx) => {
+      const fresh = (await tx.get(ref)).data()?.billing;
+      if (fresh?.subscriptionId !== billing.subscriptionId) {
+        throw conflict("changed", "Your subscription just changed — reload and try again.");
+      }
+      tx.update(ref, {
+        "billing.upcoming": {
+          subscriptionId: sub.id,
+          plan: to,
+          kind,
+          status: "created",
+          startsAt: end.toISOString(),
+          chargeMinor: p.chargeMinor,
+          creditUsd: p.creditUsd,
+          creditGranted: false,
+          oldCancelled: false,
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+    shipLog("billing", `plan change started: ${kind}`, { email: caller.email, from: billing.plan, to, charge: p.chargeMinor, sub: sub.id });
+    return {
+      subscriptionId: sub.id, keyId: razorpayKeyId(), kind, plan,
+      chargeNowMinor: p.chargeMinor, creditNowUsd: p.creditUsd, startsAt: end.toISOString(),
+    };
+  } finally {
+    await lock.delete().catch(() => {});
+  }
+}
+
 export async function cancelSubscription(caller: Caller): Promise<Billing> {
   const profile = await readOrAdoptProfile(caller);
   const billing = profile?.billing;
@@ -195,30 +291,30 @@ export async function cancelSubscription(caller: Caller): Promise<Billing> {
     throw conflict("already-cancelled", "Your subscription is already cancelled.");
   }
 
-  let sub: RzpSubscription;
+  // A plan change in flight goes too: cancelling means no further charges.
+  if (billing.upcoming) {
+    try {
+      await cancelSubscriptionNow(billing.upcoming.subscriptionId);
+    } catch (e) {
+      if (!isMissingOnRazorpay(e)) throw e;
+    }
+    await syncSubscription(billing.upcoming.subscriptionId, { source: "cancel", uidHint: caller.uid });
+  }
   try {
-    sub = await cancelSubscriptionAtCycleEnd(billing.subscriptionId);
+    const sub = await cancelSubscriptionAtCycleEnd(billing.subscriptionId);
+    shipLog("billing", "subscription cancelled at cycle end", { email: caller.email, sub: sub.id });
+    // Razorpay keeps it `active` until the cycle ends; the intent is what
+    // records that it is ending.
+    await syncSubscription(billing.subscriptionId,
+      { source: "cancel", uidHint: caller.uid, intent: { cancelAtPeriodEnd: true } }, sub);
   } catch (e) {
     if (!isMissingOnRazorpay(e)) throw e;
-    // Razorpay has no such subscription (test-mode leftover): nothing can
-    // charge, so record it as ended rather than fail forever.
-    await adminDb().collection(USERS).doc(caller.uid).update({
-      "billing.status": "ended",
-      "billing.providerStatus": "missing",
-      "billing.statusSince": new Date().toISOString(),
-      "billing.updatedAt": FieldValue.serverTimestamp(),
-    });
-    return { ...billing, status: "ended", providerStatus: "missing", updatedAt: new Date().toISOString() };
+    // Razorpay has no such subscription (a test-mode leftover): it can't
+    // charge — the sync records it as ended rather than failing forever.
+    await syncSubscription(billing.subscriptionId, { source: "cancel", uidHint: caller.uid });
   }
-  shipLog("billing", "subscription cancelled at cycle end", { email: caller.email, sub: sub.id });
-  const next = {
-    ...billingFrom(sub, billing.planCurrency, billing.customerId, billing),
-    cancelAtPeriodEnd: true,
-  };
-  // Razorpay reports `cancelled` only at cycle end; until then the status
-  // stays `active` and cancelAtPeriodEnd is what says it is ending.
-  await writeBilling(caller.uid, next);
-  return { ...next, updatedAt: new Date().toISOString() };
+  const after = (await readOrAdoptProfile(caller))?.billing;
+  return after ?? billing;
 }
 
 /**
@@ -267,143 +363,6 @@ export async function recordIgnoredWebhook(
   }
 }
 
-export async function applyWebhookEvent(
-  eventId: string,
-  eventName: string,
-  subscription: RzpSubscription | undefined,
-  { source = "webhook" }: { source?: "webhook" | "reconcile" } = {},
-): Promise<"applied" | "duplicate" | "ignored"> {
-  const triage = triageSubscriptionEvent(eventName, subscription);
-  if (!triage.act || !subscription) {
-    if (!triage.act && triage.record) {
-      await recordIgnoredWebhook(eventId, eventName, triage.reason, { subscriptionId: subscription?.id ?? null });
-    }
-    return "ignored";
-  }
-  const uid = String(subscription.notes?.uid);
-
-  const db = adminDb();
-  const eventRef = db.collection(EVENTS).doc(eventId);
-  // notes.uid is stamped at creation; an account can move to a new uid
-  // afterwards (email transfer, adoption). The subscription id is stable.
-  let userRef = db.collection(USERS).doc(uid);
-  if (!(await userRef.get()).exists) {
-    const moved = await db
-      .collection(USERS)
-      .where("billing.subscriptionId", "==", subscription.id)
-      .limit(1)
-      .get();
-    if (moved.docs[0]) {
-      console.warn(`[billing] ${subscription.id}: uid ${uid} gone, account moved to ${moved.docs[0].id}`);
-      userRef = moved.docs[0].ref;
-    }
-  }
-
-  return db.runTransaction(async (tx) => {
-    const [seen, user, queueSnap] = await Promise.all([
-      tx.get(eventRef),
-      tx.get(userRef),
-      tx.get(queueRef(userRef.id)),
-    ]);
-    if (seen.exists) return "duplicate" as const;
-    if (!user.exists) {
-      // A closing event for an account we deleted (we cancel before deleting)
-      // is expected, not lost money: record it quietly.
-      const closing = TERMINAL.has(subscription.status);
-      tx.set(eventRef, {
-        ...ignoredEventDoc(eventName, "no account for this uid or subscription", {
-          uid, subscriptionId: subscription.id,
-        }),
-        ...(closing ? { outcome: "ignored-closed", flag: false } : {}),
-      });
-      return "ignored" as const;
-    }
-
-    const prior = user.data()?.billing as (Billing & { updatedAt: unknown }) | undefined;
-    // Events can arrive out of order; a stale one must not overwrite the
-    // subscription the person actually has.
-    if (prior && prior.subscriptionId !== subscription.id && prior.status === "active") {
-      tx.set(eventRef, {
-        eventName,
-        subscriptionId: subscription.id,
-        outcome: "ignored-stale",
-        receivedAt: FieldValue.serverTimestamp(),
-      });
-      return "ignored" as const;
-    }
-
-    const data = user.data()!;
-    const nextStatus = normalizeProviderStatus(subscription.status);
-    const priorPaidCount = prior?.subscriptionId === subscription.id ? (prior?.paidCount ?? null) : null;
-    const granting = grantsMonth(eventName, priorPaidCount, subscription.paid_count);
-    // Payment is current again: the fast path undoes a billing suspension
-    // without waiting for the hourly sweep. completeOp clears the mark.
-    if (nextStatus === "active" && data.enforcement && data.workspace_username) {
-      enqueueOp(tx, {
-        uid: userRef.id,
-        email: data.email,
-        username: data.workspace_username,
-        op: "resume",
-        valueUsd: 0,
-      });
-    }
-    tx.update(userRef, {
-      billing: {
-        status: nextStatus,
-        statusSince:
-          prior && prior.status === nextStatus
-            ? (prior.statusSince ?? new Date().toISOString())
-            : new Date().toISOString(),
-        planCurrency: prior?.planCurrency ?? "USD",
-        subscriptionId: subscription.id,
-        customerId: subscription.customer_id ?? prior?.customerId ?? "",
-        currentPeriodEnd: subscription.current_end
-          ? new Date(subscription.current_end * 1000).toISOString()
-          : (prior?.currentPeriodEnd ?? null),
-        providerStatus: subscription.status,
-        // Every event rewrites billing whole: carry the cancellation forward
-        // for the same subscription, never onto a new one.
-        cancelAtPeriodEnd:
-          prior?.subscriptionId === subscription.id ? Boolean(prior?.cancelAtPeriodEnd) : false,
-        // The count last granted for; only a granting charge moves it.
-        paidCount: nextPaidCount(granting, priorPaidCount, subscription.paid_count),
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    // A successful monthly charge settles the credit cycle: included expires,
-    // top-ups carry, the key's limit is re-targeted. Once per paid_count, so
-    // the webhook and the reconciler can never both grant the same month.
-    if (granting) {
-      applyMonthlyGrantInTransaction(tx, userRef, data);
-    }
-    // The moment payment is real, a workspace-less account goes on the queue.
-    const paid = normalizeProviderStatus(subscription.status) === "active";
-    const noWorkspace = !String(data.workspace_username ?? "").trim();
-    const pending = String(data.pending_workspace_username ?? "").trim();
-    if (paid && noWorkspace && pending) {
-      enqueueInTransaction(tx, queueSnap, { uid: userRef.id, email: data.email, username: pending });
-    }
-
-    tx.set(eventRef, {
-      eventName,
-      subscriptionId: subscription.id,
-      uid: userRef.id,
-      outcome: source === "reconcile" ? "applied-by-reconcile" : "applied",
-      // The safety net had to step in: a webhook was missed. Worth a look.
-      ...(source === "reconcile"
-        ? { reason: "webhook missed — applied from Razorpay", flag: true, resolved: false }
-        : {}),
-      receivedAt: FieldValue.serverTimestamp(),
-    });
-    return "applied" as const;
-  }).then((outcome) => {
-    shipLog("billing", `webhook ${eventName}`, { uid, sub: subscription.id, outcome },
-      normalizeProviderStatus(subscription.status) === "pastDue" ? "warn" : "info");
-    return outcome;
-  });
-}
-
 export { iso as _isoForTests };
 
 
@@ -443,30 +402,24 @@ export async function stopBillingForRemoval(
   const live = await fetchSubscriptionOrMissing(subId);
   const parts: string[] = [];
   // Removal ends the period now: nothing should promise "stays up until".
-  const markEnded = (providerStatus: string) =>
-    ref.update({
-      "billing.status": "ended",
-      "billing.providerStatus": providerStatus,
-      "billing.statusSince": new Date().toISOString(),
-      "billing.currentPeriodEnd": new Date().toISOString(),
-      "billing.updatedAt": FieldValue.serverTimestamp(),
-    });
+  const markEnded = () =>
+    syncSubscription(subId, { source: "removal", uidHint: uid, intent: { endedNow: true } });
 
   if (!live) {
     // Not known to Razorpay in this mode (a test-mode leftover after going
     // live): it cannot charge, and there is nothing there to refund.
-    if (billing.status !== "ended") await markEnded("missing");
+    await markEnded();
     parts.push(`subscription ${subId} not found in Razorpay — nothing can charge`);
     if (refund) parts.push("no refund possible (not a live-mode payment)");
     refund = false;
   } else if (TERMINAL.has(live.status)) {
-    if (billing.status !== "ended") await markEnded(live.status);
+    await markEnded();
     parts.push(`subscription already ${live.status}`);
   } else {
     if (refusePaid && live.status === "active") throw new PaidAgain(subId);
     try {
-      const sub = await cancelSubscriptionNow(subId);
-      await markEnded(sub.status);
+      await cancelSubscriptionNow(subId);
+      await markEnded();
       parts.push(`cancelled ${subId}`);
     } catch (e) {
       // Never paid (checkout opened, mandate not set up): it cannot charge.

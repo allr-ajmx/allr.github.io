@@ -2,6 +2,7 @@ import "server-only";
 
 import { ApiError } from "./errors";
 import { isMissingRefusal } from "@/lib/billing/razorpay-errors";
+import type { PlanKey } from "@/lib/billing/plans";
 
 /**
  * The slice of Razorpay's REST API this product uses — nothing more. Plain
@@ -26,19 +27,42 @@ function authHeader(): string {
   return `Basic ${Buffer.from(`${id}:${secret}`).toString("base64")}`;
 }
 
-export function planIdFor(currency: "USD" | "INR"): string {
-  const id =
-    currency === "INR"
-      ? process.env.RAZORPAY_PLAN_ID_INR
-      : process.env.RAZORPAY_PLAN_ID_USD;
+/**
+ * Razorpay plan ids, per plan and currency. Workspace + AI keeps the original
+ * variable names (RAZORPAY_PLAN_ID_USD / _INR) so existing env still works;
+ * the _AI_ names win when set.
+ */
+const PLAN_ENV: Record<PlanKey, Record<"USD" | "INR", string[]>> = {
+  workspace_ai: {
+    USD: ["RAZORPAY_PLAN_ID_AI_USD", "RAZORPAY_PLAN_ID_USD"],
+    INR: ["RAZORPAY_PLAN_ID_AI_INR", "RAZORPAY_PLAN_ID_INR"],
+  },
+  workspace: {
+    USD: ["RAZORPAY_PLAN_ID_WORKSPACE_USD"],
+    INR: ["RAZORPAY_PLAN_ID_WORKSPACE_INR"],
+  },
+};
+
+const envPlanId = (plan: PlanKey, currency: "USD" | "INR") =>
+  PLAN_ENV[plan][currency].map((k) => process.env[k]).find((v): v is string => Boolean(v));
+
+export function planIdFor(currency: "USD" | "INR", plan: PlanKey = "workspace_ai"): string {
+  const id = envPlanId(plan, currency);
   if (!id) {
-    throw new ApiError(
-      503,
-      "billing-unconfigured",
-      "Billing is not set up for your region yet.",
-    );
+    throw new ApiError(503, "billing-unconfigured", "That plan isn't available in your region yet.");
   }
   return id;
+}
+
+/** Which plan (and currency) a Razorpay plan id is, or null if it's none of ours. */
+export function planOf(planId: string | undefined): { plan: PlanKey; currency: "USD" | "INR" } | null {
+  if (!planId) return null;
+  for (const plan of ["workspace_ai", "workspace"] as PlanKey[]) {
+    for (const currency of ["USD", "INR"] as const) {
+      if (envPlanId(plan, currency) === planId) return { plan, currency };
+    }
+  }
+  return null;
 }
 
 async function rzp<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -93,6 +117,7 @@ export type RzpSubscription = {
   status: string;
   plan_id: string;
   customer_id?: string;
+  current_start?: number | null;
   current_end?: number | null;
   /** How many charges have succeeded — the monthly-grant idempotency key. */
   paid_count?: number | null;
@@ -110,6 +135,13 @@ export const createSubscription = (
   planId: string,
   customerId: string,
   uid: string,
+  extra: {
+    /** Unix seconds: start later (a plan change at the renewal date). */
+    startAt?: number;
+    /** Charged with the authorisation (an upgrade's prorated difference). */
+    upfront?: { name: string; amountMinor: number; currency: "USD" | "INR" };
+    notes?: Record<string, string>;
+  } = {},
 ) =>
   rzp<RzpSubscription>("/subscriptions", {
     method: "POST",
@@ -120,9 +152,13 @@ export const createSubscription = (
       // "until cancelled" for any horizon this product plans on.
       total_count: 120,
       customer_notify: 1,
+      ...(extra.startAt ? { start_at: extra.startAt } : {}),
+      ...(extra.upfront
+        ? { addons: [{ item: { name: extra.upfront.name, amount: extra.upfront.amountMinor, currency: extra.upfront.currency } }] }
+        : {}),
       // The webhook maps events back to a person through this, not through
       // email — addresses change hands, uids do not.
-      notes: { uid },
+      notes: { uid, ...(extra.notes ?? {}) },
     }),
   });
 

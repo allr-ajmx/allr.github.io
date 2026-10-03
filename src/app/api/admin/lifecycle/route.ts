@@ -1,4 +1,7 @@
 import { FieldValue } from "firebase-admin/firestore";
+import { billingFromDoc, compFromDoc } from "@/lib/billing/records";
+import { complimentaryActive } from "@/lib/billing/lifecycle";
+import { switchingPlans } from "@/lib/billing/core";
 import { adminDb } from "@/lib/server/admin";
 import { toResponse } from "@/lib/server/errors";
 import { requireAdminToken } from "@/lib/server/workspace-admin";
@@ -63,15 +66,11 @@ export async function POST(request: Request) {
       const decision = decide(
         {
           hasWorkspace: true,
-          billing: d.billing
-            ? {
-                status: d.billing.status,
-                currentPeriodEnd: d.billing.currentPeriodEnd ?? null,
-                statusSince: d.billing.statusSince ?? null,
-              }
-            : null,
+          billing: billingFromDoc(d.billing),
           trialEndsAt: d.trial?.endsAt?.toDate?.()?.toISOString?.() ?? d.trial?.endsAt ?? null,
           enforcement,
+          complimentary: complimentaryActive(compFromDoc(d.comp), now),
+          switching: switchingPlans(billingFromDoc(d.billing)),
         },
         now,
       );

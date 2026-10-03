@@ -109,3 +109,23 @@ describe("a promotional month", () => {
     assert.equal(kind({ ...bare, promo: promo("2026-10-01T00:00:00Z") }), "none");
   });
 });
+
+describe("plans", () => {
+  const up = (x = {}) => ({ subscriptionId: "sub_2", plan: "workspace_ai", kind: "upgrade", status: "authenticated",
+    startsAt: "2026-11-02T00:00:00.000Z", chargeMinor: 800, creditUsd: 8, creditGranted: true, oldCancelled: true, ...x });
+  it("a paid workspace carries its plan", () => {
+    const s = workspaceStatus({ ...withWs, billing: { ...bill("active"), plan: "workspace", upcoming: null } }, null, NOW);
+    assert.deepEqual([s.kind, s.plan, s.switching], ["live", "workspace", null]);
+  });
+  it("mid-switch it's live and paid — even once the old subscription has ended", () => {
+    for (const st of ["active", "ended"]) {
+      const s = workspaceStatus({ ...withWs, billing: { ...bill(st), plan: "workspace", upcoming: up() } }, null, NOW);
+      assert.equal(s.kind, "live", st);
+      assert.deepEqual(s.switching, { plan: "workspace_ai", kind: "upgrade", startsAt: "2026-11-02T00:00:00.000Z" });
+    }
+  });
+  it("an unconfirmed change (checkout abandoned) changes nothing", () => {
+    const s = workspaceStatus({ ...withWs, billing: { ...bill("active"), plan: "workspace", upcoming: up({ status: "created" }) } }, null, NOW);
+    assert.equal(s.switching, null);
+  });
+});

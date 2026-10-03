@@ -10,8 +10,9 @@
 import type { UserProfile } from "./model";
 import { hasWorkspace } from "./state.ts";
 import { awaitingWorkspace } from "../admin/consistency.ts";
-import { removalDate } from "../billing/lifecycle.ts";
+import { complimentaryActive, removalDate } from "../billing/lifecycle.ts";
 import { promoActive } from "../billing/promo.ts";
+import type { PlanKey } from "../billing/plans.ts";
 
 export type WorkspaceStatus =
   /** No workspace and nothing paid: the next step is to name and pay. */
@@ -30,6 +31,12 @@ export type WorkspaceStatus =
       renewsAt: string | null;
       /** Unpaid because a promotional month is running: when it ends. */
       promoEndsAt: string | null;
+      /** Made complimentary by Allr: no payment needed (until a date, if any). */
+      complimentary: { until: string | null } | null;
+      /** The plan being paid for (paid only). */
+      plan: PlanKey | null;
+      /** A plan change set to take over at the renewal date. */
+      switching: { plan: PlanKey; kind: "upgrade" | "downgrade"; startsAt: string | null } | null;
     }
   /** Up, but the last charge failed; it pauses when the grace runs out. */
   | { kind: "paymentDue"; username: string; address: string }
@@ -63,6 +70,7 @@ type Profile = Pick<
   | "enforcement"
   | "trial"
   | "promo"
+  | "comp"
 >;
 
 export function workspaceStatus(
@@ -105,6 +113,17 @@ export function workspaceStatus(
     };
   }
   if (billing?.status === "pastDue") return { kind: "paymentDue", username, address };
+  // Mid plan change: the old subscription ending is the handover, not a lapse.
+  const switching =
+    billing?.upcoming?.status === "authenticated"
+      ? { plan: billing.upcoming.plan, kind: billing.upcoming.kind, startsAt: billing.upcoming.startsAt }
+      : null;
+  if (billing && switching && (billing.status === "active" || billing.status === "ended")) {
+    return {
+      kind: "live", username, address, paid: true, renewsAt: switching.startsAt ?? endsAt,
+      promoEndsAt: null, complimentary: null, plan: billing.plan, switching,
+    };
+  }
   if (billing?.status === "ended") {
     return { kind: "ending", username, address, endsAt, over: periodOver, canResubscribe: true };
   }
@@ -112,10 +131,19 @@ export function workspaceStatus(
     if (billing.cancelAtPeriodEnd) {
       return { kind: "ending", username, address, endsAt, over: periodOver, canResubscribe: false };
     }
-    return { kind: "live", username, address, paid: true, renewsAt: endsAt, promoEndsAt: null };
+    return {
+      kind: "live", username, address, paid: true, renewsAt: endsAt, promoEndsAt: null, complimentary: null,
+      plan: billing.plan, switching: null,
+    };
   }
-  // No paid subscription behind it: a promotional month, the manual era's
-  // free week, or an admin's comp.
+  // No paid subscription behind it: complimentary, a promotional month, or
+  // the manual era's free week.
+  if (complimentaryActive(profile.comp ?? null, now)) {
+    return {
+      kind: "live", username, address, paid: false, renewsAt: null, promoEndsAt: null,
+      complimentary: { until: profile.comp!.until }, plan: null, switching: null,
+    };
+  }
   if (profile.promo && !promoActive(profile.promo, now)) {
     return { kind: "trialEnded", username, address, promo: true };
   }
@@ -129,5 +157,8 @@ export function workspaceStatus(
     paid: false,
     renewsAt: null,
     promoEndsAt: promoActive(profile.promo, now) ? profile.promo!.endsAt : null,
+    complimentary: null,
+    plan: null,
+    switching: null,
   };
 }

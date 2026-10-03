@@ -48,6 +48,8 @@ export function AdminEditPanel({
   const [grantUsd, setGrantUsd] = useState("");
   const [grantExpiry, setGrantExpiry] = useState("");
   const [grantNote, setGrantNote] = useState("");
+  const [compUntil, setCompUntil] = useState(c.comp?.until?.slice(0, 10) ?? "");
+  const [compNote, setCompNote] = useState(c.comp?.note ?? "");
 
   const ws = c.workspace?.username ?? null;
   const suspended = Boolean(c.platform?.suspended);
@@ -194,6 +196,42 @@ export function AdminEditPanel({
           ) : !c.rosterOnly && ws ? (
             <Section title="Credits">
               <p className="text-[.85rem] text-ink-soft">No credit ledger yet — it opens with the workspace stamp.</p>
+            </Section>
+          ) : null}
+
+          {!c.rosterOnly && ws ? (
+            <Section title="Complimentary">
+              <p className="mb-3 text-[.82rem] text-ink-soft">
+                {c.comp
+                  ? `On us${c.comp.until ? ` until ${new Date(c.comp.until).toLocaleDateString()}` : ", open-ended"} — set by ${c.comp.by}: ${c.comp.note}`
+                  : "A complimentary workspace is never paused for billing. Use it for team, friends, partners and the manual-era workspaces."}
+              </p>
+              <div className="grid grid-cols-[1fr_1fr] gap-2">
+                <div>
+                  <label className={label} htmlFor="ae-cuntil">Until (optional)</label>
+                  <input id="ae-cuntil" className={field} type="date" min={today} value={compUntil}
+                    onChange={(e) => setCompUntil(e.target.value)} />
+                </div>
+                <div>
+                  <label className={label} htmlFor="ae-cnote">Why</label>
+                  <input id="ae-cnote" className={field} maxLength={200} value={compNote}
+                    onChange={(e) => setCompNote(e.target.value)} placeholder="founder · design partner" />
+                </div>
+              </div>
+              <div className="mt-2 flex gap-2">
+                <button type="button" className={primary} disabled={busy || !compNote.trim()}
+                  onClick={() => void act({ action: "set_comp", uid: c.uid, until: compUntil || null, note: compNote },
+                    `Make ${ws} complimentary${compUntil ? ` until ${compUntil}` : " with no end date"}? It won't be paused for billing.`)}>
+                  {c.comp ? "Update" : "Make complimentary"}
+                </button>
+                {c.comp ? (
+                  <button type="button" className={danger} disabled={busy}
+                    onClick={() => void act({ action: "clear_comp", uid: c.uid },
+                      `Stop ${ws} being complimentary? Without a subscription, the free-week and billing rules apply again.`)}>
+                    Remove
+                  </button>
+                ) : null}
+              </div>
             </Section>
           ) : null}
 

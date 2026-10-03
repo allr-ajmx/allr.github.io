@@ -2,8 +2,9 @@ import { Reveal } from "@/components/Reveal";
 import { Button } from "@/components/ui/Button";
 import { PetalShape } from "@/components/ui/PetalShape";
 import { PRICING } from "@/lib/brand";
-import { PLAN_INTERVAL, PLAN_PRICING, GRACE_DAYS } from "@/lib/billing/model";
-import { INCLUDED_USD, TOPUP_PACKS } from "@/lib/billing/credits";
+import { GRACE_DAYS } from "@/lib/billing/model";
+import { PLANS, PLAN_INTERVAL } from "@/lib/billing/plans";
+import { TOPUP_PACKS } from "@/lib/billing/credits";
 import { REMOVE_AFTER_DAYS } from "@/lib/billing/lifecycle";
 
 /**
@@ -13,12 +14,13 @@ import { REMOVE_AFTER_DAYS } from "@/lib/billing/lifecycle";
  */
 
 const money = (usd: number) => `$${Number.isInteger(usd) ? usd : usd.toFixed(2)}`;
+const AI_USD = PLANS.workspace_ai.aiUsd;
 const PETALS = ["#74926b", "#f7c14c", "#e6981a", "#34905e"];
 
 const HOW = [
   {
-    title: `${money(INCLUDED_USD)} every month`,
-    body: "Comes with your plan and renews with each payment. What’s unused when the month ends doesn’t carry over.",
+    title: `${money(AI_USD)} every month`,
+    body: "Comes with Workspace + AI and renews with each payment. What’s unused when the month ends doesn’t carry over.",
   },
   {
     title: "Bonus credit",
@@ -36,8 +38,16 @@ const FAQ = [
     a: "Yes. The desktop and phone apps are free to download and stay free. The plan is for the workspace they connect to.",
   },
   {
+    q: "Which plan should I pick?",
+    a: `If you already pay for an AI provider, Workspace (${PLANS.workspace.display.USD} a ${PLAN_INTERVAL}) lets you use your own key. Otherwise Workspace + AI (${PLANS.workspace_ai.display.USD} a ${PLAN_INTERVAL}) includes ${money(AI_USD)} of AI credit every month, so there's nothing else to set up.`,
+  },
+  {
+    q: "Can I switch plans?",
+    a: "Yes. Upgrading takes effect straight away: you pay the difference for the rest of your billing month and get the same share of AI credit right away; your billing date doesn't change. Switching to Workspace takes effect at your next billing date, and your AI credit lasts until then.",
+  },
+  {
     q: "Which currency am I charged in?",
-    a: `Accounts in India pay in rupees (${PLAN_PRICING.INR.display} a ${PLAN_INTERVAL}); everywhere else pays in US dollars (${PLAN_PRICING.USD.display} a ${PLAN_INTERVAL}). It follows the country on your account.`,
+    a: `Accounts in India pay in rupees (${PLANS.workspace.display.INR} or ${PLANS.workspace_ai.display.INR} a ${PLAN_INTERVAL}); everywhere else pays in US dollars. It follows the country on your account.`,
   },
   {
     q: "How do I pay?",
@@ -53,7 +63,7 @@ const FAQ = [
   },
   {
     q: "What happens to unused credit?",
-    a: `The ${money(INCLUDED_USD)} included each month is for that month. Credit packs never expire and stay with your account.`,
+    a: `On Workspace + AI, the ${money(AI_USD)} included each month is for that month. Credit packs never expire and stay with your account.`,
   },
 ];
 
@@ -76,31 +86,50 @@ export function PricingPageContent() {
       </section>
 
       <section className="wrap mb-20">
-        <Reveal className="mx-auto max-w-[560px]">
-          <div className="rounded-card border border-green-line bg-card p-8 shadow-lift">
-            <p className="mb-2 text-[.8rem] font-bold tracking-[0.04em] text-ink-soft uppercase">{PRICING.planName}</p>
-            <p className="mb-1 flex items-baseline gap-1.5">
-              <span className="text-[2.6rem] leading-none font-extrabold text-ink">{PLAN_PRICING.USD.display}</span>
-              <span className="text-[1.05rem] font-semibold text-ink-soft">/ {PLAN_INTERVAL}</span>
-            </p>
-            <p className="mb-6 text-[.95rem] text-ink-soft">
-              {PLAN_PRICING.INR.display} a {PLAN_INTERVAL} in India
-            </p>
-            <ul className="mb-7 flex flex-col gap-2.5">
-              {PRICING.planIncludes.map((line, i) => (
-                <li key={line} className="flex gap-2.5 text-[1rem] text-ink">
-                  <Check />
-                  <span>
-                    {i === 1 ? `${money(INCLUDED_USD)} of AI credit every ${PLAN_INTERVAL}, included` : line}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <Button href="/login/" size="lg" className="w-full">
-              {PRICING.cta}
-            </Button>
-          </div>
-        </Reveal>
+        <div className="mx-auto grid max-w-[920px] gap-5 min-[820px]:grid-cols-2">
+          {(["workspace", "workspace_ai"] as const).map((key, i) => {
+            const plan = PLANS[key];
+            const copy = PRICING.plans[key];
+            const featured = key === "workspace_ai";
+            return (
+              <Reveal key={key} delay={i * 0.05}>
+                <div
+                  className={`relative h-full rounded-card border bg-card p-8 ${featured ? "border-green-line shadow-lift" : "border-line shadow-soft"}`}
+                >
+                  {featured ? (
+                    <span className="absolute -top-3 left-8 rounded-chip border border-green-line bg-green-tint px-2.5 py-0.5 text-[.75rem] font-bold tracking-[0.04em] text-green-deep uppercase">
+                      {PRICING.recommended}
+                    </span>
+                  ) : null}
+                  <p className="mb-1 text-[.8rem] font-bold tracking-[0.04em] text-ink-soft uppercase">{plan.name}</p>
+                  <p className="mb-1 flex items-baseline gap-1.5">
+                    <span className="text-[2.6rem] leading-none font-extrabold text-ink">{plan.display.USD}</span>
+                    <span className="text-[1.05rem] font-semibold text-ink-soft">/ {PLAN_INTERVAL}</span>
+                  </p>
+                  <p className="mb-2 text-[.95rem] text-ink-soft">
+                    {plan.display.INR} a {PLAN_INTERVAL} in India
+                  </p>
+                  <p className="mb-5 text-[.98rem] text-ink">{copy.tagline}</p>
+                  <ul className="mb-7 flex flex-col gap-2.5">
+                    {copy.includes.map((line) => (
+                      <li key={line} className="flex gap-2.5 text-[1rem] text-ink">
+                        <Check />
+                        <span>
+                          {line === "AI credit every month, included"
+                            ? `${money(plan.aiUsd)} of AI credit every ${PLAN_INTERVAL}, included`
+                            : line}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button href="/login/" size="lg" variant={featured ? "green" : "ghost"} className="w-full">
+                    {PRICING.cta}
+                  </Button>
+                </div>
+              </Reveal>
+            );
+          })}
+        </div>
       </section>
 
       <section className="wrap mb-20">

@@ -49,6 +49,8 @@ export function CreditsPage() {
   const { profile } = useAuth();
   // The server refuses a pack without a workspace; don't offer one either.
   const workspaceLive = profile ? hasWorkspace(profile) : false;
+  // Packs come with Workspace + AI; the workspace-only plan brings its own key.
+  const ownKeyPlan = profile?.billing?.status === "active" && profile.billing.plan === "workspace";
   const [data, setData] = useState<LedgerResponse | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -174,6 +176,12 @@ export function CreditsPage() {
               <p className="text-[.92rem] text-ink-soft">
                 Credit packs top up a live workspace, and you don’t have one right now.{" "}
                 <Link href="/account/billing/" className="font-bold text-green-deep">Subscribe first →</Link>
+              </p>
+            ) : ownKeyPlan ? (
+              <p className="text-[.92rem] text-ink-soft">
+                Your plan uses your own AI key (the Keys page in your workspace), so there are no packs to buy.{" "}
+                <Link href="/account/billing/" className="font-bold text-green-deep">Upgrade to Workspace + AI →</Link>{" "}
+                for monthly credit and packs.
               </p>
             ) : (
             <>

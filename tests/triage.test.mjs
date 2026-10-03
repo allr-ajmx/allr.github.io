@@ -5,31 +5,8 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { triageSubscriptionEvent, triageTopup } from "../src/lib/billing/triage.ts";
+import { triageTopup } from "../src/lib/billing/triage.ts";
 
-describe("subscription events", () => {
-  it("acts on a subscription event that names its account", () => {
-    assert.deepEqual(triageSubscriptionEvent("subscription.charged", { id: "sub_1", notes: { uid: "u1" } }), { act: true });
-  });
-  it("records a subscription with no uid note", () => {
-    const t = triageSubscriptionEvent("subscription.activated", { id: "sub_1", notes: {} });
-    assert.equal(t.act, false);
-    assert.equal(t.record, true);
-    assert.match(t.reason, /no uid/);
-  });
-  it("records a blank uid and a missing notes object alike", () => {
-    assert.equal(triageSubscriptionEvent("subscription.charged", { id: "s", notes: { uid: "  " } }).record, true);
-    assert.equal(triageSubscriptionEvent("subscription.charged", { id: "s", notes: null }).record, true);
-  });
-  it("records a subscription event with no entity", () => {
-    assert.equal(triageSubscriptionEvent("subscription.halted", undefined).record, true);
-  });
-  it("does not record events we don't handle", () => {
-    const t = triageSubscriptionEvent("invoice.paid", undefined);
-    assert.equal(t.act, false);
-    assert.equal(t.record, false);
-  });
-});
 
 describe("top-up payments", () => {
   it("acts on a well-formed top-up", () => {

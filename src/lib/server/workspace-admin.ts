@@ -7,6 +7,8 @@ import { ApiError, badRequest } from "./errors";
 import { parseStamp as parsePure, tokenMatches, type WorkspaceStamp } from "@/lib/admin/stamp";
 import { initialLedgerFields } from "./credits";
 import { promoActive } from "@/lib/billing/promo";
+import { billingFromDoc } from "@/lib/billing/records";
+import { PLANS } from "@/lib/billing/plans";
 import { enqueueOp, queueRef } from "./provisioning";
 import { shipLog } from "./logship";
 
@@ -92,10 +94,15 @@ export async function stampWorkspace(stamp: WorkspaceStamp): Promise<{
         // A running promotional month (and no subscription) opens with the
         // promo's credit; the first paid charge restores the full amount.
         const promo = user.data()?.promo;
-        const paid = user.data()?.billing?.status === "active";
+        const billing = billingFromDoc(user.data()?.billing);
+        const paid = billing?.status === "active";
         tx.update(
           user.ref,
-          !paid && promoActive(promo) ? initialLedgerFields(Number(promo.creditUsd)) : initialLedgerFields(),
+          paid
+            ? initialLedgerFields({ includedUsd: PLANS[billing!.plan].aiUsd })
+            : promoActive(promo)
+              ? initialLedgerFields({ includedLeftUsd: Number(promo.creditUsd) })
+              : initialLedgerFields(),
         );
       }
       enqueueOp(tx, {

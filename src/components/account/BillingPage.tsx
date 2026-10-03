@@ -11,6 +11,7 @@ import {
   cancelSubscription,
   checkUsername,
   fetchBilling,
+  changePlan,
   fetchBillingHistory,
   redeemPromoCode,
   startSubscription,
@@ -19,6 +20,7 @@ import { checkUsernameShape } from "@/lib/admin/username";
 import type { BillingSummary } from "@/lib/billing/model";
 import { workspaceStatus } from "@/lib/account/workspace-status";
 import { formatMoney, type HistoryItem } from "@/lib/billing/history";
+import { prorate, type PlanKey } from "@/lib/billing/plans";
 
 /**
  * The workspace is the plan, and paying for it is what creates it: pick a
@@ -64,6 +66,10 @@ export function BillingPage() {
   const [nameCheck, setNameCheck] = useState<NameCheck>({ state: "idle" });
   const checkTimer = useRef<number | null>(null);
   const [promoOpen, setPromoOpen] = useState(false);
+  const [planChoice, setPlanChoice] = useState<PlanKey>("workspace_ai");
+  const [changing, setChanging] = useState(false);
+  /** Captured once: proration previews must not shift between renders. */
+  const [openedAt] = useState(() => Date.now());
   const [promoCode, setPromoCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
   /** False once the page is gone: background waits stop touching state. */
@@ -177,8 +183,9 @@ export function BillingPage() {
     setPhase("paying");
     try {
       const needName = summary ? !summary.hasWorkspace : true;
+      const keepPlan = summary?.billing?.status === "pastDue";
       const [{ subscriptionId, keyId }] = await Promise.all([
-        startSubscription(needName ? username : undefined),
+        startSubscription(needName ? username : undefined, keepPlan ? undefined : planChoice),
         loadCheckout(),
       ]);
       const user = getAllrAuth().currentUser;
@@ -186,7 +193,7 @@ export function BillingPage() {
         key: keyId,
         subscription_id: subscriptionId,
         name: "Allr",
-        description: "Allr workspace · monthly",
+        description: `Allr · ${(summary?.plans ?? []).find((p) => p.key === planChoice)?.name ?? "workspace"} · monthly`,
         prefill: { name: user?.displayName ?? "", email: user?.email ?? "" },
         theme: { color: "#1E7A49" },
         handler: () => void awaitWebhook(),
@@ -197,7 +204,55 @@ export function BillingPage() {
       setMessage(error instanceof ApiCallFailed ? error.message : "Checkout could not open. Try again?");
       setPhase("ready");
     }
-  }, [awaitWebhook, summary, username]);
+  }, [awaitWebhook, summary, username, planChoice]);
+
+  /**
+   * Switch plan: Checkout authorises the new plan's subscription (an upgrade
+   * also pays its prorated difference there); we then wait for Razorpay to
+   * confirm the mandate, which is when the change is set.
+   */
+  const switchPlan = useCallback(async (to: PlanKey) => {
+    setMessage(null);
+    setChanging(true);
+    try {
+      const [change] = await Promise.all([changePlan(to), loadCheckout()]);
+      const user = getAllrAuth().currentUser;
+      const rzp = new window.Razorpay!({
+        key: change.keyId,
+        subscription_id: change.subscriptionId,
+        name: "Allr",
+        description: change.kind === "upgrade"
+          ? `Upgrade to ${change.plan.name} · rest of this cycle now, then ${change.plan.display}/${change.plan.interval}`
+          : `${change.plan.name} from your renewal date · ${change.plan.display}/${change.plan.interval}`,
+        prefill: { name: user?.displayName ?? "", email: user?.email ?? "" },
+        theme: { color: "#1E7A49" },
+        handler: async () => {
+          for (let i = 0; i < 15; i++) {
+            await new Promise((r) => setTimeout(r, 2000));
+            if (!mounted.current) return;
+            const next = await fetchBilling().catch(() => null);
+            if (next?.billing?.upcoming?.status === "authenticated") {
+              setSummary(next);
+              await refreshProfile();
+              setMessage(change.kind === "upgrade"
+                ? `Upgraded — your AI credit is on now. ${change.plan.name} renews at ${change.plan.display}/${change.plan.interval} from your next billing date.`
+                : `Done — you'll switch to ${change.plan.name} on your renewal date. Your AI credit lasts until then.`);
+              setChanging(false);
+              return;
+            }
+          }
+          await refresh();
+          setMessage("Payment received — the change can take a minute to show here.");
+          setChanging(false);
+        },
+        modal: { ondismiss: () => setChanging(false) },
+      });
+      rzp.open();
+    } catch (error) {
+      setMessage(error instanceof ApiCallFailed ? error.message : "That change couldn't start. Try again?");
+      setChanging(false);
+    }
+  }, [refresh, refreshProfile]);
 
   const cancel = useCallback(async () => {
     if (!window.confirm("Cancel at the end of the paid period?")) return;
@@ -227,7 +282,7 @@ export function BillingPage() {
     status?.kind === "none" ||
     status?.kind === "paymentDue" ||
     status?.kind === "trialEnded" ||
-    (status?.kind === "live" && !status.paid) ||
+    (status?.kind === "live" && !status.paid && !status.complimentary) ||
     (status?.kind === "ending" && status.canResubscribe) ||
     (status?.kind === "paused" && !status.resuming);
   const card = "rounded-card border border-line bg-card p-6 shadow-soft";
@@ -278,7 +333,7 @@ export function BillingPage() {
               ) : null}
               <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
                 <p className="text-[1.35rem] font-bold text-ink">
-                  {plan?.display}
+                  {plan?.name} · {plan?.display}
                   <span className="text-[.95rem] font-semibold text-ink-soft">/{plan?.interval}</span>
                 </p>
                 <Pill tone={status.kind === "live" ? "green" : "honey"}>
@@ -318,16 +373,31 @@ export function BillingPage() {
             </section>
           ) : null}
 
+          {status.kind === "live" && status.paid && status.plan && summary?.billing ? (
+            <PlanSwitch
+              current={status.plan}
+              switching={status.switching}
+              billing={summary.billing}
+              plans={summary.plans}
+              now={openedAt}
+              busy={changing}
+              onSwitch={(to) => void switchPlan(to)}
+              day={day}
+            />
+          ) : null}
+
           {status.kind === "live" && !status.paid ? (
             <section className={card}>
               <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
                 <p className="font-serif text-[1.2rem] text-ink">{status.username}.allr.work</p>
-                <Pill tone={status.promoEndsAt ? "green" : "honey"}>
-                  {status.promoEndsAt ? "Free month" : "No plan yet"}
+                <Pill tone={status.promoEndsAt || status.complimentary ? "green" : "honey"}>
+                  {status.complimentary ? "Complimentary" : status.promoEndsAt ? "Free month" : "No plan yet"}
                 </Pill>
               </div>
               <p className="mb-4 text-[.95rem] leading-[1.7] text-ink-soft">
-                {status.promoEndsAt
+                {status.complimentary
+                  ? `Your workspace is on us — no payment needed${status.complimentary.until ? ` until ${day(status.complimentary.until)}` : ""}.`
+                  : status.promoEndsAt
                   ? `Your free month runs until ${day(status.promoEndsAt)}. Subscribe before then to keep it running after — subscribing starts your first paid month today.`
                   : "Your workspace is running but isn’t on a paid plan. Subscribe to keep it running — everything in it stays exactly where it is."}
               </p>
@@ -386,6 +456,38 @@ export function BillingPage() {
                 </div>
               ) : null}
 
+              {status.kind !== "paymentDue" && summary?.plans?.length ? (
+                <fieldset className="mb-5">
+                  <legend className="mb-2 text-[.9rem] font-bold">Choose a plan</legend>
+                  <div className="grid gap-3 min-[640px]:grid-cols-2">
+                    {summary.plans.map((p) => (
+                      <label
+                        key={p.key}
+                        className={`cursor-pointer rounded-control border p-4 ${planChoice === p.key ? "border-green-line bg-green-tint/40" : "border-line bg-card"}`}
+                      >
+                        <input
+                          type="radio"
+                          name="plan"
+                          value={p.key}
+                          checked={planChoice === p.key}
+                          onChange={() => setPlanChoice(p.key)}
+                          className="sr-only"
+                        />
+                        <span className="block font-bold text-ink">{p.name}</span>
+                        <span className="block text-[1.1rem] font-bold text-ink">
+                          {p.display}<span className="text-[.85rem] font-semibold text-ink-soft">/month</span>
+                        </span>
+                        <span className="mt-1 block text-[.85rem] text-ink-soft">
+                          {p.aiUsd > 0
+                            ? `Includes $${p.aiUsd} of AI credit every month.`
+                            : "Bring your own AI key — add it on the Keys page in your workspace."}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              ) : null}
+
               <button
                 type="button"
                 onClick={() => void subscribe()}
@@ -398,11 +500,11 @@ export function BillingPage() {
                     ? "Opening checkout…"
                     : status.kind === "paymentDue"
                       ? "Pay now"
-                      : status.kind === "ending"
-                        ? `Resubscribe · ${plan?.display}/${plan?.interval}`
-                        : plan
-                          ? `Subscribe · ${plan.display}/${plan.interval}`
-                          : "Subscribe"}
+                      : (() => {
+                          const chosen = summary?.plans?.find((p) => p.key === planChoice);
+                          const verb = status.kind === "ending" ? "Resubscribe" : "Subscribe";
+                          return chosen ? `${verb} · ${chosen.name} · ${chosen.display}/month` : verb;
+                        })()}
               </button>
               <p className="mt-3 text-[.85rem] text-ink-soft">
                 Payments are handled by Razorpay. Cancel any time — your workspace
@@ -503,6 +605,73 @@ function PaymentHistory({
           ))}
         </ul>
       ) : null}
+    </section>
+  );
+}
+
+function PlanSwitch({
+  current,
+  switching,
+  billing,
+  plans,
+  now,
+  busy,
+  onSwitch,
+  day,
+}: {
+  current: PlanKey;
+  switching: { plan: PlanKey; kind: "upgrade" | "downgrade"; startsAt: string | null } | null;
+  billing: NonNullable<BillingSummary["billing"]>;
+  plans: BillingSummary["plans"];
+  now: number;
+  busy: boolean;
+  onSwitch: (to: PlanKey) => void;
+  day: (iso: string | null | undefined) => string | null;
+}) {
+  const card = "rounded-card border border-line bg-card p-6 shadow-soft";
+  const name = (k: PlanKey) => plans.find((p) => p.key === k)?.name ?? k;
+  if (switching) {
+    return (
+      <section className={card}>
+        <p className="mb-1 font-bold text-ink">Switching to {name(switching.plan)}</p>
+        <p className="text-[.92rem] leading-[1.7] text-ink-soft">
+          {switching.kind === "upgrade"
+            ? `Your AI credit is already on. From ${day(switching.startsAt) ?? "your renewal date"} you’ll pay the ${name(switching.plan)} price each month.`
+            : `From ${day(switching.startsAt) ?? "your renewal date"} you’ll be on ${name(switching.plan)} and use your own AI key. Your AI credit lasts until then.`}
+        </p>
+      </section>
+    );
+  }
+  const to: PlanKey = current === "workspace" ? "workspace_ai" : "workspace";
+  const target = plans.find((p) => p.key === to);
+  if (!target || !billing.currentPeriodEnd) return null;
+  const end = new Date(billing.currentPeriodEnd);
+  const start = billing.currentPeriodStart ? new Date(billing.currentPeriodStart) : new Date(end.getTime() - 30 * 86_400_000);
+  const upgrade = to === "workspace_ai";
+  const p = prorate(current, to, billing.planCurrency, start, end, new Date(now));
+  return (
+    <section className={card}>
+      <p className="mb-1 font-bold text-ink">{upgrade ? `Upgrade to ${target.name}` : `Switch to ${target.name}`}</p>
+      <p className="mb-4 text-[.92rem] leading-[1.7] text-ink-soft">
+        {upgrade
+          ? p.chargeMinor > 0
+            ? `Pay ${formatMoney(p.chargeMinor, billing.planCurrency)} now for the rest of this cycle and get $${p.creditUsd.toFixed(2)} of AI credit until ${day(billing.currentPeriodEnd)}. From then, ${target.display}/month with $${target.aiUsd} of AI credit each month. Your billing date stays the same.`
+            : `Your renewal is very close, so nothing is charged now: from ${day(billing.currentPeriodEnd)} you’ll be on ${target.name} at ${target.display}/month.`
+          : `From ${day(billing.currentPeriodEnd)}, ${target.display}/month and you’ll use your own AI key (the Keys page in your workspace). Your AI credit lasts until then. Nothing is charged now.`}
+      </p>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          if (!upgrade && !window.confirm(`Switch to ${target.name} on ${day(billing.currentPeriodEnd)}? Once set, this can’t be undone until it takes effect.`)) return;
+          onSwitch(to);
+        }}
+        className={upgrade
+          ? "cursor-pointer rounded-control bg-green px-5 py-2.5 text-[.95rem] font-bold text-white hover:bg-green-deep disabled:cursor-wait disabled:opacity-60"
+          : "cursor-pointer rounded-control border border-line bg-card px-5 py-2.5 text-[.95rem] font-bold text-ink hover:border-honey-line disabled:cursor-wait disabled:opacity-60"}
+      >
+        {busy ? "Opening checkout…" : upgrade ? "Upgrade now" : "Switch at renewal"}
+      </button>
     </section>
   );
 }

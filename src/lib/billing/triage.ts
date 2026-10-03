@@ -12,22 +12,6 @@ export type Triage =
   | { act: true }
   | { act: false; record: boolean; reason: string };
 
-type SubLike = { id?: string; notes?: Record<string, unknown> | null } | undefined;
-
-export function triageSubscriptionEvent(eventName: string, subscription: SubLike): Triage {
-  if (!eventName.startsWith("subscription.")) {
-    return { act: false, record: false, reason: `unhandled event ${eventName || "(none)"}` };
-  }
-  if (!subscription?.id) {
-    return { act: false, record: true, reason: "subscription event without a subscription entity" };
-  }
-  const uid = subscription.notes?.uid;
-  if (typeof uid !== "string" || !uid.trim()) {
-    return { act: false, record: true, reason: "subscription carries no uid note" };
-  }
-  return { act: true };
-}
-
 type OrderNotes = Record<string, unknown> | null | undefined;
 
 export function triageTopup(order: { notes?: OrderNotes }): Triage {

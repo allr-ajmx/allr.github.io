@@ -142,11 +142,24 @@ export const fetchBilling = () => call<BillingSummary>("/account/billing/");
 export const fetchBillingHistory = () =>
   call<{ items: HistoryItem[]; invoicesUnavailable: boolean }>("/account/billing/history/");
 
-export const startSubscription = (username?: string) =>
+export const startSubscription = (username?: string, plan?: "workspace" | "workspace_ai") =>
   call<SubscribeResponse>("/account/billing/subscribe/", {
     method: "POST",
-    body: JSON.stringify(username ? { username } : {}),
+    body: JSON.stringify({ ...(username ? { username } : {}), ...(plan ? { plan } : {}) }),
   });
+
+export type PlanChange = {
+  subscriptionId: string;
+  keyId: string;
+  kind: "upgrade" | "downgrade";
+  plan: SubscribeResponse["plan"];
+  chargeNowMinor: number;
+  creditNowUsd: number;
+  startsAt: string;
+};
+
+export const changePlan = (plan: "workspace" | "workspace_ai") =>
+  call<PlanChange>("/account/billing/change/", { method: "POST", body: JSON.stringify({ plan }) });
 
 export const checkUsername = (u: string) =>
   call<{ available: boolean; reason: string | null }>(
@@ -165,7 +178,11 @@ export type AdminCustomer = {
   state: JourneyState;
   workspace: { username: string; address: string } | null;
   pendingUsername: string | null;
-  billing: { status: string; planCurrency: string; currentPeriodEnd: string | null } | null;
+  billing: {
+    status: string; planCurrency: string; currentPeriodEnd: string | null;
+    plan?: "workspace" | "workspace_ai" | null;
+    upcoming?: { plan: "workspace" | "workspace_ai"; status: string } | null;
+  } | null;
   credits: {
     remaining: { includedUsd: number; topupUsd: number; grantsUsd: number };
     includedMonthlyUsd: number;
@@ -178,6 +195,7 @@ export type AdminCustomer = {
   queue: { status: string; error: string | null; attempts?: number; retryAt?: string | null } | null;
   /** Where billing, queue, account and VPS disagree. */
   issues?: { code: string; message: string }[];
+  comp?: { until: string | null; note: string; by: string; at: string } | null;
   purchases?: { paymentId: string; creditUsd: number; amountMinor: number; currency: string; status: string; createdAt: string }[];
   enforcement: { reason: string; suspendedAt: string | null; removeAfter: string | null } | null;
   platform: {
@@ -206,6 +224,9 @@ export const fetchAdminCustomers = () =>
       suspended?: boolean;
       agentTag?: string | null;
       platform: AdminCustomer["platform"];
+      /** An account with this email and no workspace: the admin can link them. */
+      matchUid?: string | null;
+      matchEmail?: string | null;
     }[];
     flags: {
       id: string; at: string; eventName: string; reason: string; who: string | null;
@@ -222,7 +243,7 @@ export type AdminActionBody = {
     | "edit_profile" | "transfer_email" | "grant_credit" | "revoke_grant" | "set_included"
     | "suspend" | "resume" | "provision" | "remove" | "delete_account"
     | "ws_suspend" | "ws_resume" | "ws_set_email" | "ws_remove" | "retry"
-    | "promo_create" | "promo_set_active" | "resolve_flag" | "refund_topup";
+    | "promo_create" | "promo_set_active" | "resolve_flag" | "refund_topup" | "set_comp" | "clear_comp" | "link_workspace";
   uid?: string;
   kind?: "provision" | "op";
   id?: string;
@@ -238,6 +259,7 @@ export type AdminActionBody = {
   refund?: boolean;
   code?: string;
   paymentId?: string;
+  until?: string | null;
   maxUses?: number;
   days?: number;
   creditUsd?: number;

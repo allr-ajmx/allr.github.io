@@ -118,3 +118,37 @@ describe("removal window policy", () => {
     );
   });
 });
+
+describe("complimentary workspaces", () => {
+  it("are never paused for billing, whatever billing or the free week says", async () => {
+    const { decide } = await import("../src/lib/billing/lifecycle.ts");
+    const base = { hasWorkspace: true, enforcement: null, complimentary: true, trialEndsAt: "2026-01-01T00:00:00Z" };
+    for (const billing of [null, { status: "pastDue", currentPeriodEnd: null, statusSince: "2026-01-01T00:00:00Z" }, { status: "ended", currentPeriodEnd: "2026-01-01T00:00:00Z", statusSince: null }]) {
+      assert.deepEqual(decide({ ...base, billing }, new Date("2026-10-04T00:00:00Z")), { action: "none" });
+    }
+  });
+  it("one already paused is brought back", async () => {
+    const { decide } = await import("../src/lib/billing/lifecycle.ts");
+    const d = decide({ hasWorkspace: true, billing: null, trialEndsAt: null, complimentary: true,
+      enforcement: { status: "suspended", reason: "trial", suspendedAt: "2026-09-01T00:00:00Z", removeAfter: null } });
+    assert.deepEqual(d, { action: "resume", reason: "complimentary" });
+  });
+  it("an open-ended grant is active; a dated one ends on its date", async () => {
+    const { complimentaryActive } = await import("../src/lib/billing/lifecycle.ts");
+    const now = new Date("2026-10-04T00:00:00Z");
+    assert.equal(complimentaryActive({ until: null, note: "", by: "", at: "" }, now), true);
+    assert.equal(complimentaryActive({ until: "2026-12-31T00:00:00Z", note: "", by: "", at: "" }, now), true);
+    assert.equal(complimentaryActive({ until: "2026-10-01T00:00:00Z", note: "", by: "", at: "" }, now), false);
+    assert.equal(complimentaryActive(null, now), false);
+  });
+});
+
+describe("switching plans", () => {
+  it("the old subscription ending is a handover, not a lapse", async () => {
+    const { decide } = await import("../src/lib/billing/lifecycle.ts");
+    const d = decide({ hasWorkspace: true, enforcement: null, trialEndsAt: null, switching: true,
+      billing: { status: "ended", currentPeriodEnd: "2026-10-01T00:00:00Z", statusSince: "2026-10-01T00:00:00Z" } },
+      new Date("2026-10-04T00:00:00Z"));
+    assert.deepEqual(d, { action: "none" });
+  });
+});

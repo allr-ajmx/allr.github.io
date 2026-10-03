@@ -2,12 +2,12 @@ import "server-only";
 
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "./admin";
-import { applyWebhookEvent } from "./billing";
+import { syncSubscription } from "./subscriptions";
 import { applyTopupPayment } from "./credits";
 import { applyRefund } from "./payments";
-import { RazorpayError, fetchSubscriptionOrMissing, listPayments, listRefunds } from "./razorpay";
+import { RazorpayError, listPayments, listRefunds } from "./razorpay";
 import { shipLog } from "./logship";
-import { isOrderPayment, missedSubscriptionEvent } from "@/lib/billing/reconcile";
+import { isOrderPayment } from "@/lib/billing/reconcile";
 
 /**
  * The safety net under the webhooks. Every few minutes the VPS worker calls
@@ -127,11 +127,20 @@ export async function reconcile(now = new Date()): Promise<ReconcileSummary> {
   // 3. Subscriptions whose state moved without us hearing. The least
   //    recently checked first, a capped batch per run, so all get a turn.
   try {
-    const tracked = await db
-      .collection("users")
-      .where("billing.status", "in", ["pending", "active", "pastDue"])
-      .limit(500)
-      .get();
+    const [tracked, changing] = await Promise.all([
+      db.collection("users").where("billing.status", "in", ["pending", "active", "pastDue"]).limit(500).get(),
+      db.collection("users").where("billing.upcoming.status", "in", ["created", "authenticated"]).limit(200).get(),
+    ]);
+    // A plan change in flight: its new subscription is followed too (mandate
+    // set, takeover at renewal, the old one told to end).
+    for (const doc of changing.docs) {
+      const up = doc.data().billing?.upcoming;
+      try {
+        await syncSubscription(up.subscriptionId, { source: "reconcile", uidHint: doc.id });
+      } catch (e) {
+        summary.errors.push(`plan change ${up.subscriptionId}: ${why(e)}`);
+      }
+    }
     const batch = tracked.docs
       .filter((d) => d.data().billing?.subscriptionId)
       .sort((a, b) => String(a.data().billing?.reconciledAt ?? "").localeCompare(String(b.data().billing?.reconciledAt ?? "")))
@@ -139,46 +148,12 @@ export async function reconcile(now = new Date()): Promise<ReconcileSummary> {
     for (const doc of batch) {
       const b = doc.data().billing;
       try {
-        const live = await fetchSubscriptionOrMissing(b.subscriptionId);
+        const outcome = await syncSubscription(b.subscriptionId, { source: "reconcile", uidHint: doc.id });
         summary.subscriptions.checked++;
-        if (!live) {
-          // Razorpay doesn't know this id — typically a subscription created
-          // in test mode before the keys went live. It can't charge anyone:
-          // record it as ended (once) so nothing keeps asking about it.
-          await doc.ref.update({
-            "billing.status": "ended",
-            "billing.providerStatus": "missing",
-            "billing.statusSince": now.toISOString(),
-            "billing.reconciledAt": now.toISOString(),
-          });
-          await db.collection("billing_events").doc(`missing:${b.subscriptionId}`).set({
-            eventName: "reconcile",
-            uid: doc.id,
-            subscriptionId: b.subscriptionId,
-            outcome: "marked-ended",
-            reason: "subscription not found in Razorpay (left over from test mode?) — marked ended",
-            flag: b.status === "active",
-            resolved: false,
-            receivedAt: FieldValue.serverTimestamp(),
-          });
-          summary.subscriptions.missing = (summary.subscriptions.missing ?? 0) + 1;
-          continue;
-        }
-        const event = missedSubscriptionEvent(
-          { providerStatus: b.providerStatus ?? null, paidCount: b.paidCount ?? null, currentPeriodEnd: b.currentPeriodEnd ?? null },
-          live,
-        );
-        if (event) {
-          // A real miss (money or status moved) is flagged; a renewal date
-          // that merely moved is applied quietly.
-          const real = event === "subscription.charged" || (b.providerStatus ?? null) !== live.status;
-          await applyWebhookEvent(
-            `${real ? "reconcile" : "quiet"}:${live.id}:${live.status}:${live.paid_count ?? "?"}:${live.current_end ?? ""}`,
-            event,
-            live,
-            { source: real ? "reconcile" : "webhook" },
-          );
-          if (real) summary.subscriptions.applied++;
+        const after = (await doc.ref.get()).data()?.billing;
+        if (outcome === "applied") {
+          if (after?.providerStatus === "missing") summary.subscriptions.missing = (summary.subscriptions.missing ?? 0) + 1;
+          else if (after?.status !== b.status || (after?.paidCount ?? 0) > (b.paidCount ?? 0)) summary.subscriptions.applied++;
           else summary.subscriptions.quiet++;
         }
         await doc.ref.update({ "billing.reconciledAt": now.toISOString() });

@@ -9,6 +9,7 @@ import { enqueueInTransaction, enqueueOp, queueRef, retryNow } from "./provision
 import { stopBillingForDeletion, stopBillingForRemoval } from "./billing";
 import { CODES as PROMO_CODES } from "./promo";
 import { refundPayment } from "./razorpay";
+import { initialLedgerFields } from "./credits";
 import { applyRefund } from "./payments";
 import { shipLog } from "./logship";
 import { ledgerFromDoc, queueChange, type PendingChange } from "@/lib/billing/credits";
@@ -236,6 +237,48 @@ export async function applyAdminAction(admin: Caller, action: AdminAction): Prom
         enqueueOp(tx, { uid: a.uid, email: d.email, username, op: "remove", valueUsd: 0 });
         audit(tx, admin, a, `${username} · ${billingDetail}`);
         break;
+      case "set_comp":
+        tx.update(userRef, {
+          comp: { until: a.until, note: a.note, by: admin.email, at: new Date().toISOString() },
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        audit(tx, admin, a, `${a.until ? `until ${a.until.slice(0, 10)}` : "open-ended"} · ${a.note}`);
+        break;
+      case "clear_comp":
+        tx.update(userRef, { comp: null, updatedAt: FieldValue.serverTimestamp() });
+        audit(tx, admin, a, null);
+        break;
+      case "link_workspace": {
+        if (username) throw conflict("has-workspace", "They already have a workspace.");
+        const [roster, nameSnap] = await Promise.all([
+          tx.get(db.collection("workspace_roster").doc(a.username)),
+          tx.get(db.collection("workspace_usernames").doc(a.username)),
+        ]);
+        if (!roster.exists || roster.data()?.gone) {
+          throw badRequest("no-workspace", `${a.username} isn't on the VPS roster.`);
+        }
+        if (nameSnap.exists && nameSnap.data()?.uid !== a.uid) {
+          throw conflict("username-taken", `${a.username} already belongs to another account.`);
+        }
+        const linked = await tx.get(db.collection(USERS).where("workspace_username", "==", a.username).limit(1));
+        if (!linked.empty) throw conflict("linked", `${a.username} is already linked to an account.`);
+        tx.update(userRef, {
+          workspace_username: a.username,
+          workspace_email: d.email,
+          workspace_address: `https://${a.username}.allr.work`,
+          pending_workspace_username: null,
+          ...(d.credits ? {} : initialLedgerFields()),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        tx.set(nameSnap.ref, { uid: a.uid, email: d.email, reservedAt: FieldValue.serverTimestamp() }, { merge: true });
+        // The workspace's login email follows the account's.
+        if (String(roster.data()?.email ?? "").toLowerCase() !== String(d.email).toLowerCase()) {
+          enqueueOp(tx, { uid: a.uid, email: d.email, username: a.username, op: "set_email", valueUsd: 0 });
+        }
+        enqueueOp(tx, { uid: a.uid, email: d.email, username: a.username, op: "sync_limit", valueUsd: 0 });
+        audit(tx, admin, a, `${a.username} (roster email ${roster.data()?.email})`);
+        break;
+      }
       case "provision": {
         if (username) throw conflict("has-workspace", "They already have a workspace.");
         const [queueSnap, nameSnap] = await Promise.all([

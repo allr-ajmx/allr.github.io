@@ -1,5 +1,6 @@
 import "server-only";
 
+import { billingFromDoc, compFromDoc, enforcementFromDoc, promoFromDoc } from "@/lib/billing/records";
 import { createHash } from "node:crypto";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "./admin";
@@ -75,29 +76,10 @@ function toProfile(data: FirebaseFirestore.DocumentData): UserProfile {
     workspace_email: data.workspace_email ?? null,
     workspace_address: data.workspace_address ?? null,
     pendingWorkspaceUsername: data.pending_workspace_username ?? null,
-    enforcement: data.enforcement ?? null,
-    billing: data.billing
-      ? {
-          status: data.billing.status,
-          planCurrency: data.billing.planCurrency,
-          subscriptionId: data.billing.subscriptionId,
-          customerId: data.billing.customerId ?? "",
-          currentPeriodEnd: data.billing.currentPeriodEnd ?? null,
-          providerStatus: data.billing.providerStatus ?? "",
-          statusSince: data.billing.statusSince ?? null,
-          cancelAtPeriodEnd: Boolean(data.billing.cancelAtPeriodEnd),
-          paidCount: typeof data.billing.paidCount === "number" ? data.billing.paidCount : null,
-          updatedAt: iso(data.billing.updatedAt),
-        }
-      : null,
-    promo: data.promo
-      ? {
-          code: String(data.promo.code ?? ""),
-          redeemedAt: String(data.promo.redeemedAt ?? ""),
-          endsAt: String(data.promo.endsAt ?? ""),
-          creditUsd: Number(data.promo.creditUsd ?? 0),
-        }
-      : null,
+    enforcement: enforcementFromDoc(data.enforcement),
+    billing: billingFromDoc(data.billing),
+    promo: promoFromDoc(data.promo),
+    comp: compFromDoc(data.comp),
     trial: data.trial
       ? {
           startedAt: iso(data.trial.startedAt),

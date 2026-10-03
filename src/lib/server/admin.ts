@@ -97,7 +97,9 @@ export const adminDb = () => {
   if (!dbConfigured) {
     dbConfigured = true;
     try {
-      db.settings({ ignoreUndefinedProperties: true });
+      // Tests run strict (ALLR_FIRESTORE_STRICT=1) so an undefined value in a
+      // write fails a test instead of being silently dropped in production.
+      if (process.env.ALLR_FIRESTORE_STRICT !== "1") db.settings({ ignoreUndefinedProperties: true });
     } catch {
       // Already in use with settings applied (warm instance): nothing to do.
     }

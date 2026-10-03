@@ -46,11 +46,15 @@ export async function readLedger(uid: string): Promise<CreditLedger | null> {
 }
 
 /** First stamp of a self-serve workspace also opens its ledger. */
-/** A new ledger; a promotional month opens with its own (smaller) credit. */
-export function initialLedgerFields(includedLeftUsd?: number) {
+/**
+ * A new ledger. `includedUsd`: the monthly allowance (the plan's: 0 for
+ * Workspace, 20 for Workspace + AI). `includedLeftUsd`: this cycle's starting
+ * amount when it differs (a promotional month's credit).
+ */
+export function initialLedgerFields(opts: { includedUsd?: number; includedLeftUsd?: number } = {}) {
   const l = initialLedger();
-  if (includedLeftUsd === undefined) return { credits: l };
-  const next = { ...l, includedLeftUsd };
+  const includedUsd = opts.includedUsd ?? l.includedUsd;
+  const next = { ...l, includedUsd, includedLeftUsd: opts.includedLeftUsd ?? includedUsd };
   return { credits: { ...next, targetLimitUsd: targetOf(next) } };
 }
 
@@ -63,6 +67,9 @@ export async function startTopup(caller: Caller, packId: unknown) {
   if (!profile) throw badRequest("no-profile", "Make an account first.");
   if (!hasWorkspace(profile)) {
     throw forbidden("no-workspace", "Credits top up a live workspace. Subscribe first.");
+  }
+  if (profile.billing?.status === "active" && profile.billing.plan === "workspace") {
+    throw forbidden("upgrade-for-packs", "Credit packs come with Workspace + AI. Upgrade to add credit — or use your own key.");
   }
 
   const currency = planCurrencyFor(profile.country);

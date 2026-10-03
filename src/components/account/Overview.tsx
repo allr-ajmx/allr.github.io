@@ -93,7 +93,12 @@ export function Overview() {
             <PlanCard status={status} billing={billing} />
             <CreditsCard
               ledger={ledger}
-              canTopUp={(status.kind === "live" && status.paid) || status.kind === "paymentDue" || (status.kind === "ending" && !status.over)}
+              ownKey={status.kind === "live" && status.paid && status.plan === "workspace" && status.switching?.plan !== "workspace_ai"}
+              canTopUp={
+                ((status.kind === "live" && status.paid && status.plan !== "workspace") ||
+                  status.kind === "paymentDue" ||
+                  (status.kind === "ending" && !status.over))
+              }
             />
           </div>
         ) : null}
@@ -111,6 +116,8 @@ function lede(s: WorkspaceStatus): string {
     case "live":
       return s.paid
         ? "Your workspace is live."
+        : s.complimentary
+          ? "Your workspace is live, on us."
         : s.promoEndsAt
           ? `Your workspace is live. Your free month runs until ${date(s.promoEndsAt)}.`
           : "Your workspace is live. It isn’t on a paid plan yet.";
@@ -174,7 +181,7 @@ function WorkspaceCard({
 
   const { tone, label } =
     s.kind === "live"
-      ? { tone: "green" as const, label: s.promoEndsAt ? "Free month" : "Live" }
+      ? { tone: "green" as const, label: s.complimentary ? "Complimentary" : s.promoEndsAt ? "Free month" : "Live" }
       : s.kind === "paymentDue"
         ? { tone: "honey" as const, label: "Payment due" }
         : s.kind === "ending"
@@ -184,7 +191,7 @@ function WorkspaceCard({
             : { tone: "honey" as const, label: s.promo ? "Free month ended" : "Free week ended" };
   const address = "address" in s ? s.address : null;
   const subscribeLabel =
-    s.kind === "live" && !s.paid
+    s.kind === "live" && !s.paid && !s.complimentary
       ? "Subscribe"
       : s.kind === "ending" && s.canResubscribe
         ? "Resubscribe"
@@ -229,6 +236,8 @@ function detail(s: Exclude<WorkspaceStatus, { kind: "none" } | { kind: "building
     case "live":
       return s.paid
         ? "Everything you make in it can be published from there."
+        : s.complimentary
+          ? `No payment needed${s.complimentary.until ? ` until ${date(s.complimentary.until)}` : ""}. Everything you make in it can be published from there.`
         : s.promoEndsAt
           ? `Subscribe before ${date(s.promoEndsAt)} to keep it running after the free month.`
           : "Subscribe to keep it running — your work stays exactly where it is.";
@@ -259,9 +268,11 @@ function PlanCard({ status: s, billing }: { status: WorkspaceStatus; billing: Bi
   const plan = billing?.plan;
   const line =
     s.kind === "live" && s.paid
-      ? s.renewsAt
-        ? `Renews ${date(s.renewsAt)}`
-        : "Active"
+      ? s.switching
+        ? `Switching to ${s.switching.plan === "workspace" ? "Workspace" : "Workspace + AI"} on ${date(s.switching.startsAt) ?? "renewal"}`
+        : s.renewsAt
+          ? `Renews ${date(s.renewsAt)}`
+          : "Active"
       : s.kind === "ending"
         ? s.over
           ? "Ended"
@@ -270,12 +281,16 @@ function PlanCard({ status: s, billing }: { status: WorkspaceStatus; billing: Bi
           ? "Last payment failed"
           : s.kind === "paused" && s.resuming
             ? "Paid · resuming"
+            : s.kind === "live" && s.complimentary
+              ? `Complimentary${s.complimentary.until ? ` · until ${date(s.complimentary.until)}` : ""}`
             : s.kind === "live" && s.promoEndsAt
               ? `Free month · until ${date(s.promoEndsAt)}`
               : "No active subscription";
   return (
     <Card>
-      <p className="mb-1 text-[.78rem] font-bold tracking-[0.05em] text-ink-soft uppercase">Plan</p>
+      <p className="mb-1 text-[.78rem] font-bold tracking-[0.05em] text-ink-soft uppercase">
+        {plan && s.kind === "live" && s.paid ? plan.name : "Plan"}
+      </p>
       <p className="text-[1.35rem] font-bold text-ink">
         {plan ? `${plan.display}` : "—"}
         {plan ? <span className="text-[.95rem] font-semibold text-ink-soft">/{plan.interval}</span> : null}
@@ -288,8 +303,22 @@ function PlanCard({ status: s, billing }: { status: WorkspaceStatus; billing: Bi
   );
 }
 
-function CreditsCard({ ledger, canTopUp }: { ledger: LedgerSummary | null; canTopUp: boolean }) {
+function CreditsCard({ ledger, canTopUp, ownKey }: { ledger: LedgerSummary | null; canTopUp: boolean; ownKey: boolean }) {
   const money = (n: number) => `$${n.toFixed(2)}`;
+  if (ownKey) {
+    return (
+      <Card>
+        <p className="mb-1 text-[.78rem] font-bold tracking-[0.05em] text-ink-soft uppercase">AI</p>
+        <p className="text-[1.1rem] font-bold text-ink">Your own key</p>
+        <p className="mt-1 text-[.9rem] leading-[1.6] text-ink-soft">
+          Your plan doesn’t include AI credit. Add or change your key on the Keys page in your workspace.
+        </p>
+        <Link href="/account/billing/" className="mt-4 inline-block text-[.92rem] font-bold text-green-deep">
+          Upgrade to Workspace + AI →
+        </Link>
+      </Card>
+    );
+  }
   return (
     <Card>
       <p className="mb-1 text-[.78rem] font-bold tracking-[0.05em] text-ink-soft uppercase">AI credit</p>

@@ -1,9 +1,55 @@
 # Billing: the workspace subscription (Razorpay)
 
-The Allr app is free; the workspace is the plan — **$30/month**, billed
-through Razorpay Subscriptions. Indian accounts (`country === "IN"`) are
-billed the INR sibling plan (₹2,499/month) because Indian customers must be
-charged in INR; everyone else pays USD. Settlement is always INR.
+The Allr app is free; the workspace is the plan. Two plans, billed monthly
+through Razorpay Subscriptions (prices live in `src/lib/billing/plans.ts`):
+
+| Plan | USD | INR | AI |
+|---|---|---|---|
+| Workspace | $10 | ₹899 | bring your own key (Keys page in the workspace); our key sits at $0 |
+| Workspace + AI | $30 | ₹2,698 | $20 of AI credit each cycle, expiring at its end; packs available |
+
+Indian accounts (`country === "IN"`) are billed the INR siblings; everyone
+else pays USD. A subscriber keeps the currency their subscription was made in.
+
+## The billing core (how every change is applied)
+
+- **One writer**: `syncSubscription` (`src/lib/server/subscriptions.ts`).
+  Webhooks, the reconciler, checkout, cancel, removal and plan changes all
+  call it with a subscription id; it fetches **Razorpay's current state** (a
+  webhook payload is only the fallback when Razorpay is unreachable) and
+  applies the decision of the pure core (`src/lib/billing/core.ts`) in one
+  transaction. The same state applied twice changes nothing, so webhook order
+  and redelivery don't matter.
+- **Months are granted once per Razorpay `paid_count`**, whichever path sees
+  the charge first. `billing.paidCount` is the count last granted for.
+- **Records** are decoded by one decoder each (`src/lib/billing/records.ts`);
+  every field is required in the type. Integration tests write strictly
+  (`ALLR_FIRESTORE_STRICT=1`); production also ignores undefined values.
+- **Reconciler** (`POST /api/admin/reconcile`, the VPS calls it every 5 min)
+  re-reads the last 3 days of payments/refunds and every tracked subscription
+  (including plan changes in flight) and applies what webhooks missed —
+  flagged in Needs attention as "webhook missed".
+
+## Changing plan
+
+Razorpay can't change a UPI or e-mandate subscription in place, so a change
+is a **new subscription on the new plan that starts at the current renewal
+date** (`billing.upcoming`). The billing date never moves.
+
+- **Upgrade** (`POST /api/account/billing/change {plan}`): the prorated price
+  difference for the rest of the cycle is charged **now**, as an upfront
+  amount in the same Checkout; once Razorpay confirms the mandate
+  (`authenticated`), the same share of AI credit is granted until the renewal
+  date and the current subscription is told to end at renewal. At the
+  renewal the new subscription charges and takes over (allowance → $20).
+- **Downgrade**: nothing charged now; the AI credit already paid for lasts
+  until the renewal date, when the Workspace subscription takes over
+  (allowance → $0). Once set, it can't be undone until it takes effect.
+- The handover gap (old ended, new not yet charged) never pauses anything.
+- Abandoned or failed changes are dropped; cancelling mid-change cancels both.
+- **To verify in Razorpay test mode before relying on it**: that an `addons`
+  upfront amount is charged at authentication when `start_at` is in the future,
+  for both card and UPI. If it isn't, upgrades need a separate one-off order.
 
 ## Flow — fully self-serve
 
@@ -50,7 +96,10 @@ they paid for.
    prints the two plan ids.
 3. **Vercel env** (Production; repeat per mode):
    `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`,
-   `RAZORPAY_PLAN_ID_USD`, `RAZORPAY_PLAN_ID_INR`. Redeploy.
+   the plan ids printed by `node scripts/razorpay-setup.mjs` —
+   `RAZORPAY_PLAN_ID_WORKSPACE_USD`, `RAZORPAY_PLAN_ID_WORKSPACE_INR`,
+   `RAZORPAY_PLAN_ID_AI_USD` (or the older `RAZORPAY_PLAN_ID_USD`),
+   `RAZORPAY_PLAN_ID_AI_INR` (or `RAZORPAY_PLAN_ID_INR`). Redeploy.
 4. Go live: repeat 1–3 with live-mode keys/webhook/plans.
 
 ## Test cards

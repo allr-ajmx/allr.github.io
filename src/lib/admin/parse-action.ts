@@ -64,7 +64,12 @@ export type AdminAction =
   /** A flagged billing event has been looked at. */
   | { action: "resolve_flag"; id: string; note: string }
   /** Refund a credit pack (full) and take back its unspent credit. */
-  | { action: "refund_topup"; paymentId: string };
+  | { action: "refund_topup"; paymentId: string }
+  /** Make a workspace complimentary (never paused for billing), open-ended or until a date. */
+  | { action: "set_comp"; uid: string; until: string | null; note: string }
+  | { action: "clear_comp"; uid: string }
+  /** Link a manual-era workspace (on the VPS roster, no account) to an account. */
+  | { action: "link_workspace"; uid: string; username: string };
 
 /** Firestore doc ids we mint: `<uid>`, `<uid>:<op>`, `ws:<username>:<op>`. */
 const DOC_ID_RE = /^[A-Za-z0-9_.:-]{1,200}$/;
@@ -213,6 +218,25 @@ export function parseAction(body: unknown, now: Date = new Date()): AdminAction 
     case "delete_account":
       if (!str(b.confirm)) throw badRequest("confirm", "Name the account's email to confirm deletion.");
       return { action: "delete_account", uid, confirm: str(b.confirm).toLowerCase() };
+    case "set_comp": {
+      let until: string | null = null;
+      if (b.until !== undefined && b.until !== null && str(b.until) !== "") {
+        const t = Date.parse(str(b.until));
+        if (!Number.isFinite(t)) throw badRequest("invalid", "Until must be a date, like 2026-12-31.");
+        if (t <= now.getTime()) throw badRequest("invalid", "Until must be in the future.");
+        until = new Date(t).toISOString();
+      }
+      const note = str(b.note).slice(0, 200);
+      if (!note) throw badRequest("invalid", "Say why it's complimentary — it's how you'll remember later.");
+      return { action: "set_comp", uid, until, note };
+    }
+    case "clear_comp":
+      return { action: "clear_comp", uid };
+    case "link_workspace": {
+      const verdict = checkUsernameShape(b.username);
+      if (!verdict.ok) throw badRequest("bad-username", verdict.reason);
+      return { action: "link_workspace", uid, username: verdict.username };
+    }
     case "provision": {
       const verdict = checkUsernameShape(b.username);
       if (!verdict.ok) throw badRequest("bad-username", verdict.reason);

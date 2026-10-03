@@ -1,4 +1,5 @@
 import { Timestamp } from "firebase-admin/firestore";
+import { billingFromDoc, compFromDoc } from "@/lib/billing/records";
 import { adminDb } from "@/lib/server/admin";
 import { requireAdminUser } from "@/lib/server/admin-gate";
 import { toResponse } from "@/lib/server/errors";
@@ -73,7 +74,7 @@ export async function GET(request: Request) {
       // new Date(Timestamp) is Invalid Date, which reads as "trial ended".
       const profileish = {
         ...d,
-        billing: d.billing ?? null,
+        billing: billingFromDoc(d.billing),
         trial: d.trial
           ? {
               ...d.trial,
@@ -110,6 +111,10 @@ export async function GET(request: Request) {
         pendingUsername: d.pending_workspace_username ?? null,
         billing: d.billing
           ? {
+              plan: billingFromDoc(d.billing)?.plan ?? null,
+              upcoming: billingFromDoc(d.billing)?.upcoming
+                ? { plan: billingFromDoc(d.billing)!.upcoming!.plan, status: billingFromDoc(d.billing)!.upcoming!.status }
+                : null,
               status: d.billing.status,
               planCurrency: d.billing.planCurrency,
               currentPeriodEnd: d.billing.currentPeriodEnd ?? null,
@@ -130,6 +135,7 @@ export async function GET(request: Request) {
             return r && !r.gone ? iso(r.updatedAt) || null : null;
           })(),
         }),
+        comp: compFromDoc(d.comp),
         purchases: (purchasesByUid.get(doc.id) ?? []).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
         queue: q
           ? { status: q.status, error: q.error ?? null, attempts: Number(q.attempts ?? 0), retryAt: iso(q.retryAt) || null }
@@ -147,15 +153,21 @@ export async function GET(request: Request) {
 
     // Workspaces the VPS knows that no site account claims — the manually
     // created era. Shown so the whole fleet is on one page.
-    const accountEmails = new Set(users.docs.map((d) => String(d.data().email ?? "").toLowerCase()));
     const claimedUsernames = new Set(
       users.docs.map((d) => String(d.data().workspace_username ?? "")).filter(Boolean),
     );
     const workspaceOnly = roster.docs
       .map((d) => d.data())
       .filter((r) => !r.gone)
-      .filter((r) => !accountEmails.has(String(r.email).toLowerCase()) && !claimedUsernames.has(r.username))
+      .filter((r) => !claimedUsernames.has(r.username))
       .map((r) => ({
+        // An account with the same email and no workspace yet: offer to link.
+        ...(() => {
+          const u = users.docs.find(
+            (d) => String(d.data().email ?? "").toLowerCase() === String(r.email).toLowerCase() && !d.data().workspace_username,
+          );
+          return { matchUid: u?.id ?? null, matchEmail: u ? String(u.data().email) : null };
+        })(),
         username: r.username,
         email: r.email,
         updatedAt: iso(r.updatedAt),

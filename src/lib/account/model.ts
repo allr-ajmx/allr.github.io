@@ -9,7 +9,7 @@
  */
 
 import type { Billing } from "@/lib/billing/model";
-import type { Enforcement } from "@/lib/billing/lifecycle";
+import type { Complimentary, Enforcement } from "@/lib/billing/lifecycle";
 import type { Promo } from "@/lib/billing/promo";
 
 export type AccountType = "individual" | "business";
@@ -96,6 +96,9 @@ export type UserProfile = {
 
   /** A redeemed promotional month (no payment), or null. */
   promo: Promo | null;
+
+  /** Made complimentary by an admin (until a date, or open-ended), or null. */
+  comp: Complimentary;
 };
 
 /**

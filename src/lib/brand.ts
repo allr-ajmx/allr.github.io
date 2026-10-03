@@ -410,27 +410,41 @@ export const WORKSPACE = {
  * and the agent workspace they connect to is what carries a plan. Never let a
  * line here imply the app costs money, or a line on /download imply the
  * workspace is free. PRICING is rendered by /pricing; every number on that
- * page comes from the billing constants (PLAN_PRICING, TOPUP_PACKS,
- * INCLUDED_USD, GRACE_DAYS, REMOVE_AFTER_DAYS) — the copy here never states a
- * price, so the page cannot drift from what checkout charges.
+ * page comes from the billing constants (PLANS, TOPUP_PACKS, GRACE_DAYS,
+ * REMOVE_AFTER_DAYS) — the copy here never states a price, so the page cannot
+ * drift from what checkout charges.
  */
 export const PRICING = {
   eyebrow: "Pricing",
-  title: "One workspace. One plan.",
-  sub: "The apps are free and stay free. The workspace they connect to is the plan — your own Cloud AI Workspace, with AI credit included every month.",
-  planName: "Workspace",
-  planIncludes: [
-    "Your own Cloud AI Workspace at yourname.allr.work",
-    "AI credit every month, included",
-    "Web, desktop and phone — the apps are free",
-    "Cancel any time; it stays up to the end of the period you paid for",
-  ],
+  title: "One workspace. Your choice of AI.",
+  sub: "The apps are free and stay free. The plan is the workspace they connect to — bring your own AI key, or have AI credit included every month.",
+  plans: {
+    workspace: {
+      tagline: "Your workspace. Bring your own AI key.",
+      includes: [
+        "Your own Cloud AI Workspace at yourname.allr.work",
+        "Use your own AI key — add it on the Keys page in your workspace",
+        "Web, desktop and phone — the apps are free",
+        "Upgrade to AI credit any time",
+      ],
+    },
+    workspace_ai: {
+      tagline: "Your workspace, with AI included.",
+      includes: [
+        "Your own Cloud AI Workspace at yourname.allr.work",
+        "AI credit every month, included",
+        "Add credit packs whenever you need more",
+        "Web, desktop and phone — the apps are free",
+      ],
+    },
+  },
+  recommended: "Most people start here",
   cta: "Get Started",
   creditTitle: "Need more AI credit?",
-  creditSub: "Add a credit pack any time from your account. Packs never expire and are used after your monthly credit runs out.",
+  creditSub: "On Workspace + AI, add a credit pack any time from your account. Packs never expire and are used after your monthly credit runs out.",
   creditFeeNote: "Pack prices cover payment and AI-provider fees.",
   howTitle: "How AI credit works",
-  faqTitle: "Questions about the plan",
+  faqTitle: "Questions about the plans",
 } as const;
 
 /** Shown under the field when a signup could not be taken. */

@@ -1,5 +1,6 @@
 import { verifyWebhookSignature } from "@/lib/billing/signature";
-import { applyWebhookEvent } from "@/lib/server/billing";
+import { recordIgnoredWebhook } from "@/lib/server/billing";
+import { syncSubscription } from "@/lib/server/subscriptions";
 import { applyTopupPayment } from "@/lib/server/credits";
 import type { RzpPayment, RzpRefund, RzpSubscription } from "@/lib/server/razorpay";
 import { applyRefund, recordDispute, type RzpDispute } from "@/lib/server/payments";
@@ -61,13 +62,20 @@ export async function POST(request: Request) {
       await recordDispute(name, event.payload.dispute.entity);
       return Response.json({ outcome: "recorded" });
     }
-    const outcome = await applyWebhookEvent(
-      eventId || `${name}:${event.payload?.subscription?.entity?.id}:${raw.length}`,
-      name,
-      event.payload?.subscription?.entity,
-    );
-    console.log(`[billing] ${name} ${eventId}: ${outcome}`);
-    return Response.json({ outcome });
+    // Subscription events are a nudge: the sync fetches Razorpay's current
+    // state of that subscription and applies it (the payload is only the
+    // fallback if Razorpay can't be reached). Order and redelivery can't matter.
+    const sub = event.payload?.subscription?.entity;
+    if (name.startsWith("subscription.") && sub?.id) {
+      const outcome = await syncSubscription(sub.id, { source: "webhook", eventName: name }, sub);
+      console.log(`[billing] ${name} ${eventId}: ${outcome}`);
+      return Response.json({ outcome });
+    }
+    if (name.startsWith("subscription.")) {
+      await recordIgnoredWebhook(eventId || `${name}:${raw.length}`, name,
+        "subscription event without a subscription entity", { subscriptionId: null });
+    }
+    return Response.json({ outcome: "ignored" });
   } catch (error) {
     // Our failure, not theirs — let Razorpay redeliver.
     console.error("[billing] webhook apply failed", name, eventId, error);

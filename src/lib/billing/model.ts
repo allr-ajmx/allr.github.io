@@ -9,16 +9,9 @@
 
 export type PlanCurrency = "USD" | "INR";
 
-/** Amounts in the currency's smallest unit, as Razorpay wants them. */
-export const PLAN_PRICING: Record<
-  PlanCurrency,
-  { amountMinor: number; display: string }
-> = {
-  USD: { amountMinor: 30_00, display: "$30" },
-  INR: { amountMinor: 2_499_00, display: "₹2,499" },
-};
-
-export const PLAN_INTERVAL = "month";
+// Prices and plans live in plans.ts (PLANS); this file is the shapes.
+export { PLAN_INTERVAL } from "./plans.ts";
+import type { PlanKey } from "./plans.ts";
 
 /** Days after the trial lapses before the workspace is suspended (manually, for now). */
 export const GRACE_DAYS = 2;
@@ -41,6 +34,27 @@ export type BillingStatus =
   /** Ended: cancelled by them, completed its term, or expired unpaid. */
   | "ended";
 
+/**
+ * A plan change in flight. Razorpay can't change a UPI/e-mandate subscription
+ * in place, so a change is a NEW subscription on the new plan that starts at
+ * the current renewal date; this records it until it takes over.
+ */
+export type UpcomingChange = {
+  subscriptionId: string;
+  plan: PlanKey;
+  kind: "upgrade" | "downgrade";
+  /** "created": checkout opened; "authenticated": mandate set, waiting to start. */
+  status: "created" | "authenticated";
+  /** ISO 8601 — when it takes over (the current renewal date). */
+  startsAt: string | null;
+  /** Upgrade only: charged now as an upfront amount, and AI credit granted now. */
+  chargeMinor: number;
+  creditUsd: number;
+  creditGranted: boolean;
+  /** The current subscription has been told to end at the renewal date. */
+  oldCancelled: boolean;
+};
+
 export type Billing = {
   status: BillingStatus;
   planCurrency: PlanCurrency;
@@ -57,9 +71,15 @@ export type Billing = {
    * subscription `active` until then, so this flag is the only record of it.
    * Belongs to `subscriptionId` — a different subscription starts it false.
    */
-  cancelAtPeriodEnd?: boolean;
+  cancelAtPeriodEnd: boolean;
   /** Razorpay's paid_count as last recorded: a month is granted once per increase. */
-  paidCount?: number | null;
+  paidCount: number | null;
+  /** Which plan this subscription is for. */
+  plan: PlanKey;
+  /** ISO 8601 — start of the current paid cycle, if known (proration needs it). */
+  currentPeriodStart: string | null;
+  /** A plan change waiting for its start (a new subscription), or null. */
+  upcoming: UpcomingChange | null;
   /** ISO 8601. */
   updatedAt: string;
 };
@@ -73,7 +93,10 @@ export type ProvisioningStatus = {
 /** What GET /api/account/billing returns. */
 export type BillingSummary = {
   billing: Billing | null;
-  plan: { currency: PlanCurrency; amountMinor: number; display: string; interval: string };
+  /** The current plan's price (or the default plan's, before subscribing). */
+  plan: { key: PlanKey; name: string; aiUsd: number; currency: PlanCurrency; amountMinor: number; display: string; interval: string };
+  /** Every plan, in the person's currency, for choosing and switching. */
+  plans: { key: PlanKey; name: string; aiUsd: number; amountMinor: number; display: string }[];
   /** Paying is the gate now; kept for the UI's benefit. */
   canSubscribe: boolean;
   hasWorkspace: boolean;
