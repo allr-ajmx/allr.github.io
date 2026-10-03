@@ -84,4 +84,23 @@ function app() {
 }
 
 export const adminAuth = () => getAuth(app());
-export const adminDb = () => getFirestore(app());
+let dbConfigured = false;
+
+/**
+ * Firestore, configured once. `ignoreUndefinedProperties`: an optional field
+ * left undefined (an older ledger without `includedLeftUsd`, a grant without
+ * a note) is simply not written, instead of failing the whole write — which
+ * took down top-ups and renewals for accounts with older records.
+ */
+export const adminDb = () => {
+  const db = getFirestore(app());
+  if (!dbConfigured) {
+    dbConfigured = true;
+    try {
+      db.settings({ ignoreUndefinedProperties: true });
+    } catch {
+      // Already in use with settings applied (warm instance): nothing to do.
+    }
+  }
+  return db;
+};

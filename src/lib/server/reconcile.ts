@@ -5,7 +5,7 @@ import { adminDb } from "./admin";
 import { applyWebhookEvent } from "./billing";
 import { applyTopupPayment } from "./credits";
 import { applyRefund } from "./payments";
-import { fetchSubscriptionOrMissing, listPayments, listRefunds } from "./razorpay";
+import { RazorpayError, fetchSubscriptionOrMissing, listPayments, listRefunds } from "./razorpay";
 import { shipLog } from "./logship";
 import { isOrderPayment, missedSubscriptionEvent } from "@/lib/billing/reconcile";
 
@@ -34,6 +34,27 @@ export type ReconcileSummary = {
 };
 
 const bump = (m: Record<string, number>, k: string) => (m[k] = (m[k] ?? 0) + 1);
+
+/** An error in words an admin can act on — Razorpay's own reason when it has one. */
+const why = (e: unknown) =>
+  e instanceof RazorpayError
+    ? `Razorpay ${e.upstreamStatus}${e.upstreamCode ? ` ${e.upstreamCode}` : ""}: ${e.description || "no detail"}`
+    : ((e as Error)?.message ?? String(e)).slice(0, 300);
+
+/** The run, as a sentence for the Needs-attention list. */
+function describe(s: ReconcileSummary): string {
+  const done: string[] = [];
+  if (s.topups.applied) done.push(`${s.topups.applied} missed credit pack(s) applied`);
+  if (s.topups.refunded) done.push(`${s.topups.refunded} credit pack(s) refunded automatically`);
+  if (s.topups["refund-failed"]) done.push(`${s.topups["refund-failed"]} automatic refund(s) FAILED`);
+  if (s.refunds.applied) done.push(`${s.refunds.applied} refund(s) applied`);
+  if (s.subscriptions.applied) done.push(`${s.subscriptions.applied} missed subscription update(s) applied`);
+  if (s.subscriptions.missing) done.push(`${s.subscriptions.missing} test-mode subscription(s) marked ended`);
+  const head = done.length ? `Billing check: ${done.join("; ")}.` : "Billing check:";
+  return s.errors.length
+    ? `${head} ${s.errors.length} problem(s) — ${s.errors.join(" · ")}`
+    : head;
+}
 
 async function pages<T>(fetchPage: (skip: number) => Promise<{ items?: T[] }>): Promise<T[]> {
   const out: T[] = [];
@@ -79,11 +100,11 @@ export async function reconcile(now = new Date()): Promise<ReconcileSummary> {
           await db.collection("reconcile_seen").doc(p.id).set({ kind: "not-a-topup", at: FieldValue.serverTimestamp() });
         }
       } catch (e) {
-        summary.errors.push(`payment ${p.id}: ${(e as Error).message}`);
+        summary.errors.push(`payment ${p.id}: ${why(e)}`);
       }
     }
   } catch (e) {
-    summary.errors.push(`payments: ${(e as Error).message}`);
+    summary.errors.push(`listing payments: ${why(e)}`);
   }
 
   // 2. Refunds we never heard about.
@@ -96,11 +117,11 @@ export async function reconcile(now = new Date()): Promise<ReconcileSummary> {
       try {
         bump(summary.refunds, await applyRefund(r, { source: "reconcile" }));
       } catch (e) {
-        summary.errors.push(`refund ${r.id}: ${(e as Error).message}`);
+        summary.errors.push(`refund ${r.id}: ${why(e)}`);
       }
     }
   } catch (e) {
-    summary.errors.push(`refunds: ${(e as Error).message}`);
+    summary.errors.push(`listing refunds: ${why(e)}`);
   }
 
   // 3. Subscriptions whose state moved without us hearing. The least
@@ -162,11 +183,11 @@ export async function reconcile(now = new Date()): Promise<ReconcileSummary> {
         }
         await doc.ref.update({ "billing.reconciledAt": now.toISOString() });
       } catch (e) {
-        summary.errors.push(`subscription ${b.subscriptionId}: ${(e as Error).message}`);
+        summary.errors.push(`subscription ${b.subscriptionId}: ${why(e)}`);
       }
     }
   } catch (e) {
-    summary.errors.push(`subscriptions: ${(e as Error).message}`);
+    summary.errors.push(`listing subscriptions: ${why(e)}`);
   }
 
   const applied =
@@ -179,7 +200,7 @@ export async function reconcile(now = new Date()): Promise<ReconcileSummary> {
     await db.collection("billing_events").doc(`reconcile-run:${now.toISOString().slice(0, 13)}`).set({
       eventName: "reconcile",
       outcome: summary.errors.length ? "errors" : "applied",
-      reason: JSON.stringify(summary).slice(0, 900),
+      reason: describe(summary).slice(0, 1500),
       flag: summary.errors.length > 0,
       resolved: false,
       receivedAt: FieldValue.serverTimestamp(),

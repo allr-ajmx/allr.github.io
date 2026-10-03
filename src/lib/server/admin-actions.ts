@@ -209,7 +209,7 @@ export async function applyAdminAction(admin: Caller, action: AdminAction): Prom
       case "grant_credit":
         queueCredit({
           type: "grant",
-          grant: { id: randomUUID().slice(0, 8), usd: a.usd, expiresAt: a.expiresAt, note: a.note || undefined },
+          grant: { id: randomUUID().slice(0, 8), usd: a.usd, expiresAt: a.expiresAt, ...(a.note ? { note: a.note } : {}) },
         });
         audit(tx, admin, a, `$${a.usd}${a.expiresAt ? ` until ${a.expiresAt.slice(0, 10)}` : ""}`);
         break;

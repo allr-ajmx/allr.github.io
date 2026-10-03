@@ -23,6 +23,7 @@ import {
   targetOf,
   TOPUP_PACKS,
   forNewKey,
+  ledgerFromDoc,
 } from "../src/lib/billing/credits.ts";
 
 const NOW = new Date("2026-10-02T12:00:00Z");
@@ -230,5 +231,29 @@ describe("a refunded credit pack", () => {
   it("the preview shows it before settlement", () => {
     const l = queueChange(applyTopup(initialLedger(), 10), { type: "refund_topup", usd: 10 });
     assert.equal(remaining(l, NOW).topupUsd, 0);
+  });
+});
+
+describe("older ledgers round-trip as valid Firestore values (regression: Jai's top-up)", () => {
+  const hasUndefined = (v) =>
+    v === undefined || (v && typeof v === "object" && Object.values(v).some(hasUndefined));
+  const legacy = { includedUsd: 20, cycleStartUsageUsd: 0, topupBalanceUsd: 0, targetLimitUsd: 20, usageUsd: 3, usageSyncedAt: null };
+  it("reading one never produces an undefined field", () => {
+    const l = ledgerFromDoc(legacy);
+    assert.equal("includedLeftUsd" in l, false);
+    assert.equal(hasUndefined(l), false);
+  });
+  it("a top-up, a monthly charge, a queued grant and a settlement all stay writable", () => {
+    const l = ledgerFromDoc(legacy);
+    for (const next of [
+      applyTopup(l, 9.2),
+      applyMonthlyGrant(l),
+      queueChange(l, { type: "grant", grant: { id: "g", usd: 5, expiresAt: null } }),
+      settle(applyMonthlyGrant(l), 3, NOW),
+      forNewKey(l, NOW),
+    ]) {
+      assert.equal(hasUndefined(next), false, JSON.stringify(next));
+    }
+    assert.equal(applyTopup(l, 9.2).targetLimitUsd, 29.2);
   });
 });

@@ -227,7 +227,11 @@ export function ledgerFromDoc(raw: Record<string, unknown> | null | undefined): 
   const n = (v: unknown, d: number) => (Number.isFinite(Number(v)) ? Number(v) : d);
   return {
     includedUsd: n(raw.includedUsd, INCLUDED_USD),
-    includedLeftUsd: raw.includedLeftUsd === undefined ? undefined : n(raw.includedLeftUsd, INCLUDED_USD),
+    // Absent on older ledgers — and then absent here too, never `undefined`,
+    // so a ledger read and written back stays a valid Firestore value.
+    ...(raw.includedLeftUsd === undefined || raw.includedLeftUsd === null
+      ? {}
+      : { includedLeftUsd: n(raw.includedLeftUsd, INCLUDED_USD) }),
     cycleStartUsageUsd: n(raw.cycleStartUsageUsd, 0),
     topupBalanceUsd: n(raw.topupBalanceUsd, 0),
     grants: Array.isArray(raw.grants) ? (raw.grants as CreditGrant[]) : [],
