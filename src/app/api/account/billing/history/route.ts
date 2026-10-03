@@ -3,7 +3,7 @@ import { adminDb } from "@/lib/server/admin";
 import { readOrAdoptProfile } from "@/lib/server/profiles";
 import { requireUser } from "@/lib/server/session";
 import { badRequest, toResponse } from "@/lib/server/errors";
-import { listSubscriptionInvoices } from "@/lib/server/razorpay";
+import { isMissingOnRazorpay, listSubscriptionInvoices } from "@/lib/server/razorpay";
 import { buildHistory } from "@/lib/billing/history";
 
 /**
@@ -32,6 +32,8 @@ export async function GET(request: Request) {
       Promise.all(
         subscriptionIds.map((id) =>
           listSubscriptionInvoices(id).catch((e) => {
+            // An id Razorpay doesn't know (test mode) simply has no invoices.
+            if (isMissingOnRazorpay(e)) return [];
             console.error(`[billing] history: invoices for ${id} unavailable`, e);
             return null;
           }),

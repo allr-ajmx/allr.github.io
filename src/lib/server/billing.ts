@@ -14,12 +14,13 @@ import { grantsMonth, nextPaidCount } from "@/lib/billing/reconcile";
 import {
   cancelSubscriptionNow,
   fetchPayment,
+  fetchSubscriptionOrMissing,
+  isMissingOnRazorpay,
   lastPaidPayment,
   refundPayment,
   cancelSubscriptionAtCycleEnd,
   createCustomer,
   createSubscription,
-  fetchSubscription,
   planIdFor,
   razorpayKeyId,
   type RzpSubscription,
@@ -145,15 +146,16 @@ export async function startSubscription(
     // A checkout that was opened and abandoned, or a mandate that is failing:
     // the same subscription is the one to finish or fix.
     if (existing.status === "pending" || existing.status === "pastDue") {
-      const sub = await fetchSubscription(existing.subscriptionId);
-      if (normalizeProviderStatus(sub.status) === "active") {
+      // null: Razorpay doesn't know it (a test-mode leftover) — start afresh below.
+      const sub = await fetchSubscriptionOrMissing(existing.subscriptionId);
+      if (sub && normalizeProviderStatus(sub.status) === "active") {
         // Paid after all — the webhook never told us. Apply it now rather
         // than open a second checkout for money already taken.
         await applyWebhookEvent(`reconcile:${sub.id}:${sub.status}:${sub.paid_count ?? "?"}`,
           "subscription.charged", sub, { source: "reconcile" });
         throw conflict("already-subscribed", "Your payment went through — your workspace is on its way.");
       }
-      if (normalizeProviderStatus(sub.status) !== "ended") {
+      if (sub && normalizeProviderStatus(sub.status) !== "ended") {
         await writeBilling(caller.uid, billingFrom(sub, existing.planCurrency, existing.customerId, existing));
         return { subscriptionId: sub.id, keyId: razorpayKeyId(), plan };
       }
@@ -193,7 +195,21 @@ export async function cancelSubscription(caller: Caller): Promise<Billing> {
     throw conflict("already-cancelled", "Your subscription is already cancelled.");
   }
 
-  const sub = await cancelSubscriptionAtCycleEnd(billing.subscriptionId);
+  let sub: RzpSubscription;
+  try {
+    sub = await cancelSubscriptionAtCycleEnd(billing.subscriptionId);
+  } catch (e) {
+    if (!isMissingOnRazorpay(e)) throw e;
+    // Razorpay has no such subscription (test-mode leftover): nothing can
+    // charge, so record it as ended rather than fail forever.
+    await adminDb().collection(USERS).doc(caller.uid).update({
+      "billing.status": "ended",
+      "billing.providerStatus": "missing",
+      "billing.statusSince": new Date().toISOString(),
+      "billing.updatedAt": FieldValue.serverTimestamp(),
+    });
+    return { ...billing, status: "ended", providerStatus: "missing", updatedAt: new Date().toISOString() };
+  }
   shipLog("billing", "subscription cancelled at cycle end", { email: caller.email, sub: sub.id });
   const next = {
     ...billingFrom(sub, billing.planCurrency, billing.customerId, billing),
@@ -424,7 +440,7 @@ export async function stopBillingForRemoval(
   if (!billing?.subscriptionId) return "no subscription";
 
   const subId = billing.subscriptionId;
-  const live = await fetchSubscription(subId);
+  const live = await fetchSubscriptionOrMissing(subId);
   const parts: string[] = [];
   // Removal ends the period now: nothing should promise "stays up until".
   const markEnded = (providerStatus: string) =>
@@ -436,7 +452,14 @@ export async function stopBillingForRemoval(
       "billing.updatedAt": FieldValue.serverTimestamp(),
     });
 
-  if (TERMINAL.has(live.status)) {
+  if (!live) {
+    // Not known to Razorpay in this mode (a test-mode leftover after going
+    // live): it cannot charge, and there is nothing there to refund.
+    if (billing.status !== "ended") await markEnded("missing");
+    parts.push(`subscription ${subId} not found in Razorpay — nothing can charge`);
+    if (refund) parts.push("no refund possible (not a live-mode payment)");
+    refund = false;
+  } else if (TERMINAL.has(live.status)) {
     if (billing.status !== "ended") await markEnded(live.status);
     parts.push(`subscription already ${live.status}`);
   } else {
@@ -496,7 +519,9 @@ export async function stopBillingForDeletion(billing: {
   } catch (e) {
     // Our copy may lag: if Razorpay already closed it, or it was never paid
     // for, nothing can charge — proceed. Anything else stays a refusal.
-    const live = await fetchSubscription(billing.subscriptionId).catch(() => null);
+    if (isMissingOnRazorpay(e)) return `subscription ${billing.subscriptionId} not found in Razorpay — nothing can charge`;
+    const live = await fetchSubscriptionOrMissing(billing.subscriptionId).catch(() => undefined);
+    if (live === null) return `subscription ${billing.subscriptionId} not found in Razorpay — nothing can charge`;
     if (live && TERMINAL.has(live.status)) return `subscription ${billing.subscriptionId} already ${live.status}`;
     if (live?.status === "created" || (!live && billing.status === "pending")) {
       console.warn(`[billing] could not cancel unpaid ${billing.subscriptionId}`, e);

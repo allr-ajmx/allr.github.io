@@ -5,7 +5,7 @@ import { adminDb } from "./admin";
 import { applyWebhookEvent } from "./billing";
 import { applyTopupPayment } from "./credits";
 import { applyRefund } from "./payments";
-import { fetchSubscription, listPayments, listRefunds } from "./razorpay";
+import { fetchSubscriptionOrMissing, listPayments, listRefunds } from "./razorpay";
 import { shipLog } from "./logship";
 import { isOrderPayment, missedSubscriptionEvent } from "@/lib/billing/reconcile";
 
@@ -29,7 +29,7 @@ const MAX_SUBS = 20;
 export type ReconcileSummary = {
   topups: Record<string, number>;
   refunds: Record<string, number>;
-  subscriptions: { checked: number; applied: number; quiet: number };
+  subscriptions: { checked: number; applied: number; quiet: number; missing?: number };
   errors: string[];
 };
 
@@ -118,8 +118,31 @@ export async function reconcile(now = new Date()): Promise<ReconcileSummary> {
     for (const doc of batch) {
       const b = doc.data().billing;
       try {
-        const live = await fetchSubscription(b.subscriptionId);
+        const live = await fetchSubscriptionOrMissing(b.subscriptionId);
         summary.subscriptions.checked++;
+        if (!live) {
+          // Razorpay doesn't know this id — typically a subscription created
+          // in test mode before the keys went live. It can't charge anyone:
+          // record it as ended (once) so nothing keeps asking about it.
+          await doc.ref.update({
+            "billing.status": "ended",
+            "billing.providerStatus": "missing",
+            "billing.statusSince": now.toISOString(),
+            "billing.reconciledAt": now.toISOString(),
+          });
+          await db.collection("billing_events").doc(`missing:${b.subscriptionId}`).set({
+            eventName: "reconcile",
+            uid: doc.id,
+            subscriptionId: b.subscriptionId,
+            outcome: "marked-ended",
+            reason: "subscription not found in Razorpay (left over from test mode?) — marked ended",
+            flag: b.status === "active",
+            resolved: false,
+            receivedAt: FieldValue.serverTimestamp(),
+          });
+          summary.subscriptions.missing = (summary.subscriptions.missing ?? 0) + 1;
+          continue;
+        }
         const event = missedSubscriptionEvent(
           { providerStatus: b.providerStatus ?? null, paidCount: b.paidCount ?? null, currentPeriodEnd: b.currentPeriodEnd ?? null },
           live,

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { ApiError } from "./errors";
+import { isMissingRefusal } from "@/lib/billing/razorpay-errors";
 
 /**
  * The slice of Razorpay's REST API this product uses — nothing more. Plain
@@ -59,13 +60,31 @@ async function rzp<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (!res.ok || !body) {
     console.error("[razorpay]", path, res.status, body?.error);
-    throw new ApiError(
-      502,
-      "billing-upstream",
-      "Our payment provider had a problem. Nothing was charged — try again in a moment.",
-    );
+    throw new RazorpayError(res.status, body?.error?.code ?? "", body?.error?.description ?? "");
   }
   return body;
+}
+
+/**
+ * What Razorpay refused, kept so callers can tell "this id doesn't exist here"
+ * (e.g. a test-mode subscription now that the keys are live) from an outage.
+ * Still a 502 to the browser, with the same calm message.
+ */
+export class RazorpayError extends ApiError {
+  readonly upstreamStatus: number;
+  readonly upstreamCode: string;
+  readonly description: string;
+  constructor(upstreamStatus: number, upstreamCode: string, description: string) {
+    super(502, "billing-upstream", "Our payment provider had a problem. Nothing was charged — try again in a moment.");
+    this.upstreamStatus = upstreamStatus;
+    this.upstreamCode = upstreamCode;
+    this.description = description;
+  }
+}
+
+/** Razorpay says the id isn't known — in this mode (test vs live) or at all. */
+export function isMissingOnRazorpay(e: unknown): boolean {
+  return e instanceof RazorpayError && isMissingRefusal(e.upstreamStatus, e.description);
 }
 
 export type RzpCustomer = { id: string };
@@ -109,6 +128,16 @@ export const createSubscription = (
 
 export const fetchSubscription = (id: string) =>
   rzp<RzpSubscription>(`/subscriptions/${id}`);
+
+/** The subscription, or null when Razorpay has no such id (left over from test mode). */
+export async function fetchSubscriptionOrMissing(id: string): Promise<RzpSubscription | null> {
+  try {
+    return await fetchSubscription(id);
+  } catch (e) {
+    if (isMissingOnRazorpay(e)) return null;
+    throw e;
+  }
+}
 
 export const cancelSubscriptionAtCycleEnd = (id: string) =>
   rzp<RzpSubscription>(`/subscriptions/${id}/cancel`, {
