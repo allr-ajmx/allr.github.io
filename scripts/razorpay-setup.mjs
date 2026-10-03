@@ -1,45 +1,75 @@
 /**
- * One-time: create the two monthly plans and print their ids.
+ * Create the monthly Razorpay plans the catalog (src/lib/billing/plans.ts)
+ * needs, and print the env lines to paste into Vercel.
  *
- *   RAZORPAY_KEY_ID=rzp_test_… RAZORPAY_KEY_SECRET=… node scripts/razorpay-setup.mjs
+ *   node scripts/razorpay-setup.mjs [plan …]
  *
- * Run once against test keys and once against live keys; put the printed ids
- * in the environment as RAZORPAY_PLAN_ID_USD / RAZORPAY_PLAN_ID_INR.
+ * Keys come from RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET if set; otherwise it
+ * asks (the secret hidden). It shows the mode (TEST/LIVE) and asks before
+ * creating anything.
+ *
+ * With no arguments it creates all four. Name only what's missing, e.g.
+ *   node scripts/razorpay-setup.mjs workspace_usd workspace_inr ai_inr
+ * (ai_usd at $30 already exists from before the two-plan change).
+ *
+ * Prices are read from plans.ts, so this can't drift from what checkout asks.
  */
+import { client, closePrompts, confirm, quietTypeWarnings, razorpayKeys } from "./lib/razorpay-cli.mjs";
 
-const { RAZORPAY_KEY_ID: id, RAZORPAY_KEY_SECRET: secret } = process.env;
-if (!id || !secret) {
-  console.error("Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in the environment.");
-  process.exit(1);
+quietTypeWarnings();
+const { PLANS } = await import("../src/lib/billing/plans.ts");
+
+const ALL = {
+  workspace_usd: { plan: "workspace", currency: "USD", env: "RAZORPAY_PLAN_ID_WORKSPACE_USD" },
+  workspace_inr: { plan: "workspace", currency: "INR", env: "RAZORPAY_PLAN_ID_WORKSPACE_INR" },
+  ai_usd: { plan: "workspace_ai", currency: "USD", env: "RAZORPAY_PLAN_ID_AI_USD" },
+  ai_inr: { plan: "workspace_ai", currency: "INR", env: "RAZORPAY_PLAN_ID_AI_INR" },
+};
+const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(ALL);
+for (const w of wanted) {
+  if (!ALL[w]) {
+    console.error(`Unknown plan "${w}". Choose from: ${Object.keys(ALL).join(", ")}`);
+    process.exit(1);
+  }
 }
 
-const auth = `Basic ${Buffer.from(`${id}:${secret}`).toString("base64")}`;
+const keys = await razorpayKeys();
+const rzp = client(keys);
 
-async function createPlan(currency, amount) {
-  const res = await fetch("https://api.razorpay.com/v1/plans", {
-    method: "POST",
-    headers: { Authorization: auth, "Content-Type": "application/json" },
-    body: JSON.stringify({
+console.log(`\nMode: ${keys.mode}. About to create:`);
+for (const w of wanted) {
+  const { plan, currency } = ALL[w];
+  console.log(`  · ${PLANS[plan].name} — ${PLANS[plan].display[currency]}/month (${currency})`);
+}
+const go = await confirm("\nCreate these plans?");
+closePrompts();
+if (!go) {
+  console.log("Nothing created.");
+  process.exit(0);
+}
+
+console.log("");
+for (const w of wanted) {
+  const { plan, currency, env } = ALL[w];
+  const p = PLANS[plan];
+  try {
+    const created = await rzp("POST", "/plans", {
       period: "monthly",
       interval: 1,
       item: {
-        name: `Allr workspace (${currency})`,
-        description: "One Allr workspace, billed monthly.",
-        amount,
+        name: `Allr ${p.name} (${currency})`,
+        description: p.aiUsd > 0
+          ? `One Allr workspace with $${p.aiUsd} of AI credit, billed monthly.`
+          : "One Allr workspace (bring your own AI key), billed monthly.",
+        amount: p.price[currency],
         currency,
       },
-    }),
-  });
-  const body = await res.json();
-  if (!res.ok) {
-    console.error(`${currency}: ${res.status}`, body.error ?? body);
-    process.exit(1);
+    });
+    console.log(`${env}=${created.id}   # ${p.name}, ${p.display[currency]}/month`);
+  } catch (e) {
+    console.error(`${w}: ${e.message}`);
+    if (currency === "USD") console.error("  (USD plans need International payments enabled on the Razorpay account.)");
+    process.exitCode = 1;
   }
-  return body.id;
 }
-
-const usd = await createPlan("USD", 30_00);
-const inr = await createPlan("INR", 2_499_00);
-console.log(`RAZORPAY_PLAN_ID_USD=${usd}`);
-console.log(`RAZORPAY_PLAN_ID_INR=${inr}`);
-console.log(`\nMode: ${id.startsWith("rzp_test") ? "TEST" : "LIVE"}`);
+console.log(`\nPaste the lines above into Vercel → allr-main → Settings → Environment Variables (${keys.mode === "LIVE" ? "Production" : "Preview"}), then redeploy.`);

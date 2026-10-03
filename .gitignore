@@ -51,3 +51,4 @@ next-env.d.ts
 firestore-debug.log
 ui-debug.log
 firebase-debug.log
+scripts/.razorpay-verify-upfront.json
