@@ -6,6 +6,14 @@
 import { checkUsernameShape } from "./username.ts";
 import { isCountryCode } from "../countries.ts";
 import { MAX_NAME } from "../account/model.ts";
+import {
+  normalizeCode,
+  PROMO_CREDIT_USD_DEFAULT,
+  PROMO_DAYS_DEFAULT,
+  PROMO_MAX_CREDIT_USD,
+  PROMO_MAX_DAYS,
+  PROMO_MAX_USES,
+} from "../billing/promo.ts";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const MAX_GRANT_USD = 500;
@@ -41,7 +49,18 @@ export type AdminAction =
   | { action: "ws_set_email"; username: string; email: string }
   | { action: "ws_remove"; username: string; confirm: string }
   /** Put a failed provision (id = uid) or op (id = op doc id) back in the queue. */
-  | { action: "retry"; kind: "provision" | "op"; id: string };
+  | { action: "retry"; kind: "provision" | "op"; id: string }
+  /** Promotional codes: a free month (no payment), capped and optionally expiring. */
+  | {
+      action: "promo_create";
+      code: string;
+      maxUses: number;
+      expiresAt: string | null;
+      days: number;
+      creditUsd: number;
+      note: string;
+    }
+  | { action: "promo_set_active"; code: string; active: boolean };
 
 /** Firestore doc ids we mint: `<uid>`, `<uid>:<op>`, `ws:<username>:<op>`. */
 const DOC_ID_RE = /^[A-Za-z0-9_.:-]{1,200}$/;
@@ -86,6 +105,42 @@ export function parseAction(body: unknown, now: Date = new Date()): AdminAction 
       default:
         throw badRequest("invalid", "Unknown action.");
     }
+  }
+
+  if (b.action === "promo_create" || b.action === "promo_set_active") {
+    const code = normalizeCode(b.code);
+    if (!code) throw badRequest("invalid", "Codes are 3–32 letters, digits or dashes, like LAUNCH-2026.");
+    if (b.action === "promo_set_active") {
+      if (typeof b.active !== "boolean") throw badRequest("invalid", "active must be true or false.");
+      return { action: "promo_set_active", code, active: b.active };
+    }
+    const int = (v: unknown, min: number, max: number, label: string) => {
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < min || n > max) throw badRequest("invalid", `${label} must be a whole number from ${min} to ${max}.`);
+      return n;
+    };
+    const maxUses = int(b.maxUses, 1, PROMO_MAX_USES, "Max uses");
+    const days = b.days === undefined || b.days === "" ? PROMO_DAYS_DEFAULT : int(b.days, 1, PROMO_MAX_DAYS, "Days");
+    const credit = b.creditUsd === undefined || b.creditUsd === "" ? PROMO_CREDIT_USD_DEFAULT : Number(b.creditUsd);
+    if (!Number.isFinite(credit) || credit < 0 || credit > PROMO_MAX_CREDIT_USD) {
+      throw badRequest("invalid", `Credit must be between $0 and $${PROMO_MAX_CREDIT_USD}.`);
+    }
+    let expiresAt: string | null = null;
+    if (b.expiresAt !== undefined && b.expiresAt !== null && str(b.expiresAt) !== "") {
+      const t = Date.parse(str(b.expiresAt));
+      if (!Number.isFinite(t)) throw badRequest("invalid", "Expiry must be a date, like 2026-12-31.");
+      if (t <= now.getTime()) throw badRequest("invalid", "Expiry must be in the future.");
+      expiresAt = new Date(t).toISOString();
+    }
+    return {
+      action: "promo_create",
+      code,
+      maxUses,
+      expiresAt,
+      days,
+      creditUsd: Math.round(credit * 100) / 100,
+      note: str(b.note).slice(0, 120),
+    };
   }
 
   if (b.action === "retry") {

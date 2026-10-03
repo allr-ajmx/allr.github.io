@@ -7,6 +7,7 @@ import { badRequest, conflict } from "./errors";
 import type { Caller } from "./session";
 import { enqueueInTransaction, enqueueOp, queueRef, retryNow } from "./provisioning";
 import { stopBillingForDeletion, stopBillingForRemoval } from "./billing";
+import { CODES as PROMO_CODES } from "./promo";
 import { shipLog } from "./logship";
 import { ledgerFromDoc, queueChange, type PendingChange } from "@/lib/billing/credits";
 import {
@@ -101,11 +102,17 @@ export async function applyAdminAction(admin: Caller, action: AdminAction): Prom
     shipLog("admin", "retry", { by: admin.email, target: `${action.kind}:${action.id}` });
     return;
   }
+  if (action.action === "promo_create" || action.action === "promo_set_active") {
+    return applyPromoAction(admin, action);
+  }
   if (action.action.startsWith("ws_")) {
     return applyRosterAction(admin, action as Extract<AdminAction, { action: `ws_${string}` }>);
   }
   if (action.action === "delete_account") return deleteAccount(admin, action);
-  const a = action as Exclude<AdminAction, { action: `ws_${string}` | "retry" | "delete_account" }>;
+  const a = action as Exclude<
+    AdminAction,
+    { action: `ws_${string}` | "retry" | "delete_account" | "promo_create" | "promo_set_active" }
+  >;
   const db = adminDb();
   const userRef = db.collection(USERS).doc(a.uid);
   let oldEmailForAuth: string | null = null;
@@ -324,4 +331,46 @@ async function deleteAccount(admin: Caller, a: Extract<AdminAction, { action: "d
   }
   console.warn(`[admin] ${admin.email}: delete_account ${email} (${a.uid}) · ${billingDetail}`);
   shipLog("admin", "delete_account", { by: admin.email, target: email, billing: billingDetail }, "warn");
+}
+
+async function applyPromoAction(
+  admin: Caller,
+  a: Extract<AdminAction, { action: "promo_create" | "promo_set_active" }>,
+) {
+  const db = adminDb();
+  const ref = db.collection(PROMO_CODES).doc(a.code);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (a.action === "promo_create") {
+      if (snap.exists) throw conflict("code-taken", `${a.code} already exists. Pick another code.`);
+      tx.set(ref, {
+        code: a.code,
+        active: true,
+        maxUses: a.maxUses,
+        uses: 0,
+        expiresAt: a.expiresAt,
+        days: a.days,
+        creditUsd: a.creditUsd,
+        note: a.note,
+        createdBy: admin.email,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } else {
+      if (!snap.exists) throw badRequest("no-code", "No such code.");
+      tx.update(ref, { active: a.active, updatedAt: FieldValue.serverTimestamp() });
+    }
+    tx.set(db.collection("admin_actions").doc(), {
+      by: admin.email,
+      uid: null,
+      username: null,
+      action: a.action,
+      detail:
+        a.action === "promo_create"
+          ? `${a.code} · ${a.maxUses} uses · ${a.days} days · $${a.creditUsd}${a.expiresAt ? ` · until ${a.expiresAt.slice(0, 10)}` : ""}`
+          : `${a.code} → ${a.active ? "on" : "off"}`,
+      at: FieldValue.serverTimestamp(),
+    });
+  });
+  shipLog("admin", a.action, { by: admin.email, target: a.code });
 }

@@ -10,6 +10,7 @@
 
 import type { Billing } from "@/lib/billing/model";
 import type { Enforcement } from "@/lib/billing/lifecycle";
+import type { Promo } from "@/lib/billing/promo";
 
 export type AccountType = "individual" | "business";
 
@@ -92,6 +93,9 @@ export type UserProfile = {
 
   /** The lifecycle enforcer's mark: set when it suspends, cleared on resume. */
   enforcement: Enforcement;
+
+  /** A redeemed promotional month (no payment), or null. */
+  promo: Promo | null;
 };
 
 /**

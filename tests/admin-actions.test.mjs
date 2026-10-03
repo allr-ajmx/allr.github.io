@@ -106,3 +106,28 @@ describe("delete account", () => {
     refused({ action: "delete_account", confirm: "a@b.co" });
   });
 });
+
+describe("promo codes", () => {
+  it("creates with defaults: 30 days, $5, normalized code, no expiry", () => {
+    assert.deepEqual(parseAction({ action: "promo_create", code: " launch-26 ", maxUses: 50 }, NOW), {
+      action: "promo_create", code: "LAUNCH-26", maxUses: 50, expiresAt: null, days: 30, creditUsd: 5, note: "",
+    });
+  });
+  it("accepts a future expiry and custom days/credit within bounds", () => {
+    const a = parseAction({ action: "promo_create", code: "VIP", maxUses: 1, expiresAt: "2026-12-31", days: 60, creditUsd: 12.5 }, NOW);
+    assert.deepEqual([a.days, a.creditUsd, a.expiresAt], [60, 12.5, "2026-12-31T00:00:00.000Z"]);
+  });
+  it("refuses bad codes, caps, days, credit and past expiry", () => {
+    refused({ action: "promo_create", code: "x", maxUses: 5 });
+    refused({ action: "promo_create", code: "OK1", maxUses: 0 });
+    refused({ action: "promo_create", code: "OK1", maxUses: 1.5 });
+    refused({ action: "promo_create", code: "OK1", maxUses: 5, days: 365 });
+    refused({ action: "promo_create", code: "OK1", maxUses: 5, creditUsd: 500 });
+    refused({ action: "promo_create", code: "OK1", maxUses: 5, expiresAt: "2026-10-01" });
+  });
+  it("switching on/off needs an explicit boolean", () => {
+    assert.deepEqual(parseAction({ action: "promo_set_active", code: "vip", active: false }, NOW),
+      { action: "promo_set_active", code: "VIP", active: false });
+    refused({ action: "promo_set_active", code: "VIP", active: "no" });
+  });
+});

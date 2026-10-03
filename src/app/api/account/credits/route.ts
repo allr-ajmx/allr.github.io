@@ -5,6 +5,7 @@ import { toResponse } from "@/lib/server/errors";
 import { TRIAL_CREDIT_USD } from "@/lib/account/model";
 import { readLedger, summarizeLedger } from "@/lib/server/credits";
 import { TOPUP_PACKS } from "@/lib/billing/credits";
+import { promoActive } from "@/lib/billing/promo";
 
 /**
  * How much of the promotional credit is left.
@@ -26,8 +27,13 @@ export async function GET(request: Request) {
     if (profile) {
       const ledger = await readLedger(profile.uid);
       if (ledger) {
+        // During a promotional month the monthly allowance is the promo's,
+        // not the plan's: show "of $5", not "of $20".
+        const promoMonth =
+          profile.billing?.status !== "active" && promoActive(profile.promo) ? profile.promo!.creditUsd : null;
+        const summary = summarizeLedger(ledger);
         return Response.json({
-          ledger: summarizeLedger(ledger),
+          ledger: promoMonth === null ? summary : { ...summary, includedUsd: promoMonth },
           packs: TOPUP_PACKS,
           state: deriveState(profile),
           mocked: false,

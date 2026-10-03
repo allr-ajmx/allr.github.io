@@ -216,7 +216,8 @@ export type AdminActionBody = {
   action:
     | "edit_profile" | "transfer_email" | "grant_credit" | "revoke_grant" | "set_included"
     | "suspend" | "resume" | "provision" | "remove" | "delete_account"
-    | "ws_suspend" | "ws_resume" | "ws_set_email" | "ws_remove" | "retry";
+    | "ws_suspend" | "ws_resume" | "ws_set_email" | "ws_remove" | "retry"
+    | "promo_create" | "promo_set_active";
   uid?: string;
   kind?: "provision" | "op";
   id?: string;
@@ -230,10 +231,40 @@ export type AdminActionBody = {
   note?: string;
   grantId?: string;
   refund?: boolean;
+  code?: string;
+  maxUses?: number;
+  days?: number;
+  creditUsd?: number;
+  active?: boolean;
 };
 
 export const adminAction = (body: AdminActionBody) =>
   call<{ ok: true }>("/admin-ui/actions/", { method: "POST", body: JSON.stringify(body) });
+
+export type AdminPromoCode = {
+  code: string;
+  active: boolean;
+  maxUses: number;
+  uses: number;
+  expiresAt: string | null;
+  days: number;
+  creditUsd: number;
+  note?: string;
+  createdAt: string | null;
+  createdBy: string | null;
+};
+
+export const fetchAdminPromos = () =>
+  call<{
+    codes: AdminPromoCode[];
+    redemptions: { email: string; code: string; redeemedAt: string | null; endsAt: string | null }[];
+  }>("/admin-ui/promos/");
+
+export const redeemPromoCode = (code: string, username?: string) =>
+  call<{ promo: { code: string; endsAt: string; creditUsd: number } }>("/account/promo/redeem/", {
+    method: "POST",
+    body: JSON.stringify({ code, ...(username ? { username } : {}) }),
+  });
 
 export const fetchAdminOperations = () =>
   call<{

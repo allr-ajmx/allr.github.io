@@ -6,6 +6,7 @@ import { adminDb } from "./admin";
 import { ApiError, badRequest } from "./errors";
 import { parseStamp as parsePure, tokenMatches, type WorkspaceStamp } from "@/lib/admin/stamp";
 import { initialLedgerFields } from "./credits";
+import { promoActive } from "@/lib/billing/promo";
 import { enqueueOp, queueRef } from "./provisioning";
 import { shipLog } from "./logship";
 
@@ -87,7 +88,16 @@ export async function stampWorkspace(stamp: WorkspaceStamp): Promise<{
       // Open the credit ledger once; never reset an existing one. Either way
       // make the key match it now rather than trusting the minted default —
       // a rebuilt workspace has a new key and a ledger carried from the old.
-      if (!user.data()?.credits) tx.update(user.ref, initialLedgerFields());
+      if (!user.data()?.credits) {
+        // A running promotional month (and no subscription) opens with the
+        // promo's credit; the first paid charge restores the full amount.
+        const promo = user.data()?.promo;
+        const paid = user.data()?.billing?.status === "active";
+        tx.update(
+          user.ref,
+          !paid && promoActive(promo) ? initialLedgerFields(Number(promo.creditUsd)) : initialLedgerFields(),
+        );
+      }
       enqueueOp(tx, {
         uid,
         email: stamp.email,

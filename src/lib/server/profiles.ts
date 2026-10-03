@@ -89,6 +89,14 @@ function toProfile(data: FirebaseFirestore.DocumentData): UserProfile {
           updatedAt: iso(data.billing.updatedAt),
         }
       : null,
+    promo: data.promo
+      ? {
+          code: String(data.promo.code ?? ""),
+          redeemedAt: String(data.promo.redeemedAt ?? ""),
+          endsAt: String(data.promo.endsAt ?? ""),
+          creditUsd: Number(data.promo.creditUsd ?? 0),
+        }
+      : null,
     trial: data.trial
       ? {
           startedAt: iso(data.trial.startedAt),

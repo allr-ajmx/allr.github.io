@@ -11,6 +11,7 @@ import type { UserProfile } from "./model";
 import { hasWorkspace } from "./state.ts";
 import { awaitingWorkspace } from "../admin/consistency.ts";
 import { removalDate } from "../billing/lifecycle.ts";
+import { promoActive } from "../billing/promo.ts";
 
 export type WorkspaceStatus =
   /** No workspace and nothing paid: the next step is to name and pay. */
@@ -21,7 +22,15 @@ export type WorkspaceStatus =
    * Up. `paid`: a subscription is current. Unpaid means no subscription at all
    * — the manual era, an admin's comp, or a still-running free week.
    */
-  | { kind: "live"; username: string; address: string; paid: boolean; renewsAt: string | null }
+  | {
+      kind: "live";
+      username: string;
+      address: string;
+      paid: boolean;
+      renewsAt: string | null;
+      /** Unpaid because a promotional month is running: when it ends. */
+      promoEndsAt: string | null;
+    }
   /** Up, but the last charge failed; it pauses when the grace runs out. */
   | { kind: "paymentDue"; username: string; address: string }
   /**
@@ -41,8 +50,8 @@ export type WorkspaceStatus =
       removeAfter: string | null;
       resuming: boolean;
     }
-  /** A manual-era workspace whose free week ran out and was never paid. */
-  | { kind: "trialEnded"; username: string; address: string };
+  /** A free period (manual-era week or promotional month) ran out, unpaid. */
+  | { kind: "trialEnded"; username: string; address: string; promo: boolean };
 
 type Profile = Pick<
   UserProfile,
@@ -53,6 +62,7 @@ type Profile = Pick<
   | "billing"
   | "enforcement"
   | "trial"
+  | "promo"
 >;
 
 export function workspaceStatus(
@@ -64,7 +74,7 @@ export function workspaceStatus(
   const live = hasWorkspace(profile as UserProfile);
 
   if (!live) {
-    if (awaitingWorkspace(billing?.status, false)) {
+    if (awaitingWorkspace(billing?.status, false, promoActive(profile.promo, now))) {
       return {
         kind: "building",
         username: profile.pendingWorkspaceUsername,
@@ -102,11 +112,22 @@ export function workspaceStatus(
     if (billing.cancelAtPeriodEnd) {
       return { kind: "ending", username, address, endsAt, over: periodOver, canResubscribe: false };
     }
-    return { kind: "live", username, address, paid: true, renewsAt: endsAt };
+    return { kind: "live", username, address, paid: true, renewsAt: endsAt, promoEndsAt: null };
   }
-  // No paid subscription behind it: the manual era's promotional week.
-  if (profile.trial && new Date(profile.trial.endsAt).getTime() <= now.getTime()) {
-    return { kind: "trialEnded", username, address };
+  // No paid subscription behind it: a promotional month, the manual era's
+  // free week, or an admin's comp.
+  if (profile.promo && !promoActive(profile.promo, now)) {
+    return { kind: "trialEnded", username, address, promo: true };
   }
-  return { kind: "live", username, address, paid: false, renewsAt: null };
+  if (!profile.promo && profile.trial && new Date(profile.trial.endsAt).getTime() <= now.getTime()) {
+    return { kind: "trialEnded", username, address, promo: false };
+  }
+  return {
+    kind: "live",
+    username,
+    address,
+    paid: false,
+    renewsAt: null,
+    promoEndsAt: promoActive(profile.promo, now) ? profile.promo!.endsAt : null,
+  };
 }

@@ -12,6 +12,7 @@ import {
   checkUsername,
   fetchBilling,
   fetchBillingHistory,
+  redeemPromoCode,
   startSubscription,
 } from "@/lib/firebase/api";
 import { checkUsernameShape } from "@/lib/admin/username";
@@ -62,6 +63,9 @@ export function BillingPage() {
   const [username, setUsername] = useState("");
   const [nameCheck, setNameCheck] = useState<NameCheck>({ state: "idle" });
   const checkTimer = useRef<number | null>(null);
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
   /** False once the page is gone: background waits stop touching state. */
   const mounted = useRef(true);
   useEffect(() => {
@@ -92,9 +96,11 @@ export function BillingPage() {
   }, [refresh]);
 
   /** While the queue works, keep looking until the workspace appears. */
+  // A build is owed (paid, or a promo month) exactly when the queue holds one.
+  const buildQueued = ["queued", "claimed", "failed"].includes(summary?.provisioning?.status ?? "");
   useEffect(() => {
     if (!summary || summary.hasWorkspace) return;
-    if (summary.billing?.status !== "active") return;
+    if (!buildQueued) return;
     // A stalled build waits on retries or a person: once a minute is plenty.
     const ms = summary.provisioning?.status === "failed" ? 60_000 : 5_000;
     const t = setInterval(async () => {
@@ -106,7 +112,7 @@ export function BillingPage() {
       }
     }, ms);
     return () => clearInterval(t);
-  }, [summary, refresh, refreshProfile]);
+  }, [summary, buildQueued, refresh, refreshProfile]);
 
   const onUsername = useCallback((raw: string) => {
     const value = raw.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 31);
@@ -148,6 +154,23 @@ export function BillingPage() {
     await refresh();
     setMessage("Payment received — it can take a minute to reflect here.");
   }, [refresh, refreshProfile]);
+
+  const redeem = useCallback(async () => {
+    setMessage(null);
+    setRedeeming(true);
+    try {
+      const { promo } = await redeemPromoCode(promoCode, username || undefined);
+      await Promise.all([refresh(), refreshProfile()]);
+      setPromoOpen(false);
+      setMessage(
+        `Code accepted — your free month runs until ${new Date(promo.endsAt).toLocaleDateString(undefined, { day: "numeric", month: "long" })}. Your workspace is being built.`,
+      );
+    } catch (error) {
+      setMessage(error instanceof ApiCallFailed ? error.message : "That code couldn’t be applied. Try again?");
+    } finally {
+      setRedeeming(false);
+    }
+  }, [promoCode, username, refresh, refreshProfile]);
 
   const subscribe = useCallback(async () => {
     setMessage(null);
@@ -299,11 +322,14 @@ export function BillingPage() {
             <section className={card}>
               <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
                 <p className="font-serif text-[1.2rem] text-ink">{status.username}.allr.work</p>
-                <Pill tone="honey">No plan yet</Pill>
+                <Pill tone={status.promoEndsAt ? "green" : "honey"}>
+                  {status.promoEndsAt ? "Free month" : "No plan yet"}
+                </Pill>
               </div>
               <p className="mb-4 text-[.95rem] leading-[1.7] text-ink-soft">
-                Your workspace is running but isn’t on a paid plan. Subscribe to keep it
-                running — everything in it stays exactly where it is.
+                {status.promoEndsAt
+                  ? `Your free month runs until ${day(status.promoEndsAt)}. Subscribe before then to keep it running after — subscribing starts your first paid month today.`
+                  : "Your workspace is running but isn’t on a paid plan. Subscribe to keep it running — everything in it stays exactly where it is."}
               </p>
               <Button href={status.address} variant="ghost">Open workspace</Button>
             </section>
@@ -314,7 +340,7 @@ export function BillingPage() {
               <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
                 <p className="font-serif text-[1.2rem] text-ink">{status.username}.allr.work</p>
                 <Pill tone="honey">
-                  {status.kind === "trialEnded" ? "Free week ended" : status.resuming ? "Resuming" : "Paused"}
+                  {status.kind === "trialEnded" ? (status.promo ? "Free month ended" : "Free week ended") : status.resuming ? "Resuming" : "Paused"}
                 </Pill>
               </div>
               <p className="text-[.95rem] leading-[1.7] text-ink-soft">
@@ -382,6 +408,50 @@ export function BillingPage() {
                 Payments are handled by Razorpay. Cancel any time — your workspace
                 stays up to the end of the period you paid for.
               </p>
+
+              {status.kind === "none" && !profile?.promo ? (
+                <div className="mt-5 border-t border-line-soft pt-4">
+                  {!promoOpen ? (
+                    <button
+                      type="button"
+                      onClick={() => setPromoOpen(true)}
+                      className="cursor-pointer text-[.9rem] font-bold text-green-deep"
+                    >
+                      Have a promo code?
+                    </button>
+                  ) : (
+                    <div>
+                      <label htmlFor="promo-code" className="mb-1.5 block text-[.9rem] font-bold">
+                        Promo code
+                      </label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          id="promo-code"
+                          value={promoCode}
+                          onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                          placeholder="LAUNCH-2026"
+                          autoComplete="off"
+                          spellCheck={false}
+                          className="allr-field w-[12rem] font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void redeem()}
+                          disabled={redeeming || !promoCode.trim() || !nameReady}
+                          className="cursor-pointer rounded-control border border-green-line bg-card px-4 py-2 text-[.92rem] font-bold text-green-deep hover:bg-green-tint disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {redeeming ? "Checking…" : "Start free month"}
+                        </button>
+                      </div>
+                      <p className="mt-1.5 text-[.82rem] text-ink-soft">
+                        {nameReady
+                          ? "No payment details needed. Subscribe any time to keep your workspace after the free month."
+                          : "Pick an available workspace name above first."}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : null}
             </section>
           ) : null}
 

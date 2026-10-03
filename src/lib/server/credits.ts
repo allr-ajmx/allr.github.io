@@ -17,6 +17,7 @@ import {
   packById,
   remaining,
   spentThisCycle,
+  targetOf,
   type CreditLedger,
   type TopupPackId,
 } from "@/lib/billing/credits";
@@ -44,8 +45,12 @@ export async function readLedger(uid: string): Promise<CreditLedger | null> {
 }
 
 /** First stamp of a self-serve workspace also opens its ledger. */
-export function initialLedgerFields() {
-  return { credits: initialLedger() };
+/** A new ledger; a promotional month opens with its own (smaller) credit. */
+export function initialLedgerFields(includedLeftUsd?: number) {
+  const l = initialLedger();
+  if (includedLeftUsd === undefined) return { credits: l };
+  const next = { ...l, includedLeftUsd };
+  return { credits: { ...next, targetLimitUsd: targetOf(next) } };
 }
 
 /** POST /api/account/credits/topup — create the order Checkout will pay. */

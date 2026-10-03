@@ -10,8 +10,9 @@ import { workspaceStatus } from "../src/lib/account/workspace-status.ts";
 const NOW = new Date("2026-10-02T12:00:00Z");
 const bare = {
   workspace_username: null, workspace_email: null, workspace_address: null,
-  pendingWorkspaceUsername: null, billing: null, enforcement: null, trial: null,
+  pendingWorkspaceUsername: null, billing: null, enforcement: null, trial: null, promo: null,
 };
+const promo = (endsAt) => ({ code: "LAUNCH", redeemedAt: "2026-10-01T00:00:00Z", endsAt, creditUsd: 5 });
 const withWs = {
   ...bare, workspace_username: "kamal", workspace_email: "k@x.co", workspace_address: "https://kamal.allr.work",
 };
@@ -43,7 +44,7 @@ describe("before the workspace exists", () => {
 describe("once it exists", () => {
   it("paid → live, paid, with the renewal date", () => {
     const s = workspaceStatus({ ...withWs, billing: bill("active") }, null, NOW);
-    assert.deepEqual([s.kind, s.paid, s.renewsAt], ["live", true, "2026-11-02T00:00:00.000Z"]);
+    assert.deepEqual([s.kind, s.paid, s.renewsAt, s.promoEndsAt], ["live", true, "2026-11-02T00:00:00.000Z", null]);
   });
   it("no subscription at all is live but NOT paid (comp, manual era, free week)", () => {
     for (const billing of [null, bill("pending")]) {
@@ -84,5 +85,27 @@ describe("once it exists", () => {
   it("a paying customer never reads as trialEnded, whatever the old trial says", () => {
     const trial = { startedAt: "", endsAt: "2026-01-01T00:00:00Z", creditUsd: 5, creditUsedUsd: 0 };
     assert.equal(kind({ ...withWs, trial, billing: bill("active") }), "live");
+  });
+});
+
+describe("a promotional month", () => {
+  it("redeemed, no workspace yet → building (owed one, like a payment)", () => {
+    const s = workspaceStatus({ ...bare, pendingWorkspaceUsername: "kamal", promo: promo("2026-11-01T00:00:00Z") }, { status: "queued" }, NOW);
+    assert.deepEqual(s, { kind: "building", username: "kamal", delayed: false });
+  });
+  it("running → live, unpaid, with the end date", () => {
+    const s = workspaceStatus({ ...withWs, promo: promo("2026-11-01T00:00:00Z"), trial: { startedAt: "", endsAt: "2026-11-01T00:00:00Z", creditUsd: 5, creditUsedUsd: 0 } }, null, NOW);
+    assert.deepEqual([s.kind, s.paid, s.promoEndsAt], ["live", false, "2026-11-01T00:00:00Z"]);
+  });
+  it("over and unpaid → trialEnded, marked as the promo", () => {
+    const s = workspaceStatus({ ...withWs, promo: promo("2026-10-01T00:00:00Z") }, null, NOW);
+    assert.deepEqual([s.kind, s.promo], ["trialEnded", true]);
+  });
+  it("subscribing during or after it → plainly paid", () => {
+    const s = workspaceStatus({ ...withWs, promo: promo("2026-11-01T00:00:00Z"), billing: bill("active") }, null, NOW);
+    assert.deepEqual([s.kind, s.paid, s.promoEndsAt], ["live", true, null]);
+  });
+  it("an expired promo with no workspace owes nothing", () => {
+    assert.equal(kind({ ...bare, promo: promo("2026-10-01T00:00:00Z") }), "none");
   });
 });

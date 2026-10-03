@@ -109,7 +109,11 @@ function lede(s: WorkspaceStatus): string {
     case "building":
       return "Payment received. Your workspace is being built.";
     case "live":
-      return s.paid ? "Your workspace is live." : "Your workspace is live. It isn’t on a paid plan yet.";
+      return s.paid
+        ? "Your workspace is live."
+        : s.promoEndsAt
+          ? `Your workspace is live. Your free month runs until ${date(s.promoEndsAt)}.`
+          : "Your workspace is live. It isn’t on a paid plan yet.";
     case "paymentDue":
       return "Your last payment didn’t go through. Your workspace is still up — fix it to keep it that way.";
     case "ending":
@@ -121,7 +125,7 @@ function lede(s: WorkspaceStatus): string {
         ? "Payment received — your workspace is coming back."
         : "Your workspace is paused. Nothing in it is lost.";
     case "trialEnded":
-      return "Your free week has ended. Subscribe to keep your workspace.";
+      return `Your free ${s.promo ? "month" : "week"} has ended. Subscribe to keep your workspace.`;
   }
 }
 
@@ -144,7 +148,8 @@ function WorkspaceCard({
         <h2 className="mb-1 font-serif text-[1.2rem] text-ink">Get your workspace</h2>
         <p className="mb-5 max-w-[56ch] text-[.96rem] leading-[1.7] text-ink-soft">
           One workspace of your own, with $20 of AI credit every month
-          {plan ? ` — ${plan.display}/${plan.interval}` : ""}. Cancel any time.
+          {plan ? ` — ${plan.display}/${plan.interval}` : ""}. Cancel any time. Have a
+          promo code? Enter it when you choose a name.
         </p>
         <Button href="/account/billing/">Choose a name</Button>
       </Card>
@@ -169,14 +174,14 @@ function WorkspaceCard({
 
   const { tone, label } =
     s.kind === "live"
-      ? { tone: "green" as const, label: "Live" }
+      ? { tone: "green" as const, label: s.promoEndsAt ? "Free month" : "Live" }
       : s.kind === "paymentDue"
         ? { tone: "honey" as const, label: "Payment due" }
         : s.kind === "ending"
           ? { tone: "honey" as const, label: s.over ? "Ended" : "Cancelled" }
           : s.kind === "paused"
             ? { tone: "honey" as const, label: s.resuming ? "Resuming" : "Paused" }
-            : { tone: "honey" as const, label: "Free week ended" };
+            : { tone: "honey" as const, label: s.promo ? "Free month ended" : "Free week ended" };
   const address = "address" in s ? s.address : null;
   const subscribeLabel =
     s.kind === "live" && !s.paid
@@ -224,7 +229,9 @@ function detail(s: Exclude<WorkspaceStatus, { kind: "none" } | { kind: "building
     case "live":
       return s.paid
         ? "Everything you make in it can be published from there."
-        : "Subscribe to keep it running — your work stays exactly where it is.";
+        : s.promoEndsAt
+          ? `Subscribe before ${date(s.promoEndsAt)} to keep it running after the free month.`
+          : "Subscribe to keep it running — your work stays exactly where it is.";
     case "paymentDue":
       return "If the payment isn’t fixed soon, the workspace is paused until it is.";
     case "ending": {
@@ -263,7 +270,9 @@ function PlanCard({ status: s, billing }: { status: WorkspaceStatus; billing: Bi
           ? "Last payment failed"
           : s.kind === "paused" && s.resuming
             ? "Paid · resuming"
-            : "No active subscription";
+            : s.kind === "live" && s.promoEndsAt
+              ? `Free month · until ${date(s.promoEndsAt)}`
+              : "No active subscription";
   return (
     <Card>
       <p className="mb-1 text-[.78rem] font-bold tracking-[0.05em] text-ink-soft uppercase">Plan</p>

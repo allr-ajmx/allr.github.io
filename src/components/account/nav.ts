@@ -42,6 +42,7 @@ export const ADMIN_NAV_SECTION: AccountNavSection = {
   items: [
     { href: "/account/admin/", label: "Customers", icon: "keys" },
     { href: "/account/admin/ops/", label: "Operations", icon: "revenue" },
+    { href: "/account/admin/promos/", label: "Promo codes", icon: "credits" },
   ],
 };
 

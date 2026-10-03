@@ -58,7 +58,7 @@ export async function summarize(profile: UserProfile): Promise<BillingSummary> {
     hasWorkspace: workspace,
     pendingUsername: profile.pendingWorkspaceUsername,
     provisioning:
-      !workspace && profile.billing ? await readQueue(profile.uid) : null,
+      !workspace && (profile.billing || profile.promo) ? await readQueue(profile.uid) : null,
     plan: {
       currency,
       amountMinor: PLAN_PRICING[currency].amountMinor,

@@ -17,6 +17,8 @@ export type ConsistencyInput = {
   rosterSeenAt: string | null;
   /** Is the queue entry's workspace (queueUsername) live on the VPS roster? */
   queueWorkspaceOnVps: boolean;
+  /** A promotional month is running (owed a workspace like a payment). */
+  promoRunning?: boolean;
   /** ISO time the queue entry last changed (a fresh build), if any. */
   queueUpdatedAt?: string | null;
 };
@@ -28,17 +30,27 @@ const BUILD_PENDING = new Set(["queued", "claimed", "failed"]);
 
 export type Issue = { code: string; message: string };
 
-/** Paid and no workspace yet: the only state in which a workspace is owed. */
-export function awaitingWorkspace(billingStatus: string | null | undefined, hasWorkspace: boolean): boolean {
-  return billingStatus === "active" && !hasWorkspace;
+/**
+ * Owed a workspace and none yet: paid (subscription active), or a promotional
+ * month redeemed and still running. The only states in which one is built.
+ */
+export function awaitingWorkspace(
+  billingStatus: string | null | undefined,
+  hasWorkspace: boolean,
+  promoRunning = false,
+): boolean {
+  return (billingStatus === "active" || promoRunning) && !hasWorkspace;
 }
 
 export function consistencyIssues(c: ConsistencyInput, now = Date.now()): Issue[] {
   const out: Issue[] = [];
   const ws = c.workspaceUsername;
   // A finished or released entry is history, not a pending build.
-  if (awaitingWorkspace(c.billingStatus, Boolean(ws)) && !BUILD_PENDING.has(c.queueStatus ?? "")) {
-    out.push({ code: "paid-not-queued", message: "Paid, but nothing is queued to build their workspace. Use Provision…" });
+  if (awaitingWorkspace(c.billingStatus, Boolean(ws), c.promoRunning) && !BUILD_PENDING.has(c.queueStatus ?? "")) {
+    out.push({
+      code: "paid-not-queued",
+      message: `${c.billingStatus === "active" ? "Paid" : "Promo redeemed"}, but nothing is queued to build their workspace. Use Provision…`,
+    });
   }
   // Built and still on the VPS, but the account has no link: a lost stamp.
   // (Built then removed is normal; older entries predate "released".)
