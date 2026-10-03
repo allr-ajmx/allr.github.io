@@ -194,6 +194,29 @@ export function settle(l: CreditLedger, liveUsageUsd: number, now: Date = new Da
   return withTarget({ ...next, pending: [] });
 }
 
+/**
+ * The workspace (and its OpenRouter key) was removed. The next workspace gets
+ * a NEW key whose usage starts at zero, so the ledger is rebased onto it:
+ * purchased packs and unexpired grants carry over as what was left of them;
+ * the monthly included credit belonged to the ended subscription and goes
+ * (a new subscription's first charge grants it afresh). Queued changes and
+ * pending charges are kept for the next settlement.
+ */
+export function forNewKey(l: CreditLedger, now: Date = new Date()): CreditLedger {
+  const p = pools(l, l.usageUsd);
+  return withTarget({
+    ...l,
+    usageUsd: 0,
+    cycleStartUsageUsd: 0,
+    usageSyncedAt: null,
+    includedLeftUsd: 0,
+    topupBalanceUsd: p.topup,
+    grants: p.grants.filter(
+      (g) => g.usd > 0 && !(g.expiresAt && Date.parse(g.expiresAt) <= now.getTime()),
+    ),
+  });
+}
+
 /** Firestore's stored shape → a ledger; tolerant of every older shape. */
 export function ledgerFromDoc(raw: Record<string, unknown> | null | undefined): CreditLedger | null {
   if (!raw) return null;

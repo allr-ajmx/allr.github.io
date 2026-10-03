@@ -91,7 +91,7 @@ export async function POST(request: Request) {
       (i) => Number.isFinite(i?.orUsageUsd) && typeof i?.email === "string",
     );
     const metered = withUsage.length
-      ? await ingestUsage(withUsage.map((i) => ({ email: i.email, usageUsd: i.orUsageUsd! })))
+      ? await ingestUsage(withUsage.map((i) => ({ email: i.email, usageUsd: i.orUsageUsd!, username: i.username.trim().toLowerCase() })))
       : 0;
     return Response.json({ applied: seen.length, metered });
   } catch (error) {

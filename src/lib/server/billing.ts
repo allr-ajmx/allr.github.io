@@ -389,11 +389,13 @@ export async function stopBillingForRemoval(
   const subId = billing.subscriptionId;
   const live = await fetchSubscription(subId);
   const parts: string[] = [];
+  // Removal ends the period now: nothing should promise "stays up until".
   const markEnded = (providerStatus: string) =>
     ref.update({
       "billing.status": "ended",
       "billing.providerStatus": providerStatus,
       "billing.statusSince": new Date().toISOString(),
+      "billing.currentPeriodEnd": new Date().toISOString(),
       "billing.updatedAt": FieldValue.serverTimestamp(),
     });
 

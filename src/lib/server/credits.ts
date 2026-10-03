@@ -157,6 +157,9 @@ export function applyMonthlyGrantInTransaction(
   if (!ledger) return;
   const next = applyMonthlyGrant(ledger);
   tx.update(userRef, { credits: next });
+  // No workspace yet (paying again after a removal): there is no key to move.
+  // Linking the new workspace queues the sync that settles this charge.
+  if (!String(data.workspace_username ?? "").trim()) return;
   enqueueOp(tx, {
     uid: data.uid,
     email: data.email,
@@ -166,7 +169,7 @@ export function applyMonthlyGrantInTransaction(
 }
 
 /** The worker's usage push: [{email, usageUsd}], matched by email claim. */
-export async function ingestUsage(items: { email: string; usageUsd: number }[]) {
+export async function ingestUsage(items: { email: string; usageUsd: number; username?: string }[]) {
   const db = adminDb();
   const now = new Date().toISOString();
   let applied = 0;
@@ -179,6 +182,10 @@ export async function ingestUsage(items: { email: string; usageUsd: number }[]) 
       .get();
     const doc = users.docs[0];
     if (!doc) continue;
+    // Usage belongs to one key, i.e. one workspace: never let another
+    // workspace with the same email — or a removed one's last report —
+    // land on this ledger (usage only ever goes up, so it would stick).
+    if (item.username && doc.data().workspace_username !== item.username) continue;
     const ledger = asLedger(doc.data());
     if (!ledger) continue;
     await doc.ref.update({ credits: applyUsage(ledger, item.usageUsd, now) });

@@ -5,7 +5,7 @@ import { adminDb } from "./admin";
 import { ApiError, badRequest, conflict } from "./errors";
 import type { Caller } from "./session";
 import { checkUsernameShape } from "@/lib/admin/username";
-import { appliedLimit, initialLedger as initialCreditLedger, ledgerFromDoc, settle } from "@/lib/billing/credits";
+import { appliedLimit, forNewKey, initialLedger as initialCreditLedger, ledgerFromDoc, settle } from "@/lib/billing/credits";
 import { shipLog } from "./logship";
 import { isDue, nextAttempt, shouldEnqueue } from "@/lib/admin/retry";
 
@@ -310,6 +310,7 @@ export async function completeOp(
   // keep asking. (An admin resume on an enforced account counts too — the
   // admin has spoken.)
   const data = data0;
+  if (data.op === "remove") await afterRemoval(String(data.uid ?? ""), String(data.username ?? ""));
   if (data.op === "resume") {
     const ref = await userRefForOp(null, String(data.uid ?? ""), String(data.username ?? ""));
     if (ref) {
@@ -328,6 +329,9 @@ export async function completeOp(
  * Nothing to pay, nothing to pick; the trial stamps itself on the next read
  * like any provisioned workspace.
  */
+/** A roster row older than this is no longer being reported by the VPS. */
+const ROSTER_FRESH_MS = 30 * 60_000;
+
 export async function adoptFromRoster(
   uid: string,
   email: string,
@@ -336,12 +340,39 @@ export async function adoptFromRoster(
   const rows = await db
     .collection("workspace_roster")
     .where("email", "==", email.trim().toLowerCase())
-    .limit(1)
+    .limit(10)
     .get();
-  const row = rows.docs[0]?.data();
-  if (!row?.username) return false;
+  // Only a workspace the VPS is still reporting: a removed one lingers on the
+  // roster until the next push (and, before rows were marked gone, forever) —
+  // adopting it would hand someone a workspace that doesn't exist.
+  const now = Date.now();
+  const live = rows.docs
+    .map((d) => d.data())
+    .filter((r) => r.username && !r.gone)
+    .filter((r) => {
+      const seen = r.updatedAt?.toDate?.()?.getTime?.() ?? 0;
+      return now - seen < ROSTER_FRESH_MS;
+    });
+  const row = live[0];
+  if (!row) return false;
 
   const username = String(row.username);
+  // A removal queued, running or finished after the VPS last reported it
+  // means it is going or gone, whatever the roster still says.
+  const removals = await db
+    .collection(OPS)
+    .where("username", "==", username)
+    .where("op", "==", "remove")
+    .limit(5)
+    .get();
+  const reportedAt = row.updatedAt?.toDate?.()?.getTime?.() ?? 0;
+  const removing = removals.docs.some((o) => {
+    const x = o.data();
+    if (x.status === "queued" || x.status === "claimed") return true;
+    const at = x.updatedAt?.toDate?.()?.getTime?.() ?? 0;
+    return x.status === "done" && at >= reportedAt;
+  });
+  if (removing) return false;
   const userRef = db.collection(USERS).doc(uid);
   const nameRef = db.collection(USERNAMES).doc(username);
 
@@ -374,6 +405,39 @@ export async function adoptFromRoster(
  * but an account can move to a new uid (email transfer, stranded-identity
  * adoption); the workspace name is the stable key, so fall back to it.
  */
+/**
+ * A removal finished on the VPS. The VPS also clears the stamp, but the site
+ * must not depend on that call having worked: unlink the account here, rebase
+ * the credit ledger for whatever key comes next, and close the queue entry so
+ * the build reads as history and a new payment can start a fresh one.
+ */
+async function afterRemoval(uid: string, username: string): Promise<void> {
+  if (!username) return;
+  const ref = await userRefForOp(null, uid, username);
+  if (!ref) return;
+  const db = adminDb();
+  await db.runTransaction(async (tx) => {
+    const [user, queue] = await Promise.all([tx.get(ref), tx.get(queueRef(ref.id))]);
+    const d = user.data();
+    if (!d) return;
+    const linked = String(d.workspace_username ?? "");
+    // Only this workspace: an account that has since moved on keeps its link.
+    if (linked && linked !== username) return;
+    const ledger = ledgerFromDoc(d.credits);
+    tx.update(ref, {
+      workspace_username: null,
+      workspace_email: null,
+      workspace_address: null,
+      ...(ledger ? { credits: forNewKey(ledger) } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    if (queue.exists && queue.data()?.username === username && queue.data()?.status === "provisioned") {
+      tx.update(queue.ref, { status: "released", updatedAt: FieldValue.serverTimestamp() });
+    }
+  });
+  shipLog("orchestrator", "workspace removed; account unlinked", { uid: ref.id, username });
+}
+
 async function userRefForOp(
   tx: FirebaseFirestore.Transaction | null,
   uid: string,

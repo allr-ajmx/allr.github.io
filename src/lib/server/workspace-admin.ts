@@ -84,18 +84,17 @@ export async function stampWorkspace(stamp: WorkspaceStamp): Promise<{
         email: stamp.email,
         reservedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
-      // Open the credit ledger once; never reset an existing one — and make
-      // the key match it right away rather than trusting the minted default.
-      if (!user.data()?.credits) {
-        tx.update(user.ref, initialLedgerFields());
-        enqueueOp(tx, {
-          uid,
-          email: stamp.email,
-          username: stamp.username,
-          op: "sync_limit",
-          valueUsd: 0,
-        });
-      }
+      // Open the credit ledger once; never reset an existing one. Either way
+      // make the key match it now rather than trusting the minted default —
+      // a rebuilt workspace has a new key and a ledger carried from the old.
+      if (!user.data()?.credits) tx.update(user.ref, initialLedgerFields());
+      enqueueOp(tx, {
+        uid,
+        email: stamp.email,
+        username: stamp.username,
+        op: "sync_limit",
+        valueUsd: 0,
+      });
     } else if (queue.data()?.status === "provisioned") {
       // The workspace that entry built is unlinked now: close the entry, so it
       // reads as history, and a future payment queues a fresh build.

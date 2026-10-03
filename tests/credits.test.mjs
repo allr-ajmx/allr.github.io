@@ -22,6 +22,7 @@ import {
   spentThisCycle,
   targetOf,
   TOPUP_PACKS,
+  forNewKey,
 } from "../src/lib/billing/credits.ts";
 
 const NOW = new Date("2026-10-02T12:00:00Z");
@@ -192,5 +193,23 @@ describe("per-customer included amount", () => {
     assert.equal(remaining(legacy, NOW).includedUsd, 14);
     assert.equal(targetOf(legacy), 20);
     assert.equal(targetOf(settle(legacy, 6, NOW)), 6 + 14);
+  });
+});
+
+describe("the workspace is removed, a new one (new key) may follow", () => {
+  it("packs and live grants carry as what's left; included goes; usage restarts at zero", () => {
+    let l = applyTopup(initialLedger(), 10);
+    l = settle(queueChange(l, grant("g1", 15, "2026-12-01T00:00:00Z")), 0, NOW);
+    l = applyUsage(l, 27, "t"); // 20 included + 7 of the grant
+    const n = forNewKey(l, NOW);
+    assert.deepEqual([n.usageUsd, n.cycleStartUsageUsd, n.includedLeftUsd, n.topupBalanceUsd], [0, 0, 0, 10]);
+    assert.equal(n.grants[0].usd, 8);
+    assert.equal(targetOf(n), 18); // the new key's limit: exactly what is left
+  });
+  it("expired grants don't survive, and a new subscription's charge restores included", () => {
+    let l = settle(queueChange(initialLedger(), grant("old", 5, "2026-10-01T00:00:00Z")), 0, new Date("2026-09-20T00:00:00Z"));
+    const n = forNewKey(l, NOW);
+    assert.deepEqual(n.grants, []);
+    assert.equal(targetOf(settle(applyMonthlyGrant(n), 0, NOW)), INCLUDED_USD);
   });
 });
