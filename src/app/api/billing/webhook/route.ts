@@ -1,7 +1,8 @@
 import { verifyWebhookSignature } from "@/lib/billing/signature";
 import { applyWebhookEvent } from "@/lib/server/billing";
 import { applyTopupPayment } from "@/lib/server/credits";
-import type { RzpPayment, RzpSubscription } from "@/lib/server/razorpay";
+import type { RzpPayment, RzpRefund, RzpSubscription } from "@/lib/server/razorpay";
+import { applyRefund, recordDispute, type RzpDispute } from "@/lib/server/payments";
 
 /**
  * Razorpay calls this; nobody else can produce the signature. This route is
@@ -31,6 +32,8 @@ export async function POST(request: Request) {
     payload?: {
       subscription?: { entity?: RzpSubscription };
       payment?: { entity?: RzpPayment };
+      refund?: { entity?: RzpRefund };
+      dispute?: { entity?: RzpDispute };
     };
   };
   try {
@@ -44,10 +47,19 @@ export async function POST(request: Request) {
   try {
     // Credit top-ups arrive as captured one-time payments; idempotent by
     // payment id inside, so no event-id bookkeeping is needed here.
-    if (name === "payment.captured" && event.payload?.payment?.entity) {
+    if ((name === "payment.captured" || name === "payment.authorized") && event.payload?.payment?.entity) {
       const outcome = await applyTopupPayment(event.payload.payment.entity, eventId);
       console.log(`[billing] ${name} ${eventId}: ${outcome}`);
       return Response.json({ outcome });
+    }
+    if (name.startsWith("refund.") && event.payload?.refund?.entity) {
+      const outcome = await applyRefund(event.payload.refund.entity);
+      console.log(`[billing] ${name} ${eventId}: ${outcome}`);
+      return Response.json({ outcome });
+    }
+    if (name.startsWith("payment.dispute.") && event.payload?.dispute?.entity) {
+      await recordDispute(name, event.payload.dispute.entity);
+      return Response.json({ outcome: "recorded" });
     }
     const outcome = await applyWebhookEvent(
       eventId || `${name}:${event.payload?.subscription?.entity?.id}:${raw.length}`,

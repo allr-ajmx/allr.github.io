@@ -131,3 +131,18 @@ describe("promo codes", () => {
     refused({ action: "promo_set_active", code: "VIP", active: "no" });
   });
 });
+
+describe("payment levers", () => {
+  it("resolve_flag takes an event id and an optional note", () => {
+    assert.deepEqual(parseAction({ action: "resolve_flag", id: "refund:rfnd_123", note: " checked " }, NOW),
+      { action: "resolve_flag", id: "refund:rfnd_123", note: "checked" });
+    refused({ action: "resolve_flag", id: "../users/x" });
+    refused({ action: "resolve_flag", id: "" });
+  });
+  it("refund_topup only takes a Razorpay payment id", () => {
+    assert.deepEqual(parseAction({ action: "refund_topup", paymentId: "pay_Tj8wuitRbP0Unp" }, NOW),
+      { action: "refund_topup", paymentId: "pay_Tj8wuitRbP0Unp" });
+    refused({ action: "refund_topup", paymentId: "order_123" });
+    refused({ action: "refund_topup", paymentId: "pay_x/../y" });
+  });
+});

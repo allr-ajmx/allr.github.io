@@ -17,11 +17,16 @@ export type ConsistencyInput = {
   rosterSeenAt: string | null;
   /** Is the queue entry's workspace (queueUsername) live on the VPS roster? */
   queueWorkspaceOnVps: boolean;
+  /** ISO time a retry is scheduled for, if the build is backing off. */
+  queueRetryAt?: string | null;
   /** A promotional month is running (owed a workspace like a payment). */
   promoRunning?: boolean;
   /** ISO time the queue entry last changed (a fresh build), if any. */
   queueUpdatedAt?: string | null;
 };
+
+/** A build waiting this long (not backing off) is stuck: worker down or at capacity. */
+export const BUILD_STUCK_MS = 30 * 60_000;
 
 /** A just-built workspace reaches the roster on the next push (~5 min). */
 const FRESH_BUILD_MS = 15 * 60_000;
@@ -51,6 +56,16 @@ export function consistencyIssues(c: ConsistencyInput, now = Date.now()): Issue[
       code: "paid-not-queued",
       message: `${c.billingStatus === "active" ? "Paid" : "Promo redeemed"}, but nothing is queued to build their workspace. Use Provision…`,
     });
+  }
+  if ((c.queueStatus === "queued" || c.queueStatus === "claimed") && c.queueUpdatedAt) {
+    const backingOff = !!c.queueRetryAt && Date.parse(c.queueRetryAt) > now;
+    const waited = now - Date.parse(c.queueUpdatedAt);
+    if (!backingOff && waited > BUILD_STUCK_MS) {
+      out.push({
+        code: "build-stuck",
+        message: `Their build has waited ${Math.round(waited / 60_000)} min — is the VPS worker running, or the box at capacity (ALLR_SELF_SERVE_MAX)?`,
+      });
+    }
   }
   // Built and still on the VPS, but the account has no link: a lost stamp.
   // (Built then removed is normal; older entries predate "released".)

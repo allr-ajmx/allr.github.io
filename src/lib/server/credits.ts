@@ -1,11 +1,12 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "./admin";
 import { badRequest, forbidden } from "./errors";
 import type { Caller } from "./session";
 import { readOrAdoptProfile } from "./profiles";
-import { createOrder, fetchOrder, razorpayKeyId, type RzpPayment } from "./razorpay";
+import { capturePayment, createOrder, fetchOrder, razorpayKeyId, refundPayment, type RzpPayment } from "./razorpay";
 import { enqueueOp } from "./provisioning";
 import { planCurrencyFor } from "@/lib/billing/model";
 import {
@@ -68,6 +69,8 @@ export async function startTopup(caller: Caller, packId: unknown) {
   const order = await createOrder(pack.price[currency], currency, {
     kind: "topup",
     uid: caller.uid,
+    // The account can move to a new login before the payment lands.
+    email: caller.email,
     pack: pack.id,
     credit_usd: String(pack.creditUsd),
   });
@@ -82,17 +85,46 @@ export async function startTopup(caller: Caller, packId: unknown) {
   };
 }
 
+export type TopupOutcome = "applied" | "ignored" | "duplicate" | "refunded" | "refund-failed";
+
+const emailKey = (email: string) =>
+  createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
+
+const workspaceLive = (d: FirebaseFirestore.DocumentData | undefined) =>
+  Boolean(
+    String(d?.workspace_username ?? "").trim() &&
+      String(d?.workspace_email ?? "").trim() &&
+      String(d?.workspace_address ?? "").trim(),
+  );
+
+/** The account an order belongs to: by uid, else (it moved logins) by email. */
+async function accountFor(uid: string, email: string | undefined) {
+  const db = adminDb();
+  const byUid = db.collection(USERS).doc(uid);
+  if ((await byUid.get()).exists) return byUid;
+  if (!email) return null;
+  const claim = await db.collection("user_emails").doc(emailKey(email)).get();
+  const moved = claim.data()?.uid as string | undefined;
+  return moved ? db.collection(USERS).doc(moved) : null;
+}
+
 /**
- * A captured payment from the webhook. Only order-backed payments whose order
- * says `kind: topup` matter here; everything else is the subscription's
- * business. The order is re-fetched from Razorpay — notes from our own server
- * to our own server, never trusted off the wire.
+ * A credit-pack payment, from the webhook (payment.authorized / .captured)
+ * or the reconciler — idempotent by payment id either way.
+ *
+ * - Not one of our top-up orders: ignored (recorded when money is involved).
+ * - Authorized but not captured: captured here, then applied.
+ * - The account has a live workspace: the pack is credited.
+ * - Otherwise (no account, no workspace): refunded automatically — a pack
+ *   tops up a workspace, and money we cannot apply goes back.
  */
 export async function applyTopupPayment(
   payment: RzpPayment,
   eventId = "",
-): Promise<"applied" | "ignored" | "duplicate"> {
-  if (payment.status !== "captured" || !payment.order_id) return "ignored";
+  { source = "webhook" }: { source?: "webhook" | "reconcile" } = {},
+): Promise<TopupOutcome> {
+  if (!payment.order_id || payment.invoice_id) return "ignored";
+  if (payment.status !== "captured" && payment.status !== "authorized") return "ignored";
   const order = await fetchOrder(payment.order_id);
   const triage = triageTopup(order);
   const ids = { paymentId: payment.id, orderId: order.id };
@@ -104,48 +136,107 @@ export async function applyTopupPayment(
     return "ignored";
   }
 
-  const uid = String(order.notes!.uid);
-  const creditUsd = Number(order.notes!.credit_usd);
-
   const db = adminDb();
   const purchaseRef = db.collection(PURCHASES).doc(payment.id);
-  const userRef = db.collection(USERS).doc(uid);
+  if ((await purchaseRef.get()).exists) return "duplicate";
+
+  if (payment.status === "authorized") {
+    await capturePayment(payment.id, payment.amount, payment.currency);
+    shipLog("billing", "top-up payment captured", { payment: payment.id });
+  }
+
+  const notesUid = String(order.notes!.uid);
+  const notesEmail = typeof order.notes?.email === "string" ? order.notes.email : undefined;
+  const creditUsd = Number(order.notes!.credit_usd);
+  const userRef = await accountFor(notesUid, notesEmail);
 
   const outcome = await db.runTransaction(async (tx) => {
-    const [seen, user] = await Promise.all([tx.get(purchaseRef), tx.get(userRef)]);
-    if (seen.exists) return "duplicate" as const;
-    if (!user.exists) return "unmatched" as const;
-
-    const ledger = asLedger(user.data()) ?? initialLedger();
-    const next = applyTopup(ledger, creditUsd);
-    tx.update(userRef, { credits: next, updatedAt: FieldValue.serverTimestamp() });
-    tx.set(purchaseRef, {
-      uid,
+    const [seen, user] = await Promise.all([
+      tx.get(purchaseRef),
+      userRef ? tx.get(userRef) : Promise.resolve(null),
+    ]);
+    if (seen.exists) return { kind: "duplicate" as const };
+    const base = {
+      uid: userRef?.id ?? notesUid,
       orderId: order.id,
       creditUsd,
       amountMinor: payment.amount,
       currency: payment.currency,
       createdAt: FieldValue.serverTimestamp(),
-    });
+    };
+    if (!user?.exists || !workspaceLive(user.data())) {
+      const reason = !user?.exists ? "no account for this order" : "no live workspace to top up";
+      // Claimed before refunding, so a redelivery can never refund twice.
+      tx.set(purchaseRef, { ...base, status: "refunding", reason });
+      return { kind: "refund" as const, reason };
+    }
+    const d = user.data()!;
+    const next = applyTopup(asLedger(d) ?? initialLedger(), creditUsd);
+    tx.update(userRef!, { credits: next, updatedAt: FieldValue.serverTimestamp() });
+    tx.set(purchaseRef, { ...base, status: "applied" });
     enqueueOp(tx, {
-      uid,
-      email: user.data()!.email,
-      username: user.data()!.workspace_username ?? "",
-      op: "sync_limit", valueUsd: next.targetLimitUsd,
+      uid: userRef!.id,
+      email: d.email,
+      username: d.workspace_username,
+      op: "sync_limit",
+      valueUsd: next.targetLimitUsd,
     });
-    return "applied" as const;
+    if (source === "reconcile") {
+      tx.set(db.collection("billing_events").doc(`reconcile:${payment.id}`), {
+        eventName: "payment.captured",
+        uid: userRef!.id,
+        paymentId: payment.id,
+        orderId: order.id,
+        outcome: "applied-by-reconcile",
+        reason: `webhook missed — $${creditUsd} top-up applied from Razorpay`,
+        flag: true,
+        resolved: false,
+        receivedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    return { kind: "applied" as const, uid: userRef!.id };
   });
 
-  if (outcome === "unmatched") {
-    await recordIgnoredWebhook(eventId || `payment:${payment.id}`, "payment.captured",
-      `paid top-up of $${creditUsd} for an account that no longer exists`, { ...ids, uid });
-    return "ignored";
+  if (outcome.kind === "duplicate") return "duplicate";
+  if (outcome.kind === "applied") {
+    console.log(`[credits] topup +$${creditUsd} for ${outcome.uid} (${source})`);
+    shipLog("billing", "top-up applied", { uid: outcome.uid, usd: creditUsd, payment: payment.id, source });
+    return "applied";
   }
-  if (outcome === "applied") {
-    console.log(`[credits] topup +$${creditUsd} for ${uid}`);
-    shipLog("billing", "top-up applied", { uid, usd: creditUsd, payment: payment.id });
+
+  // Money we can't apply goes back, automatically.
+  try {
+    const refund = await refundPayment(payment.id, `auto: ${outcome.reason}`);
+    await purchaseRef.update({ status: "refunded", refundIds: [refund.id], refundedMinor: refund.amount });
+    await db.collection("billing_events").doc(`autorefund:${payment.id}`).set({
+      eventName: "payment.captured",
+      uid: userRef?.id ?? notesUid,
+      paymentId: payment.id,
+      orderId: order.id,
+      outcome: "refunded",
+      reason: `top-up refunded automatically: ${outcome.reason}`,
+      flag: false,
+      receivedAt: FieldValue.serverTimestamp(),
+    });
+    shipLog("billing", "top-up refunded automatically", { payment: payment.id, reason: outcome.reason }, "warn");
+    return "refunded";
+  } catch (e) {
+    console.error(`[credits] auto-refund of ${payment.id} failed`, e);
+    await purchaseRef.update({ status: "refund-failed" }).catch(() => {});
+    await db.collection("billing_events").doc(`autorefund:${payment.id}`).set({
+      eventName: "payment.captured",
+      uid: userRef?.id ?? notesUid,
+      paymentId: payment.id,
+      orderId: order.id,
+      outcome: "refund-failed",
+      reason: `top-up couldn't be applied (${outcome.reason}) and the automatic refund failed — refund it in Razorpay`,
+      flag: true,
+      resolved: false,
+      receivedAt: FieldValue.serverTimestamp(),
+    });
+    shipLog("billing", "top-up auto-refund FAILED", { payment: payment.id, error: String(e) }, "error");
+    return "refund-failed";
   }
-  return outcome;
 }
 
 /**

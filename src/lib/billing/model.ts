@@ -58,6 +58,8 @@ export type Billing = {
    * Belongs to `subscriptionId` — a different subscription starts it false.
    */
   cancelAtPeriodEnd?: boolean;
+  /** Razorpay's paid_count as last recorded: a month is granted once per increase. */
+  paidCount?: number | null;
   /** ISO 8601. */
   updatedAt: string;
 };

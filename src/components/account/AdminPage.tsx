@@ -154,7 +154,8 @@ export function AdminPage() {
             const retryingQueues = customers.filter((c) => c.queue?.status === "queued" && (c.queue.attempts ?? 0) > 0);
             const retryingOps = ops.filter((o) => o.status === "queued" && o.attempts > 0);
             const inconsistent = customers.filter((c) => (c.issues ?? []).length > 0);
-            if (!failedQueues.length && !failedOps.length && !retryingQueues.length && !retryingOps.length && !inconsistent.length) return null;
+            const flags = data.flags ?? [];
+            if (!failedQueues.length && !failedOps.length && !retryingQueues.length && !retryingOps.length && !inconsistent.length && !flags.length) return null;
             const when = (at: string | null | undefined) =>
               at ? ` — next try ${new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "";
             const retryBtn =
@@ -177,6 +178,24 @@ export function AdminPage() {
                     <button type="button" className={retryBtn} disabled={busy}
                       onClick={() => void act({ action: "retry", kind: "op", id: o.id }, null)}>
                       Retry
+                    </button>
+                  </p>
+                ))}
+                {flags.map((f) => (
+                  <p key={`f-${f.id}`} className="py-0.5">
+                    <b>Payment</b>
+                    {f.who ? <> · {f.who}</> : null}
+                    {" · "}{f.reason || f.eventName}
+                    {f.paymentId ? <span className="font-mono text-[.82rem]"> · {f.paymentId}</span> : null}
+                    {f.subscriptionId ? <span className="font-mono text-[.82rem]"> · {f.subscriptionId}</span> : null}
+                    <span className="text-[.82rem] text-ink-soft"> · {f.at ? new Date(f.at).toLocaleString() : ""}</span>
+                    <button type="button" className={retryBtn} disabled={busy}
+                      onClick={() => {
+                        const note = window.prompt("Resolved — what did you do? (optional)", "") ?? null;
+                        if (note === null) return;
+                        void act({ action: "resolve_flag", id: f.id, note }, null);
+                      }}>
+                      Resolve
                     </button>
                   </p>
                 ))}

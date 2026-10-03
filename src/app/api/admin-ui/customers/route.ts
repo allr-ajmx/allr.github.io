@@ -22,12 +22,28 @@ export async function GET(request: Request) {
     await requireAdminUser(request);
     const db = adminDb();
 
-    const [users, queue, ops, roster] = await Promise.all([
+    const [users, queue, ops, roster, flags, purchases] = await Promise.all([
       db.collection("users").orderBy("createdAt", "desc").limit(500).get(),
       db.collection("provision_queue").get(),
       db.collection("workspace_ops").where("status", "in", ["queued", "claimed", "failed"]).limit(100).get(),
       db.collection("workspace_roster").get(),
+      db.collection("billing_events").where("flag", "==", true).where("resolved", "==", false).limit(100).get(),
+      db.collection("credit_purchases").limit(1000).get(),
     ]);
+    const purchasesByUid = new Map<string, { paymentId: string; creditUsd: number; amountMinor: number; currency: string; status: string; createdAt: string }[]>();
+    for (const p of purchases.docs) {
+      const x = p.data();
+      const list = purchasesByUid.get(String(x.uid)) ?? [];
+      list.push({
+        paymentId: p.id,
+        creditUsd: Number(x.creditUsd ?? 0),
+        amountMinor: Number(x.amountMinor ?? 0),
+        currency: String(x.currency ?? ""),
+        status: String(x.status ?? "applied"),
+        createdAt: iso(x.createdAt) || "",
+      });
+      purchasesByUid.set(String(x.uid), list);
+    }
 
     const queueByUid = new Map(queue.docs.map((d) => [d.id, d.data()]));
     const rosterByUsername = new Map(roster.docs.map((d) => [d.id, d.data()]));
@@ -106,12 +122,15 @@ export async function GET(request: Request) {
           queueStatus: q?.status ?? null,
           queueUsername: q?.username ?? null,
           queueUpdatedAt: iso(q?.updatedAt) || null,
+          queueRetryAt: iso(q?.retryAt) || null,
+          promoRunning: !!d.promo?.endsAt && Date.parse(d.promo.endsAt) > Date.now(),
           queueWorkspaceOnVps: Boolean(q?.username && rosterByUsername.get(q.username) && !rosterByUsername.get(q.username)?.gone),
           rosterSeenAt: (() => {
             const r = rosterByUsername.get(d.workspace_username);
             return r && !r.gone ? iso(r.updatedAt) || null : null;
           })(),
         }),
+        purchases: (purchasesByUid.get(doc.id) ?? []).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
         queue: q
           ? { status: q.status, error: q.error ?? null, attempts: Number(q.attempts ?? 0), retryAt: iso(q.retryAt) || null }
           : null,
@@ -146,9 +165,24 @@ export async function GET(request: Request) {
         platform: platform(r.username),
       }));
 
+    const emailByUid = new Map(users.docs.map((u) => [u.id, String(u.data().email ?? "")]));
     return Response.json({
       customers,
       workspaceOnly,
+      flags: flags.docs
+        .map((f) => {
+          const x = f.data();
+          return {
+            id: f.id,
+            at: iso(x.receivedAt) || "",
+            eventName: String(x.eventName ?? ""),
+            reason: String(x.reason ?? x.outcome ?? ""),
+            who: x.uid ? emailByUid.get(String(x.uid)) || String(x.uid) : null,
+            paymentId: x.paymentId ?? null,
+            subscriptionId: x.subscriptionId ?? null,
+          };
+        })
+        .sort((a, b) => b.at.localeCompare(a.at)),
       pendingOps: ops.docs.map((d) => ({
         id: d.id,
         op: d.data().op,

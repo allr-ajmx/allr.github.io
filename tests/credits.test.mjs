@@ -213,3 +213,22 @@ describe("the workspace is removed, a new one (new key) may follow", () => {
     assert.equal(targetOf(settle(applyMonthlyGrant(n), 0, NOW)), INCLUDED_USD);
   });
 });
+
+describe("a refunded credit pack", () => {
+  it("takes back what's left of it at settlement, against live usage", () => {
+    let l = applyTopup(initialLedger(), 9.2);
+    l = settle(queueChange(l, { type: "refund_topup", usd: 9.2 }), 0, NOW);
+    assert.equal(l.topupBalanceUsd, 0);
+    assert.equal(targetOf(l), 20);
+  });
+  it("never goes below zero when the pack was already spent", () => {
+    let l = applyUsage(applyTopup(initialLedger(), 10), 27, "t"); // 20 included + 7 of the pack
+    l = settle(queueChange(l, { type: "refund_topup", usd: 10 }), 27, NOW);
+    assert.equal(l.topupBalanceUsd, 0);
+    assert.equal(targetOf(l), 27); // the key holds at what's already spent
+  });
+  it("the preview shows it before settlement", () => {
+    const l = queueChange(applyTopup(initialLedger(), 10), { type: "refund_topup", usd: 10 });
+    assert.equal(remaining(l, NOW).topupUsd, 0);
+  });
+});

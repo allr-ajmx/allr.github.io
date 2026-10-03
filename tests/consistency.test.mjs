@@ -63,3 +63,13 @@ describe("a workspace built minutes ago", () => {
     assert.deepEqual(codes({ ...fresh, queueUpdatedAt: new Date(NOW - 20 * 60_000).toISOString() }), ["not-on-vps"]);
   });
 });
+
+describe("a build stuck in the queue", () => {
+  it("is flagged after 30 minutes, unless it's backing off for a retry", () => {
+    const old = new Date(NOW - 45 * 60_000).toISOString();
+    assert.deepEqual(codes({ billingStatus: "active", queueStatus: "queued", queueUpdatedAt: old }), ["build-stuck"]);
+    assert.deepEqual(codes({ billingStatus: "active", queueStatus: "queued", queueUpdatedAt: new Date(NOW - 5 * 60_000).toISOString() }), []);
+    assert.deepEqual(codes({ billingStatus: "active", queueStatus: "queued", queueUpdatedAt: old,
+      queueRetryAt: new Date(NOW + 60_000).toISOString() }), []);
+  });
+});

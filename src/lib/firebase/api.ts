@@ -178,6 +178,7 @@ export type AdminCustomer = {
   queue: { status: string; error: string | null; attempts?: number; retryAt?: string | null } | null;
   /** Where billing, queue, account and VPS disagree. */
   issues?: { code: string; message: string }[];
+  purchases?: { paymentId: string; creditUsd: number; amountMinor: number; currency: string; status: string; createdAt: string }[];
   enforcement: { reason: string; suspendedAt: string | null; removeAfter: string | null } | null;
   platform: {
     suspended: boolean;
@@ -206,6 +207,10 @@ export const fetchAdminCustomers = () =>
       agentTag?: string | null;
       platform: AdminCustomer["platform"];
     }[];
+    flags: {
+      id: string; at: string; eventName: string; reason: string; who: string | null;
+      paymentId: string | null; subscriptionId: string | null;
+    }[];
     pendingOps: {
       id: string; op: string; username: string; status: string; error: string | null;
       attempts: number; retryAt: string | null;
@@ -217,7 +222,7 @@ export type AdminActionBody = {
     | "edit_profile" | "transfer_email" | "grant_credit" | "revoke_grant" | "set_included"
     | "suspend" | "resume" | "provision" | "remove" | "delete_account"
     | "ws_suspend" | "ws_resume" | "ws_set_email" | "ws_remove" | "retry"
-    | "promo_create" | "promo_set_active";
+    | "promo_create" | "promo_set_active" | "resolve_flag" | "refund_topup";
   uid?: string;
   kind?: "provision" | "op";
   id?: string;
@@ -232,6 +237,7 @@ export type AdminActionBody = {
   grantId?: string;
   refund?: boolean;
   code?: string;
+  paymentId?: string;
   maxUses?: number;
   days?: number;
   creditUsd?: number;

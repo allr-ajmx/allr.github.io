@@ -60,7 +60,11 @@ export type AdminAction =
       creditUsd: number;
       note: string;
     }
-  | { action: "promo_set_active"; code: string; active: boolean };
+  | { action: "promo_set_active"; code: string; active: boolean }
+  /** A flagged billing event has been looked at. */
+  | { action: "resolve_flag"; id: string; note: string }
+  /** Refund a credit pack (full) and take back its unspent credit. */
+  | { action: "refund_topup"; paymentId: string };
 
 /** Firestore doc ids we mint: `<uid>`, `<uid>:<op>`, `ws:<username>:<op>`. */
 const DOC_ID_RE = /^[A-Za-z0-9_.:-]{1,200}$/;
@@ -141,6 +145,17 @@ export function parseAction(body: unknown, now: Date = new Date()): AdminAction 
       creditUsd: Math.round(credit * 100) / 100,
       note: str(b.note).slice(0, 120),
     };
+  }
+
+  if (b.action === "resolve_flag") {
+    const id = str(b.id);
+    if (!/^[A-Za-z0-9_.:\-]{1,200}$/.test(id) || id.includes("..")) throw badRequest("invalid", "Bad id.");
+    return { action: "resolve_flag", id, note: str(b.note).slice(0, 200) };
+  }
+  if (b.action === "refund_topup") {
+    const paymentId = str(b.paymentId);
+    if (!/^pay_[A-Za-z0-9]{6,40}$/.test(paymentId)) throw badRequest("invalid", "That isn't a Razorpay payment id.");
+    return { action: "refund_topup", paymentId };
   }
 
   if (b.action === "retry") {

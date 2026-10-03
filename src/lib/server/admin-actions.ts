@@ -8,6 +8,8 @@ import type { Caller } from "./session";
 import { enqueueInTransaction, enqueueOp, queueRef, retryNow } from "./provisioning";
 import { stopBillingForDeletion, stopBillingForRemoval } from "./billing";
 import { CODES as PROMO_CODES } from "./promo";
+import { refundPayment } from "./razorpay";
+import { applyRefund } from "./payments";
 import { shipLog } from "./logship";
 import { ledgerFromDoc, queueChange, type PendingChange } from "@/lib/billing/credits";
 import {
@@ -102,6 +104,22 @@ export async function applyAdminAction(admin: Caller, action: AdminAction): Prom
     shipLog("admin", "retry", { by: admin.email, target: `${action.kind}:${action.id}` });
     return;
   }
+  if (action.action === "resolve_flag") {
+    const db = adminDb();
+    const ref = db.collection("billing_events").doc(action.id);
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw badRequest("no-flag", "No such event.");
+      tx.update(ref, { resolved: true, resolvedBy: admin.email, resolvedNote: action.note, resolvedAt: FieldValue.serverTimestamp() });
+      tx.set(db.collection("admin_actions").doc(), {
+        by: admin.email, uid: snap.data()?.uid ?? null, username: null,
+        action: "resolve_flag", detail: `${action.id}${action.note ? ` · ${action.note}` : ""}`,
+        at: FieldValue.serverTimestamp(),
+      });
+    });
+    return;
+  }
+  if (action.action === "refund_topup") return refundTopup(admin, action.paymentId);
   if (action.action === "promo_create" || action.action === "promo_set_active") {
     return applyPromoAction(admin, action);
   }
@@ -111,7 +129,16 @@ export async function applyAdminAction(admin: Caller, action: AdminAction): Prom
   if (action.action === "delete_account") return deleteAccount(admin, action);
   const a = action as Exclude<
     AdminAction,
-    { action: `ws_${string}` | "retry" | "delete_account" | "promo_create" | "promo_set_active" }
+    {
+      action:
+        | `ws_${string}`
+        | "retry"
+        | "delete_account"
+        | "promo_create"
+        | "promo_set_active"
+        | "resolve_flag"
+        | "refund_topup";
+    }
   >;
   const db = adminDb();
   const userRef = db.collection(USERS).doc(a.uid);
@@ -373,4 +400,30 @@ async function applyPromoAction(
     });
   });
   shipLog("admin", a.action, { by: admin.email, target: a.code });
+}
+
+/** Refund a credit pack in full and take back whatever of it is unspent. */
+async function refundTopup(admin: Caller, paymentId: string) {
+  const db = adminDb();
+  const purchase = await db.collection("credit_purchases").doc(paymentId).get();
+  const p = purchase.data();
+  if (!p) throw badRequest("no-purchase", "That payment isn't one of our credit packs.");
+  if (p.status === "refunded" || p.status === "refunding") throw conflict("refunded", "Already refunded.");
+  const refund = await refundPayment(paymentId, `admin: ${admin.email}`);
+  // Apply now rather than wait for the webhook; the same refund id arriving
+  // later is a no-op.
+  await applyRefund({
+    id: refund.id,
+    payment_id: paymentId,
+    amount: refund.amount,
+    currency: String(p.currency ?? "INR"),
+    status: refund.status,
+    notes: { by: "allr" },
+  });
+  await db.collection("admin_actions").add({
+    by: admin.email, uid: p.uid ?? null, username: null,
+    action: "refund_topup", detail: `${paymentId} · ${refund.id}`,
+    at: FieldValue.serverTimestamp(),
+  });
+  shipLog("admin", "refund_topup", { by: admin.email, target: paymentId }, "warn");
 }

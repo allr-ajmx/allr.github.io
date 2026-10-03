@@ -197,6 +197,29 @@ export function AdminEditPanel({
             </Section>
           ) : null}
 
+          {c.purchases && c.purchases.length ? (
+            <Section title="Credit packs">
+              <ul className="flex flex-col gap-1.5">
+                {c.purchases.map((p) => (
+                  <li key={p.paymentId} className="flex items-center justify-between gap-2 rounded-control border border-line bg-card px-3 py-2 text-[.85rem]">
+                    <span>
+                      <b>${p.creditUsd.toFixed(2)}</b> · {(p.amountMinor / 100).toLocaleString()} {p.currency}
+                      <span className="text-ink-soft"> · {p.createdAt ? new Date(p.createdAt).toLocaleDateString() : ""} · {p.status}</span>
+                      <span className="block font-mono text-[.75rem] text-ink-soft">{p.paymentId}</span>
+                    </span>
+                    {p.status === "applied" ? (
+                      <button type="button" className={danger} disabled={busy}
+                        onClick={() => void act({ action: "refund_topup", paymentId: p.paymentId },
+                          `Refund this credit pack in full?\n\nThe money goes back to the customer and whatever of its $${p.creditUsd.toFixed(2)} is unspent is taken back.`)}>
+                        Refund
+                      </button>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          ) : null}
+
           {ws ? (
             <Section title="Workspace">
               <div className="flex flex-wrap gap-2">

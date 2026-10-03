@@ -10,6 +10,7 @@ import { enqueueInTransaction, enqueueOp, queueRef, readQueue } from "./provisio
 import { applyMonthlyGrantInTransaction } from "./credits";
 import { shipLog } from "./logship";
 import { triageSubscriptionEvent } from "@/lib/billing/triage";
+import { grantsMonth, nextPaidCount } from "@/lib/billing/reconcile";
 import {
   cancelSubscriptionNow,
   fetchPayment,
@@ -72,10 +73,13 @@ function billingFrom(
   sub: RzpSubscription,
   planCurrency: Billing["planCurrency"],
   customerId: string,
-  prior?: Pick<Billing, "status" | "statusSince" | "subscriptionId" | "cancelAtPeriodEnd"> | null,
+  prior?: Pick<Billing, "status" | "statusSince" | "subscriptionId" | "cancelAtPeriodEnd" | "paidCount"> | null,
 ): Omit<Billing, "updatedAt"> {
   const status = normalizeProviderStatus(sub.status);
   return {
+    // Granted-for count: kept for the same subscription (only charges move
+    // it); a brand-new subscription starts at Razorpay's count (0).
+    paidCount: prior?.subscriptionId === sub.id ? (prior?.paidCount ?? null) : (sub.paid_count ?? 0),
     cancelAtPeriodEnd: prior?.subscriptionId === sub.id ? Boolean(prior?.cancelAtPeriodEnd) : false,
     status,
     statusSince:
@@ -142,6 +146,13 @@ export async function startSubscription(
     // the same subscription is the one to finish or fix.
     if (existing.status === "pending" || existing.status === "pastDue") {
       const sub = await fetchSubscription(existing.subscriptionId);
+      if (normalizeProviderStatus(sub.status) === "active") {
+        // Paid after all — the webhook never told us. Apply it now rather
+        // than open a second checkout for money already taken.
+        await applyWebhookEvent(`reconcile:${sub.id}:${sub.status}:${sub.paid_count ?? "?"}`,
+          "subscription.charged", sub, { source: "reconcile" });
+        throw conflict("already-subscribed", "Your payment went through — your workspace is on its way.");
+      }
       if (normalizeProviderStatus(sub.status) !== "ended") {
         await writeBilling(caller.uid, billingFrom(sub, existing.planCurrency, existing.customerId, existing));
         return { subscriptionId: sub.id, keyId: razorpayKeyId(), plan };
@@ -149,12 +160,26 @@ export async function startSubscription(
     }
   }
 
-  const customer = await createCustomer(profile.name, caller.email);
-  const sub = await createSubscription(planIdFor(currency), customer.id, caller.uid);
-  await writeBilling(caller.uid, billingFrom(sub, currency, customer.id));
-  shipLog("billing", "subscription created", { email: caller.email, currency, sub: sub.id });
-
-  return { subscriptionId: sub.id, keyId: razorpayKeyId(), plan };
+  // One checkout at a time per account: two clicks (or two tabs) at once
+  // would otherwise each create a Razorpay subscription.
+  const lock = adminDb().collection("billing_locks").doc(caller.uid);
+  await adminDb().runTransaction(async (tx) => {
+    const held = await tx.get(lock);
+    const at = held.data()?.at?.toMillis?.() ?? 0;
+    if (held.exists && Date.now() - at < 60_000) {
+      throw conflict("checkout-busy", "Checkout is already opening — give it a moment.");
+    }
+    tx.set(lock, { at: FieldValue.serverTimestamp() });
+  });
+  try {
+    const customer = await createCustomer(profile.name, caller.email);
+    const sub = await createSubscription(planIdFor(currency), customer.id, caller.uid);
+    await writeBilling(caller.uid, billingFrom(sub, currency, customer.id));
+    shipLog("billing", "subscription created", { email: caller.email, currency, sub: sub.id });
+    return { subscriptionId: sub.id, keyId: razorpayKeyId(), plan };
+  } finally {
+    await lock.delete().catch(() => {});
+  }
 }
 
 /** Cancel at the end of the paid period — nobody loses time they paid for. */
@@ -203,6 +228,8 @@ export function ignoredEventDoc(
     subscriptionId: ids.subscriptionId ?? null,
     paymentId: ids.paymentId ?? null,
     orderId: ids.orderId ?? null,
+    flag: true,
+    resolved: false,
     receivedAt: FieldValue.serverTimestamp(),
   };
 }
@@ -228,6 +255,7 @@ export async function applyWebhookEvent(
   eventId: string,
   eventName: string,
   subscription: RzpSubscription | undefined,
+  { source = "webhook" }: { source?: "webhook" | "reconcile" } = {},
 ): Promise<"applied" | "duplicate" | "ignored"> {
   const triage = triageSubscriptionEvent(eventName, subscription);
   if (!triage.act || !subscription) {
@@ -270,7 +298,7 @@ export async function applyWebhookEvent(
         ...ignoredEventDoc(eventName, "no account for this uid or subscription", {
           uid, subscriptionId: subscription.id,
         }),
-        ...(closing ? { outcome: "ignored-closed" } : {}),
+        ...(closing ? { outcome: "ignored-closed", flag: false } : {}),
       });
       return "ignored" as const;
     }
@@ -290,6 +318,8 @@ export async function applyWebhookEvent(
 
     const data = user.data()!;
     const nextStatus = normalizeProviderStatus(subscription.status);
+    const priorPaidCount = prior?.subscriptionId === subscription.id ? (prior?.paidCount ?? null) : null;
+    const granting = grantsMonth(eventName, priorPaidCount, subscription.paid_count);
     // Payment is current again: the fast path undoes a billing suspension
     // without waiting for the hourly sweep. completeOp clears the mark.
     if (nextStatus === "active" && data.enforcement && data.workspace_username) {
@@ -319,13 +349,16 @@ export async function applyWebhookEvent(
         // for the same subscription, never onto a new one.
         cancelAtPeriodEnd:
           prior?.subscriptionId === subscription.id ? Boolean(prior?.cancelAtPeriodEnd) : false,
+        // The count last granted for; only a granting charge moves it.
+        paidCount: nextPaidCount(granting, priorPaidCount, subscription.paid_count),
         updatedAt: FieldValue.serverTimestamp(),
       },
       updatedAt: FieldValue.serverTimestamp(),
     });
     // A successful monthly charge settles the credit cycle: included expires,
-    // top-ups carry, the key's limit is re-targeted.
-    if (eventName === "subscription.charged") {
+    // top-ups carry, the key's limit is re-targeted. Once per paid_count, so
+    // the webhook and the reconciler can never both grant the same month.
+    if (granting) {
       applyMonthlyGrantInTransaction(tx, userRef, data);
     }
     // The moment payment is real, a workspace-less account goes on the queue.
@@ -340,7 +373,11 @@ export async function applyWebhookEvent(
       eventName,
       subscriptionId: subscription.id,
       uid: userRef.id,
-      outcome: "applied",
+      outcome: source === "reconcile" ? "applied-by-reconcile" : "applied",
+      // The safety net had to step in: a webhook was missed. Worth a look.
+      ...(source === "reconcile"
+        ? { reason: "webhook missed — applied from Razorpay", flag: true, resolved: false }
+        : {}),
       receivedAt: FieldValue.serverTimestamp(),
     });
     return "applied" as const;
@@ -424,7 +461,7 @@ export async function stopBillingForRemoval(
       if ((payment.amount_refunded ?? 0) >= payment.amount) {
         parts.push(`${last.paymentId} already refunded`);
       } else {
-        const r = await refundPayment(last.paymentId);
+        const r = await refundPayment(last.paymentId, "workspace removed");
         parts.push(`refunded ${last.paymentId} (${r.amount / 100})`);
       }
     }

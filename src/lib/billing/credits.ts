@@ -34,7 +34,9 @@ export type CreditGrant = {
 export type PendingChange =
   | { type: "grant"; grant: CreditGrant }
   | { type: "revoke"; id: string }
-  | { type: "set_included"; usd: number };
+  | { type: "set_included"; usd: number }
+  /** A credit pack was refunded: take back what is left of it, never below zero. */
+  | { type: "refund_topup"; usd: number };
 
 export type CreditLedger = {
   /** This customer's monthly grant — INCLUDED_USD unless an admin changed it. */
@@ -178,6 +180,8 @@ export function settle(l: CreditLedger, liveUsageUsd: number, now: Date = new Da
       next = { ...next, grants: [...grantsOf(next), change.grant] };
     } else if (change.type === "revoke") {
       next = { ...next, grants: grantsOf(next).filter((g) => g.id !== change.id) };
+    } else if (change.type === "refund_topup") {
+      next = { ...next, topupBalanceUsd: Math.max(0, round2(next.topupBalanceUsd - Math.max(0, change.usd))) };
     } else {
       // Raising helps this month at once; lowering trims this month's
       // remainder, never below zero.

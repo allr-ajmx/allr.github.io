@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useAuth } from "./AuthProvider";
 import { ComingSoon, PageHeader } from "./PageHeader";
+import { hasWorkspace } from "@/lib/account/state";
 import { getAllrAuth } from "@/lib/firebase/app";
 import {
   ApiCallFailed,
@@ -43,6 +46,9 @@ function loadCheckout(): Promise<void> {
 }
 
 export function CreditsPage() {
+  const { profile } = useAuth();
+  // The server refuses a pack without a workspace; don't offer one either.
+  const workspaceLive = profile ? hasWorkspace(profile) : false;
   const [data, setData] = useState<LedgerResponse | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -164,6 +170,13 @@ export function CreditsPage() {
 
           <div className="rounded-card border border-line bg-card p-6">
             <h3 className="mb-1 text-[1.1rem] font-bold">Add credit</h3>
+            {!workspaceLive ? (
+              <p className="text-[.92rem] text-ink-soft">
+                Credit packs top up a live workspace, and you don’t have one right now.{" "}
+                <Link href="/account/billing/" className="font-bold text-green-deep">Subscribe first →</Link>
+              </p>
+            ) : (
+            <>
             <p className="mb-4 text-[.92rem] text-ink-soft">
               One-time payment; never expires until used. Pack prices cover
               payment and AI-provider fees.
@@ -184,6 +197,8 @@ export function CreditsPage() {
                 </button>
               ))}
             </div>
+            </>
+            )}
           </div>
 
           {message ? <p className="text-[.92rem] text-ink-soft">{message}</p> : null}

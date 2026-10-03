@@ -75,6 +75,8 @@ export type RzpSubscription = {
   plan_id: string;
   customer_id?: string;
   current_end?: number | null;
+  /** How many charges have succeeded — the monthly-grant idempotency key. */
+  paid_count?: number | null;
   notes?: Record<string, string>;
 };
 
@@ -138,10 +140,14 @@ export const fetchOrder = (id: string) => rzp<RzpOrder>(`/orders/${id}`);
 export type RzpPayment = {
   id: string;
   status: string;
-  order_id?: string | null;
   amount: number;
   currency: string;
-  notes?: Record<string, string>;
+  order_id?: string | null;
+  invoice_id?: string | null;
+  amount_refunded?: number;
+  email?: string | null;
+  created_at?: number;
+  notes?: Record<string, string> | unknown[];
 };
 
 /** Cancel immediately (not at cycle end) — used when the workspace itself is going away. */
@@ -188,8 +194,34 @@ export const fetchPayment = (id: string) =>
   rzp<{ id: string; amount: number; amount_refunded?: number; status: string }>(`/payments/${id}`);
 
 /** Full refund of one payment. Razorpay refuses a second refund once nothing is left to refund. */
-export const refundPayment = (paymentId: string) =>
+/** Notes mark it as ours, so the refund webhook / reconciler doesn't flag it. */
+export const refundPayment = (paymentId: string, reason = "admin") =>
   rzp<{ id: string; amount: number; status: string }>(`/payments/${paymentId}/refund`, {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify({ notes: { by: "allr", reason } }),
+  });
+
+/** Payments created in [from, to] (unix seconds), newest first, one page. */
+export const listPayments = (from: number, to: number, skip = 0) =>
+  rzp<{ items?: RzpPayment[] }>(`/payments?from=${from}&to=${to}&count=100&skip=${skip}`);
+
+export type RzpRefund = {
+  id: string;
+  payment_id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  created_at?: number;
+  notes?: Record<string, string> | unknown[];
+};
+
+/** Refunds created in [from, to] (unix seconds), one page. */
+export const listRefunds = (from: number, to: number, skip = 0) =>
+  rzp<{ items?: RzpRefund[] }>(`/refunds?from=${from}&to=${to}&count=100&skip=${skip}`);
+
+/** Capture an authorized payment for its full amount. */
+export const capturePayment = (id: string, amount: number, currency: string) =>
+  rzp<RzpPayment>(`/payments/${id}/capture`, {
+    method: "POST",
+    body: JSON.stringify({ amount, currency }),
   });

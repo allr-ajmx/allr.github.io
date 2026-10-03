@@ -86,6 +86,7 @@ function toProfile(data: FirebaseFirestore.DocumentData): UserProfile {
           providerStatus: data.billing.providerStatus ?? "",
           statusSince: data.billing.statusSince ?? null,
           cancelAtPeriodEnd: Boolean(data.billing.cancelAtPeriodEnd),
+          paidCount: typeof data.billing.paidCount === "number" ? data.billing.paidCount : null,
           updatedAt: iso(data.billing.updatedAt),
         }
       : null,
