@@ -11,10 +11,15 @@ describe("isMissingRefusal", () => {
   it("Razorpay's 'id does not exist' is missing", () => {
     assert.equal(isMissingRefusal(400, "The id provided does not exist"), true);
     assert.equal(isMissingRefusal(404, "Not found"), true);
+    // Seen in production for a test-mode subscription after going live:
+    assert.equal(isMissingRefusal(400, "The ID provided is invalid or could not be found."), true);
+    assert.equal(isMissingRefusal(400, "invalid id"), true);
   });
   it("outages and other refusals are not", () => {
     assert.equal(isMissingRefusal(500, "Internal error"), false);
     assert.equal(isMissingRefusal(401, "Authentication failed"), false);
     assert.equal(isMissingRefusal(400, "Refund amount exceeds the captured amount"), false);
+    assert.equal(isMissingRefusal(400, "The amount is invalid"), false);
+    assert.equal(isMissingRefusal(400, "payment_id is required"), false);
   });
 });

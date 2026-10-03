@@ -188,7 +188,7 @@ export async function applyTopupPayment(
         paymentId: payment.id,
         orderId: order.id,
         outcome: "applied-by-reconcile",
-        reason: `webhook missed — $${creditUsd} top-up applied from Razorpay`,
+        reason: `webhook missed — $${creditUsd.toFixed(2)} top-up applied from Razorpay`,
         flag: true,
         resolved: false,
         receivedAt: FieldValue.serverTimestamp(),

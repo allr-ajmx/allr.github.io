@@ -6,6 +6,8 @@
 export function isMissingRefusal(upstreamStatus: number, description: string): boolean {
   return (
     (upstreamStatus === 400 || upstreamStatus === 404) &&
-    /does not exist|not found|no such|invalid.*id/i.test(description)
+    // Razorpay words this several ways: "The id provided does not exist",
+    // "The ID provided is invalid or could not be found", "Not found".
+    /does not exist|not (?:be )?found|no such|\bid\b[^.]*\binvalid\b|\binvalid\b[^.]*\bid\b/i.test(description)
   );
 }
