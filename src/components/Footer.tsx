@@ -24,6 +24,9 @@ export function Footer() {
         <Link href="/#access" className="text-ink-soft no-underline hover:text-ink">
           Where to use it
         </Link>
+        <Link href="/pricing" className="text-ink-soft no-underline hover:text-ink">
+          Pricing
+        </Link>
         <Link href="/download" className="text-ink-soft no-underline hover:text-ink">
           Download
         </Link>

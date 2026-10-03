@@ -25,7 +25,7 @@ const APP = path.resolve(import.meta.dirname, "..", ".next", "server", "app");
 const STATIC = path.resolve(import.meta.dirname, "..", ".next");
 
 /** Pages that must stay free of the SDK. */
-const MARKETING = ["/", "/app", "/download", "/design", "/privacy", "/terms"];
+const MARKETING = ["/", "/app", "/pricing", "/download", "/design", "/privacy", "/terms"];
 /** Pages that are expected to carry it. */
 const ACCOUNT = ["/login", "/account"];
 

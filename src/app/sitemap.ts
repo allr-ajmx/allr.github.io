@@ -7,7 +7,7 @@ import { getSiteUrl } from "@/lib/site";
  * are the opposite: they have to be findable.
  */
 /** /app is a retired stub (noindex) until its rebuild lands. /roadmap is live. */
-const ROUTES = ["/", "/download", "/roadmap", "/privacy", "/terms"];
+const ROUTES = ["/", "/pricing", "/download", "/roadmap", "/privacy", "/terms"];
 
 export const dynamic = "force-static";
 

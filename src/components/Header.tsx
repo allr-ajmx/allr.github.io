@@ -15,6 +15,7 @@ const NAV_LINKS = [
   { href: "/#loop", label: "How it works" },
   { href: "/#progress", label: "Platform" },
   { href: "/#access", label: "Where to use it" },
+  { href: "/pricing", label: "Pricing" },
   { href: "/download", label: "Download" },
 ];
 

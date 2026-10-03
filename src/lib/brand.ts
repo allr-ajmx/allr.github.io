@@ -409,13 +409,28 @@ export const WORKSPACE = {
  * to download and stay free ("beta · free forever" under the download button),
  * and the agent workspace they connect to is what carries a plan. Never let a
  * line here imply the app costs money, or a line on /download imply the
- * workspace is free. Nothing renders PRICING today — Pricing.tsx has been
- * unimported since 725b69b — so this is the copy bank for when it returns.
+ * workspace is free. PRICING is rendered by /pricing; every number on that
+ * page comes from the billing constants (PLAN_PRICING, TOPUP_PACKS,
+ * INCLUDED_USD, GRACE_DAYS, REMOVE_AFTER_DAYS) — the copy here never states a
+ * price, so the page cannot drift from what checkout charges.
  */
 export const PRICING = {
   eyebrow: "Pricing",
-  line: "One plan. Priced when we launch.",
-  sub: "The waitlist hears first, and your first project is on us.",
+  title: "One workspace. One plan.",
+  sub: "The apps are free and stay free. The workspace they connect to is the plan — your own Cloud AI Workspace, with AI credit included every month.",
+  planName: "Workspace",
+  planIncludes: [
+    "Your own Cloud AI Workspace at yourname.allr.work",
+    "AI credit every month, included",
+    "Web, desktop and phone — the apps are free",
+    "Cancel any time; it stays up to the end of the period you paid for",
+  ],
+  cta: "Get Started",
+  creditTitle: "Need more AI credit?",
+  creditSub: "Add a credit pack any time from your account. Packs never expire and are used after your monthly credit runs out.",
+  creditFeeNote: "Pack prices cover payment and AI-provider fees.",
+  howTitle: "How AI credit works",
+  faqTitle: "Questions about the plan",
 } as const;
 
 /** Shown under the field when a signup could not be taken. */
