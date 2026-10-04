@@ -8,7 +8,6 @@ import { parseStamp as parsePure, tokenMatches, type WorkspaceStamp } from "@/li
 import { initialLedgerFields } from "./credits";
 import { promoActive } from "@/lib/billing/promo";
 import { billingFromDoc } from "@/lib/billing/records";
-import { PLANS } from "@/lib/billing/plans";
 import { enqueueOp, queueRef } from "./provisioning";
 import { shipLog } from "./logship";
 
@@ -98,11 +97,9 @@ export async function stampWorkspace(stamp: WorkspaceStamp): Promise<{
         const paid = billing?.status === "active";
         tx.update(
           user.ref,
-          paid
-            ? initialLedgerFields({ includedUsd: PLANS[billing!.plan].aiUsd })
-            : promoActive(promo)
-              ? initialLedgerFields({ includedLeftUsd: Number(promo.creditUsd) })
-              : initialLedgerFields(),
+          !paid && promoActive(promo)
+            ? initialLedgerFields({ purchasedUsd: Number(promo.creditUsd) })
+            : initialLedgerFields(),
         );
       }
       enqueueOp(tx, {

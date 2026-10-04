@@ -9,7 +9,7 @@
  * value read and written back is always a valid Firestore value.
  */
 
-import type { Billing, BillingStatus, PlanCurrency, UpcomingChange } from "./model.ts";
+import type { Billing, BillingStatus, CreditSubscription, CreditUpcoming, PlanCurrency, UpcomingChange } from "./model.ts";
 import { LEGACY_PLAN, isPlanKey } from "./plans.ts";
 import type { Promo } from "./promo.ts";
 import type { Complimentary, Enforcement } from "./lifecycle.ts";
@@ -58,6 +58,38 @@ export function upcomingFromDoc(raw: Raw): UpcomingChange | null {
     chargeMinor: num(raw.chargeMinor) ?? 0,
     creditUsd: num(raw.creditUsd) ?? 0,
     creditGranted: raw.creditGranted === true,
+    oldCancelled: raw.oldCancelled === true,
+  };
+}
+
+export function creditSubscriptionFromDoc(raw: Raw): CreditSubscription | null {
+  if (!raw || typeof raw.subscriptionId !== "string" || !raw.subscriptionId) return null;
+  const status = STATUSES.includes(raw.status as BillingStatus) ? (raw.status as BillingStatus) : "pending";
+  const amount = num(raw.amountUsd);
+  return {
+    status,
+    currency: raw.currency === "INR" ? "INR" : "USD",
+    amountUsd: amount ?? 0,
+    subscriptionId: raw.subscriptionId,
+    customerId: str(raw.customerId) ?? "",
+    currentPeriodEnd: str(raw.currentPeriodEnd),
+    currentPeriodStart: str(raw.currentPeriodStart),
+    providerStatus: str(raw.providerStatus) ?? "",
+    statusSince: str(raw.statusSince),
+    cancelAtPeriodEnd: raw.cancelAtPeriodEnd === true,
+    paidCount: num(raw.paidCount),
+    upcoming: creditUpcomingFromDoc(raw.upcoming as Raw),
+    updatedAt: isoOf(raw.updatedAt),
+  };
+}
+
+export function creditUpcomingFromDoc(raw: Raw): CreditUpcoming | null {
+  if (!raw || !str(raw.subscriptionId)) return null;
+  return {
+    subscriptionId: str(raw.subscriptionId)!,
+    amountUsd: num(raw.amountUsd) ?? 0,
+    status: raw.status === "authenticated" ? "authenticated" : "created",
+    startsAt: str(raw.startsAt),
     oldCancelled: raw.oldCancelled === true,
   };
 }

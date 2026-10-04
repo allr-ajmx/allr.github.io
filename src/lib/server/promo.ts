@@ -8,7 +8,7 @@ import type { Caller } from "./session";
 import { readOrAdoptProfile } from "./profiles";
 import { enqueueInTransaction, queueRef, reserveUsername } from "./provisioning";
 import { shipLog } from "./logship";
-import { ledgerFromDoc, targetOf } from "@/lib/billing/credits";
+import { addPurchased, ledgerFromDoc } from "@/lib/billing/credits";
 import {
   normalizeCode,
   promoFor,
@@ -94,12 +94,7 @@ export async function redeemPromo(caller: Caller, rawCode: unknown, rawUsername:
     // A ledger left from an earlier, removed workspace: the month's credit
     // replaces its (zeroed) monthly part; packs and grants stay.
     const ledger = ledgerFromDoc(d.credits);
-    const credits = ledger
-      ? (() => {
-          const next = { ...ledger, includedLeftUsd: p.creditUsd };
-          return { ...next, targetLimitUsd: targetOf(next) };
-        })()
-      : undefined;
+    const credits = ledger ? addPurchased(ledger, p.creditUsd) : undefined;
 
     tx.update(codeRef, { uses: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() });
     tx.set(redemptionRef, {

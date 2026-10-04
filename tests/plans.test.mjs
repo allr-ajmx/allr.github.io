@@ -1,10 +1,27 @@
 /** Plans and proration: the standard upgrade-now / downgrade-at-renewal arithmetic. */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { PLANS, changeKind, prorate } from "../src/lib/billing/plans.ts";
+import { CREDIT_MIN_USD, CREDIT_PRESET_USD, INR_PAISE_PER_USD, PLANS, changeKind, creditAmountMinor, parseCreditUsd, prorate } from "../src/lib/billing/plans.ts";
 
 const start = new Date("2026-10-01T00:00:00Z");
 const end = new Date("2026-10-31T00:00:00Z"); // 30 days
+
+describe("monthly AI credit amount", () => {
+  it("is a whole number of dollars from $1, with $20 only as the preset", () => {
+    assert.equal(CREDIT_PRESET_USD, 20);
+    assert.equal(CREDIT_MIN_USD, 1);
+    assert.equal(parseCreditUsd(0), 0);
+    assert.equal(parseCreditUsd(20), 20);
+    assert.equal(parseCreditUsd(1.5), null);
+    assert.equal(parseCreditUsd(0.5), null);
+  });
+  it("charges ₹89.90 per dollar, the workspace rate", () => {
+    assert.equal(INR_PAISE_PER_USD, 8_990);
+    assert.equal(creditAmountMinor(1, "USD"), 100);
+    assert.equal(creditAmountMinor(20, "INR"), 20 * 8_990);
+    assert.equal(PLANS.workspace.price.INR, 10 * INR_PAISE_PER_USD);
+  });
+});
 
 describe("the catalog", () => {
   it("workspace + AI is workspace + the AI part, in both currencies", () => {

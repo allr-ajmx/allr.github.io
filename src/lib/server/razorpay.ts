@@ -46,6 +46,13 @@ const PLAN_ENV: Record<PlanKey, Record<"USD" | "INR", string[]>> = {
 const envPlanId = (plan: PlanKey, currency: "USD" | "INR") =>
   PLAN_ENV[plan][currency].map((k) => process.env[k]).find((v): v is string => Boolean(v));
 
+/** The $1 / ₹89.90 plan. Checkout sets quantity to the dollar amount. */
+export function creditUnitPlanId(currency: "USD" | "INR"): string {
+  const id = currency === "INR" ? process.env.RAZORPAY_PLAN_ID_CREDIT_INR : process.env.RAZORPAY_PLAN_ID_CREDIT_USD;
+  if (!id) throw new ApiError(503, "billing-unconfigured", "Billing is not set up yet.");
+  return id;
+}
+
 export function planIdFor(currency: "USD" | "INR", plan: PlanKey = "workspace_ai"): string {
   const id = envPlanId(plan, currency);
   if (!id) {
@@ -138,6 +145,8 @@ export const createSubscription = (
   extra: {
     /** Unix seconds: start later (a plan change at the renewal date). */
     startAt?: number;
+    /** Monthly AI credit: a $1 plan times this many dollars. */
+    quantity?: number;
     /** Charged with the authorisation (an upgrade's prorated difference). */
     upfront?: { name: string; amountMinor: number; currency: "USD" | "INR" };
     notes?: Record<string, string>;
@@ -152,6 +161,7 @@ export const createSubscription = (
       // "until cancelled" for any horizon this product plans on.
       total_count: 120,
       customer_notify: 1,
+      ...(extra.quantity && extra.quantity > 1 ? { quantity: extra.quantity } : {}),
       ...(extra.startAt ? { start_at: extra.startAt } : {}),
       ...(extra.upfront
         ? { addons: [{ item: { name: extra.upfront.name, amount: extra.upfront.amountMinor, currency: extra.upfront.currency } }] }

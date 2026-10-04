@@ -30,7 +30,7 @@ describe("first payment", () => {
     assert.equal(d.billing.status, "active");
     assert.equal(d.effects.grantMonth, true);
     assert.equal(d.effects.queueBuild, true);
-    assert.equal(d.effects.setIncludedUsd, 20);
+    assert.equal(d.effects.setIncludedUsd, null);
     assert.equal(d.billing.paidCount, 1);
   });
   it("the same state again (any event, any order) does nothing more", () => {
@@ -104,7 +104,7 @@ describe("plans", () => {
   it("a workspace-only subscription sets the AI allowance to 0 on its first charge", () => {
     const d = decide(rec({ status: "pending", providerStatus: "created", paidCount: 0, plan: "workspace" }), sub(), facts, { ...opts, plan: "workspace" });
     assert.equal(d.billing.plan, "workspace");
-    assert.equal(d.effects.setIncludedUsd, 0);
+    assert.equal(d.effects.setIncludedUsd, null);
   });
 });
 
@@ -145,7 +145,7 @@ describe("changing plan (a second subscription that takes over at renewal)", () 
     assert.equal(d.billing.plan, "workspace_ai");
     assert.equal(d.billing.upcoming, null);
     assert.equal(d.effects.grantMonth, true);
-    assert.equal(d.effects.setIncludedUsd, 20);
+    assert.equal(d.effects.setIncludedUsd, null);
   });
   it("the old subscription ending first doesn't lapse anything, and can't undo the takeover after", () => {
     const ended = decide(ws({ upcoming: upcoming({ status: "authenticated" }) }), sub({ status: "cancelled" }), live, opts);

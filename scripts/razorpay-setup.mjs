@@ -17,13 +17,13 @@
 import { client, closePrompts, confirm, quietTypeWarnings, razorpayKeys } from "./lib/razorpay-cli.mjs";
 
 quietTypeWarnings();
-const { PLANS } = await import("../src/lib/billing/plans.ts");
+const { PLANS, INR_PAISE_PER_USD } = await import("../src/lib/billing/plans.ts");
 
 const ALL = {
   workspace_usd: { plan: "workspace", currency: "USD", env: "RAZORPAY_PLAN_ID_WORKSPACE_USD" },
   workspace_inr: { plan: "workspace", currency: "INR", env: "RAZORPAY_PLAN_ID_WORKSPACE_INR" },
-  ai_usd: { plan: "workspace_ai", currency: "USD", env: "RAZORPAY_PLAN_ID_AI_USD" },
-  ai_inr: { plan: "workspace_ai", currency: "INR", env: "RAZORPAY_PLAN_ID_AI_INR" },
+  credit_usd: { unit: true, currency: "USD", amount: 100, env: "RAZORPAY_PLAN_ID_CREDIT_USD", label: "$1 AI credit" },
+  credit_inr: { unit: true, currency: "INR", amount: INR_PAISE_PER_USD, env: "RAZORPAY_PLAN_ID_CREDIT_INR", label: "₹89.90 AI credit" },
 };
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(ALL);
 for (const w of wanted) {
@@ -38,8 +38,9 @@ const rzp = client(keys);
 
 console.log(`\nMode: ${keys.mode}. About to create:`);
 for (const w of wanted) {
-  const { plan, currency } = ALL[w];
-  console.log(`  · ${PLANS[plan].name} — ${PLANS[plan].display[currency]}/month (${currency})`);
+  const item = ALL[w];
+  if (item.unit) console.log(`  · ${item.label}/month (${item.currency}), quantity = dollars`);
+  else console.log(`  · ${PLANS[item.plan].name} — ${PLANS[item.plan].display[item.currency]}/month (${item.currency})`);
 }
 const go = await confirm("\nCreate these plans?");
 closePrompts();
@@ -50,25 +51,33 @@ if (!go) {
 
 console.log("");
 for (const w of wanted) {
-  const { plan, currency, env } = ALL[w];
-  const p = PLANS[plan];
+  const item = ALL[w];
+  const unit = Boolean(item.unit);
+  const p = unit ? null : PLANS[item.plan];
   try {
     const created = await rzp("POST", "/plans", {
       period: "monthly",
       interval: 1,
-      item: {
-        name: `Allr ${p.name} (${currency})`,
-        description: p.aiUsd > 0
-          ? `One Allr workspace with $${p.aiUsd} of AI credit, billed monthly.`
-          : "One Allr workspace (bring your own AI key), billed monthly.",
-        amount: p.price[currency],
-        currency,
-      },
+      item: unit
+        ? {
+            name: `Allr ${item.label}`,
+            description: "One dollar of Allr AI credit, billed monthly. Quantity is the dollar amount.",
+            amount: item.amount,
+            currency: item.currency,
+          }
+        : {
+            name: `Allr ${p.name} (${item.currency})`,
+            description: "One Allr workspace, billed monthly.",
+            amount: p.price[item.currency],
+            currency: item.currency,
+          },
     });
-    console.log(`${env}=${created.id}   # ${p.name}, ${p.display[currency]}/month`);
+    console.log(unit
+      ? `${item.env}=${created.id}   # ${item.label}/month`
+      : `${item.env}=${created.id}   # ${p.name}, ${p.display[item.currency]}/month`);
   } catch (e) {
     console.error(`${w}: ${e.message}`);
-    if (currency === "USD") console.error("  (USD plans need International payments enabled on the Razorpay account.)");
+    if (item.currency === "USD") console.error("  (USD plans need International payments enabled on the Razorpay account.)");
     process.exitCode = 1;
   }
 }

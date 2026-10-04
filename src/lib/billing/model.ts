@@ -84,6 +84,34 @@ export type Billing = {
   updatedAt: string;
 };
 
+/**
+ * The optional monthly AI-credit subscription. Separate from the workspace
+ * subscription. `amountUsd` is the whole-dollar refill added each charge.
+ */
+export type CreditUpcoming = {
+  subscriptionId: string;
+  amountUsd: number;
+  status: "created" | "authenticated";
+  startsAt: string | null;
+  oldCancelled: boolean;
+};
+
+export type CreditSubscription = {
+  status: BillingStatus;
+  currency: PlanCurrency;
+  amountUsd: number;
+  subscriptionId: string;
+  customerId: string;
+  currentPeriodEnd: string | null;
+  currentPeriodStart: string | null;
+  providerStatus: string;
+  statusSince: string | null;
+  cancelAtPeriodEnd: boolean;
+  paidCount: number | null;
+  upcoming: CreditUpcoming | null;
+  updatedAt: string;
+};
+
 /** Where self-serve provisioning stands, straight off the queue. */
 export type ProvisioningStatus = {
   status: "queued" | "claimed" | "provisioned" | "failed" | "released";
@@ -103,6 +131,10 @@ export type BillingSummary = {
   /** The name their workspace will get, reserved before checkout. */
   pendingUsername: string | null;
   provisioning: ProvisioningStatus | null;
+  /** Monthly AI credit, when they have turned it on. */
+  creditSubscription: CreditSubscription | null;
+  /** Chosen at workspace checkout, waiting for the second mandate. */
+  pendingCreditUsd: number;
 };
 
 /** What POST /api/account/billing/subscribe returns. */
@@ -110,6 +142,19 @@ export type SubscribeResponse = {
   subscriptionId: string;
   keyId: string;
   plan: BillingSummary["plan"];
+  /** 0 when they unticked monthly credit. */
+  pendingCreditUsd: number;
+};
+
+/** What POST /api/account/billing/credits returns. */
+export type CreditSubscribeResponse = {
+  subscriptionId: string;
+  keyId: string;
+  amountUsd: number;
+  currency: PlanCurrency;
+  amountMinor: number;
+  /** ISO 8601 when this amount replaces the current one; null if it starts now. */
+  startsAt: string | null;
 };
 
 /**

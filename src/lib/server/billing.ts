@@ -19,6 +19,7 @@ import {
   cancelSubscriptionAtCycleEnd,
   createCustomer,
   createSubscription,
+  creditUnitPlanId,
   planIdFor,
   razorpayKeyId,
 } from "./razorpay";
@@ -27,18 +28,21 @@ import {
   planCurrencyFor,
   type Billing,
   type BillingSummary,
+  type CreditSubscribeResponse,
   type PlanCurrency,
   type SubscribeResponse,
 } from "@/lib/billing/model";
 import {
-  LEGACY_PLAN,
   PLANS,
   PLAN_KEYS,
   changeKind,
+  creditAmountMinor,
   isPlanKey,
+  parseCreditUsd,
   prorate,
   type PlanKey,
 } from "@/lib/billing/plans";
+import { creditSubscriptionFromDoc } from "@/lib/billing/records";
 import { hasWorkspace } from "@/lib/account/state";
 import type { UserProfile } from "@/lib/account/model";
 
@@ -74,9 +78,11 @@ export async function summarize(profile: UserProfile): Promise<BillingSummary> {
   const currency = profile.billing?.planCurrency ?? planCurrencyFor(profile.country);
   const workspace = hasWorkspace(profile);
   const current: PlanKey =
-    profile.billing && profile.billing.status !== "ended" ? profile.billing.plan : LEGACY_PLAN;
+    profile.billing && profile.billing.status !== "ended" ? profile.billing.plan : "workspace";
   return {
     billing: readBilling(profile),
+    creditSubscription: profile.creditSubscription,
+    pendingCreditUsd: profile.pendingCreditUsd,
     // Paying is the gate now; the workspace is what payment buys.
     canSubscribe: true,
     hasWorkspace: workspace,
@@ -100,10 +106,13 @@ export async function summarize(profile: UserProfile): Promise<BillingSummary> {
 export async function startSubscription(
   caller: Caller,
   requestedUsername?: unknown,
-  requestedPlan: unknown = LEGACY_PLAN,
+  requestedCredit: unknown = 0,
 ): Promise<SubscribeResponse> {
-  if (!isPlanKey(requestedPlan)) throw badRequest("bad-plan", "Pick one of the plans.");
-  const planKey = requestedPlan;
+  const creditUsd = parseCreditUsd(requestedCredit);
+  if (creditUsd === null) {
+    throw badRequest("bad-credit", "Monthly AI credit is a whole number of dollars, at least $1, or none.");
+  }
+  const planKey: PlanKey = "workspace";
   let profile = await readOrAdoptProfile(caller);
   if (!profile) throw badRequest("no-profile", "Make an account first.");
 
@@ -141,7 +150,7 @@ export async function startSubscription(
         // A failing mandate is fixed on its own plan; an abandoned checkout is
         // reused only for the same plan (choosing another starts a new one).
         if (now.status === "pastDue" || (now.status === "pending" && now.plan === planKey)) {
-          return { subscriptionId: now.subscriptionId, keyId: razorpayKeyId(), plan };
+          return { subscriptionId: now.subscriptionId, keyId: razorpayKeyId(), plan, pendingCreditUsd: creditUsd };
         }
       }
     }
@@ -160,13 +169,106 @@ export async function startSubscription(
   });
   try {
     const customer = await createCustomer(profile.name, caller.email);
-    const sub = await createSubscription(planIdFor(currency, planKey), customer.id, caller.uid);
+    const sub = await createSubscription(planIdFor(currency, planKey), customer.id, caller.uid, {
+      notes: { kind: "workspace" },
+    });
+    await adminDb().collection(USERS).doc(caller.uid).update({ pending_credit_usd: creditUsd });
     await syncSubscription(sub.id, { source: "checkout", uidHint: caller.uid, planCurrency: currency }, sub);
-    shipLog("billing", "subscription created", { email: caller.email, currency, sub: sub.id });
-    return { subscriptionId: sub.id, keyId: razorpayKeyId(), plan };
+    shipLog("billing", "subscription created", { email: caller.email, currency, sub: sub.id, creditUsd });
+    return { subscriptionId: sub.id, keyId: razorpayKeyId(), plan, pendingCreditUsd: creditUsd };
   } finally {
     await lock.delete().catch(() => {});
   }
+}
+
+/**
+ * Start or replace the monthly AI-credit subscription. The workspace
+ * subscription must already be active. A new amount replaces the current
+ * credit subscription at its renewal date so the account keeps one.
+ */
+export async function startCreditSubscription(caller: Caller, requested: unknown): Promise<CreditSubscribeResponse> {
+  const amountUsd = parseCreditUsd(requested);
+  if (amountUsd === null || amountUsd < 1) {
+    throw badRequest("bad-credit", "Monthly AI credit is a whole number of dollars, at least $1.");
+  }
+  const profile = await readOrAdoptProfile(caller);
+  const billing = profile?.billing;
+  if (!profile || !billing || billing.status !== "active") {
+    throw badRequest("workspace-first", "Subscribe to a workspace before adding monthly AI credit.");
+  }
+  if (billing.cancelAtPeriodEnd) {
+    throw conflict("cancelled", "Your workspace subscription is cancelled. Once it ends, subscribe again.");
+  }
+  const currency = billing.planCurrency;
+  const existing = profile.creditSubscription;
+  const view = {
+    amountUsd,
+    currency,
+    amountMinor: creditAmountMinor(amountUsd, currency),
+  };
+
+  if (existing?.status === "active" && existing.amountUsd === amountUsd && !existing.cancelAtPeriodEnd) {
+    throw conflict("same-amount", `You're already adding $${amountUsd} of AI credit each month.`);
+  }
+  if (existing?.upcoming?.status === "authenticated") {
+    throw conflict("change-scheduled",
+      `A change to $${existing.upcoming.amountUsd} a month is already set for ${existing.upcoming.startsAt?.slice(0, 10) ?? "your renewal date"}.`);
+  }
+  if (existing?.status === "pending" && existing.amountUsd === amountUsd) {
+    return { subscriptionId: existing.subscriptionId, keyId: razorpayKeyId(), ...view, startsAt: null };
+  }
+  if (existing?.upcoming?.status === "created" && existing.upcoming.amountUsd === amountUsd) {
+    return {
+      subscriptionId: existing.upcoming.subscriptionId,
+      keyId: razorpayKeyId(),
+      ...view,
+      startsAt: existing.upcoming.startsAt,
+    };
+  }
+
+  const replacing = existing?.status === "active" && existing.amountUsd !== amountUsd;
+  const end = existing?.currentPeriodEnd ? new Date(existing.currentPeriodEnd) : null;
+  if (replacing && (!end || end.getTime() - Date.now() < 60 * 60_000)) {
+    throw conflict("renewal-now", "Your renewal is happening right now — try changing the amount again after it.");
+  }
+
+  const customerId = billing.customerId || (await createCustomer(profile.name, caller.email)).id;
+  const sub = await createSubscription(creditUnitPlanId(currency), customerId, caller.uid, {
+    quantity: amountUsd,
+    startAt: replacing && end ? Math.floor(end.getTime() / 1000) : undefined,
+    notes: {
+      kind: "credits",
+      amount_usd: String(amountUsd),
+      ...(replacing && existing ? { replaces: existing.subscriptionId } : {}),
+    },
+  });
+
+  if (replacing && existing && end) {
+    const ref = adminDb().collection(USERS).doc(caller.uid);
+    await adminDb().runTransaction(async (tx) => {
+      const fresh = creditSubscriptionFromDoc((await tx.get(ref)).data()?.creditSubscription);
+      if (fresh?.subscriptionId !== existing.subscriptionId) {
+        throw conflict("changed", "Your credit subscription just changed — reload and try again.");
+      }
+      tx.update(ref, {
+        "creditSubscription.upcoming": {
+          subscriptionId: sub.id,
+          amountUsd,
+          status: "created",
+          startsAt: end.toISOString(),
+          oldCancelled: false,
+        },
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    });
+    return { subscriptionId: sub.id, keyId: razorpayKeyId(), ...view, startsAt: end.toISOString() };
+  }
+
+  await syncSubscription(sub.id, { source: "checkout", uidHint: caller.uid, planCurrency: currency }, {
+    ...sub,
+    notes: { uid: caller.uid, kind: "credits", amount_usd: String(amountUsd), ...(sub.notes ?? {}) },
+  });
+  return { subscriptionId: sub.id, keyId: razorpayKeyId(), ...view, startsAt: null };
 }
 
 /** Cancel at the end of the paid period — nobody loses time they paid for. */

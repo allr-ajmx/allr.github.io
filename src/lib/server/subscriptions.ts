@@ -12,11 +12,11 @@ import {
   type RazorpayError,
   type RzpSubscription,
 } from "./razorpay";
-import { applyMonthlyGrant, ledgerFromDoc, queueChange } from "@/lib/billing/credits";
+import { addPurchased, initialLedger, ledgerFromDoc, queueChange } from "@/lib/billing/credits";
 import { LEGACY_PLAN } from "@/lib/billing/plans";
-import { decide, missing, type Intent, type SubscriptionState } from "@/lib/billing/core";
+import { decide, decideCredit, missing, type Intent, type SubscriptionState } from "@/lib/billing/core";
 import type { PlanCurrency } from "@/lib/billing/model";
-import { billingFromDoc } from "@/lib/billing/records";
+import { billingFromDoc, creditSubscriptionFromDoc } from "@/lib/billing/records";
 
 /**
  * The ONE writer of an account's subscription state.
@@ -78,6 +78,9 @@ export async function syncSubscription(
 ): Promise<SyncOutcome> {
   const state = await currentState(subscriptionId, payload);
   const notes = "notes" in state ? (state as RzpSubscription).notes : payload?.notes;
+  if (notes?.kind === "credits") {
+    return syncCreditSubscription(subscriptionId, state, notes, opts);
+  }
   const userRef = await accountFor({ id: subscriptionId, notes }, opts.uidHint);
   const db = adminDb();
 
@@ -143,17 +146,13 @@ export async function syncSubscription(
     // Every credit consequence composes into ONE ledger write (several
     // tx.update calls on the same field would silently keep only the last).
     const ledger = ledgerFromDoc(data.credits);
-    if (ledger && (effects.grantMonth || effects.setIncludedUsd !== null || effects.grantCredit)) {
-      let next = effects.grantMonth ? applyMonthlyGrant(ledger) : ledger;
-      // Settlement applies a pending month first, then these in order: a new
-      // plan's allowance replaces the old one's from this cycle on.
-      if (effects.setIncludedUsd !== null) next = queueChange(next, { type: "set_included", usd: effects.setIncludedUsd });
-      if (effects.grantCredit) {
-        next = queueChange(next, {
-          type: "grant",
-          grant: { ...effects.grantCredit, note: "upgrade: AI credit for the rest of this cycle" },
-        });
-      }
+    // A workspace charge does not add AI credit. A legacy plan-change grant
+    // still lands on the purchased balance when it settles.
+    if (ledger && effects.grantCredit) {
+      const next = queueChange(ledger, {
+        type: "grant",
+        grant: { ...effects.grantCredit, note: "upgrade: AI credit for the rest of this cycle" },
+      });
       tx.update(userRef, { credits: next });
       if (String(data.workspace_username ?? "").trim()) {
         enqueueOp(tx, { uid: userRef.id, email: data.email, username: data.workspace_username, op: "sync_limit", valueUsd: 0 });
@@ -223,6 +222,116 @@ export async function syncSubscription(
       grant: result.effects.grantMonth,
       build: result.effects.queueBuild,
     }, result.billing.status === "pastDue" ? "warn" : "info");
+  }
+  return result.outcome;
+}
+
+async function creditAccountFor(
+  sub: { id: string; notes?: Record<string, string> | null },
+  uidHint?: string,
+) {
+  const db = adminDb();
+  for (const uid of [uidHint, sub.notes?.uid].filter((x): x is string => Boolean(x))) {
+    const ref = db.collection(USERS).doc(uid);
+    if ((await ref.get()).exists) return ref;
+  }
+  const current = await db.collection(USERS).where("creditSubscription.subscriptionId", "==", sub.id).limit(1).get();
+  if (current.docs[0]) return current.docs[0].ref;
+  const changing = await db.collection(USERS).where("creditSubscription.upcoming.subscriptionId", "==", sub.id).limit(1).get();
+  return changing.docs[0]?.ref ?? null;
+}
+
+/**
+ * The monthly AI-credit subscription. A paid cycle adds its dollar amount to
+ * the ledger. An amount change lives on `creditSubscription.upcoming` until
+ * it takes over; the purchased balance is never reset.
+ */
+async function syncCreditSubscription(
+  subscriptionId: string,
+  state: RzpSubscription | SubscriptionState,
+  notes: Record<string, string> | undefined,
+  opts: SyncOptions,
+): Promise<SyncOutcome> {
+  const userRef = await creditAccountFor({ id: subscriptionId, notes }, opts.uidHint);
+  const db = adminDb();
+  if (!userRef) {
+    await db.collection(EVENTS).doc(`unmatched-credit:${subscriptionId}:${state.status}`).set({
+      eventName: opts.eventName ?? `sync:${opts.source}`,
+      subscriptionId,
+      uid: notes?.uid ?? null,
+      outcome: "ignored",
+      reason: "no account for this credit subscription",
+      flag: true,
+      resolved: false,
+      receivedAt: FieldValue.serverTimestamp(),
+    });
+    return "unmatched";
+  }
+
+  const result = await db.runTransaction(async (tx) => {
+    const user = await tx.get(userRef);
+    const data = user.data();
+    if (!data) return { outcome: "unmatched" as const };
+    const prior = creditSubscriptionFromDoc(data.creditSubscription);
+    const amountFromNotes = Number(notes?.amount_usd);
+    const amountUsd = Number.isFinite(amountFromNotes) && amountFromNotes > 0
+      ? amountFromNotes
+      : (prior?.amountUsd ?? 0);
+    const decision = decideCredit(prior, state, {
+      currency: prior?.currency ?? opts.planCurrency ?? "USD",
+      amountUsd,
+      intent: opts.intent,
+      chargeHint: opts.eventName === "subscription.charged",
+    });
+    if (decision.kind === "stale") return { outcome: "stale" as const };
+    if (!decision.changed) return { outcome: "unchanged" as const };
+
+    const { subscription, effects } = decision;
+    tx.update(userRef, {
+      creditSubscription: { ...subscription, updatedAt: FieldValue.serverTimestamp() },
+      ...(effects.addUsd > 0 ? { pending_credit_usd: 0 } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    if (effects.addUsd > 0) {
+      const ledger = ledgerFromDoc(data.credits) ?? initialLedger();
+      const next = addPurchased(ledger, effects.addUsd);
+      tx.update(userRef, { credits: next });
+      if (String(data.workspace_username ?? "").trim()) {
+        enqueueOp(tx, {
+          uid: userRef.id,
+          email: data.email,
+          username: data.workspace_username,
+          op: "sync_limit",
+          valueUsd: next.targetLimitUsd,
+        });
+      }
+    }
+    tx.set(db.collection(EVENTS).doc(
+      `credit:${opts.source}:${subscriptionId}:${subscription.status}:${subscription.paidCount ?? "?"}`,
+    ), {
+      eventName: opts.eventName ?? `sync:${opts.source}`,
+      subscriptionId,
+      uid: userRef.id,
+      outcome: "applied",
+      flag: false,
+      receivedAt: FieldValue.serverTimestamp(),
+    });
+    return { outcome: "applied" as const, effects, subscription };
+  });
+
+  if (result.outcome === "applied" && result.effects.cancelCurrentAtPeriodEnd) {
+    const currentId = result.effects.cancelCurrentAtPeriodEnd;
+    try {
+      await cancelSubscriptionAtCycleEnd(currentId);
+    } catch (e) {
+      if (!isMissingOnRazorpay(e) && !/not cancellable|already/i.test((e as RazorpayError)?.description ?? "")) throw e;
+    }
+    await db.runTransaction(async (tx) => {
+      const fresh = creditSubscriptionFromDoc((await tx.get(userRef)).data()?.creditSubscription);
+      if (fresh?.subscriptionId === currentId && fresh.upcoming) {
+        tx.update(userRef, { "creditSubscription.upcoming.oldCancelled": true });
+      }
+    });
   }
   return result.outcome;
 }

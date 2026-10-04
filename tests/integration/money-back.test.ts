@@ -31,7 +31,7 @@ describe("buying a credit pack", () => {
     await webhook("payment.captured", { payment: pay });
     await webhook("payment.captured", { payment: pay }); // redelivered
     const u = await read("users/u1");
-    assert.equal(u?.credits.topupBalanceUsd, 9.2);
+    assert.equal(u?.credits.topupBalanceUsd, 10);
     assert.equal((await read(`credit_purchases/${pay.id}`))?.status, "applied");
     const sync = (await list("workspace_ops")).find((o) => (o as { op?: string }).op === "sync_limit");
     assert.ok(sync);
@@ -48,7 +48,7 @@ describe("buying a credit pack", () => {
     const pay = rzp.payOrder(order.orderId, "authorized");
     await webhook("payment.authorized", { payment: pay });
     assert.equal(rzp.payments.get(pay.id)?.status, "captured");
-    assert.equal((await read("users/u1"))?.credits.topupBalanceUsd, 9.2);
+    assert.equal((await read("users/u1"))?.credits.topupBalanceUsd, 10);
   });
 
   it("money for an account with no workspace is refunded automatically", async () => {
@@ -74,7 +74,7 @@ describe("buying a credit pack", () => {
     await adminDb().doc(`user_emails/${createHash("sha256").update("a@example.com").digest("hex")}`).set({ uid: "new", email: "a@example.com" });
     const pay = rzp.payOrder(order.orderId);
     await webhook("payment.captured", { payment: pay });
-    assert.equal((await read("users/new"))?.credits.topupBalanceUsd, 9.2);
+    assert.equal((await read("users/new"))?.credits.topupBalanceUsd, 10);
   });
 
   it("an older ledger (before includedLeftUsd existed) can still be credited (regression)", async () => {
@@ -85,7 +85,7 @@ describe("buying a credit pack", () => {
     const order = await buyPack("u1", "a@example.com");
     const pay = rzp.payOrder(order.orderId);
     assert.equal((await webhook("payment.captured", { payment: pay })).status, 200);
-    assert.equal((await read("users/u1"))?.credits.topupBalanceUsd, 9.2);
+    assert.equal((await read("users/u1"))?.credits.topupBalanceUsd, 10);
   });
 
   it("a pack the webhook never reported is found by the reconciler and flagged", async () => {
@@ -93,7 +93,7 @@ describe("buying a credit pack", () => {
     const order = await buyPack("u1", "a@example.com");
     rzp.payOrder(order.orderId); // no webhook
     await worker("reconcile");
-    assert.equal((await read("users/u1"))?.credits.topupBalanceUsd, 9.2);
+    assert.equal((await read("users/u1"))?.credits.topupBalanceUsd, 10);
     const flagged = (await list("billing_events")).filter((e) => (e as { flag?: boolean }).flag);
     assert.ok(flagged.some((e) => /webhook missed/.test(String((e as { reason?: string }).reason))));
   });
@@ -114,7 +114,7 @@ describe("money going back", () => {
     await webhook("refund.processed", { refund, payment: pay });
     await worker("reconcile"); // the same refund via the safety net
     const credits = (await read("users/u1"))?.credits;
-    assert.deepEqual(credits.pending, [{ type: "refund_topup", usd: 9.2 }]);
+    assert.deepEqual(credits.pending, [{ type: "refund_topup", usd: 10 }]);
     assert.equal((await read(`credit_purchases/${pay.id}`))?.status, "refunded");
   });
 
@@ -122,7 +122,7 @@ describe("money going back", () => {
     const pay = await paidPack();
     await admin({ action: "refund_topup", paymentId: pay.id });
     assert.equal(rzp.payments.get(pay.id)?.amount_refunded, pay.amount);
-    assert.deepEqual((await read("users/u1"))?.credits.pending, [{ type: "refund_topup", usd: 9.2 }]);
+    assert.deepEqual((await read("users/u1"))?.credits.pending, [{ type: "refund_topup", usd: 10 }]);
     await assert.rejects(admin({ action: "refund_topup", paymentId: pay.id }), /Already refunded/);
   });
 

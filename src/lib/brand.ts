@@ -416,35 +416,27 @@ export const WORKSPACE = {
  */
 export const PRICING = {
   eyebrow: "Pricing",
-  title: "One workspace. Your choice of AI.",
-  sub: "The apps are free and stay free. The plan is the workspace they connect to — bring your own AI key, or have AI credit included every month.",
+  title: "One workspace. AI credit if you want it.",
+  sub: "The apps are free and stay free. The plan is the workspace they connect to. AI credit is optional, and what you buy is what you can spend.",
   plans: {
     workspace: {
-      tagline: "Your workspace. Bring your own AI key.",
+      tagline: "Your workspace. Your own AI key, or ours when you add credit.",
       includes: [
         "Your own Cloud AI Workspace at yourname.allr.work",
         "Use your own AI key — add it on the Keys page in your workspace",
         "Web, desktop and phone — the apps are free",
-        "Upgrade to AI credit any time",
-      ],
-    },
-    workspace_ai: {
-      tagline: "Your workspace, with AI included.",
-      includes: [
-        "Your own Cloud AI Workspace at yourname.allr.work",
-        "AI credit every month, included",
-        "Add credit packs whenever you need more",
-        "Web, desktop and phone — the apps are free",
+        "Add monthly AI credit or a top-up whenever you want",
       ],
     },
   },
-  recommended: "Most people start here",
+  creditCardTitle: "Monthly AI credit",
+  creditCardTagline: "Optional. A second subscription, billed with the workspace only if you turn it on.",
   cta: "Get Started",
-  creditTitle: "Need more AI credit?",
-  creditSub: "On Workspace + AI, add a credit pack any time from your account. Packs never expire and are used after your monthly credit runs out.",
-  creditFeeNote: "Pack prices cover payment and AI-provider fees.",
+  creditTitle: "Top up any time",
+  creditSub: "A top-up is a one-time payment. It adds to the same balance as monthly credit and stays until you use it.",
+  creditFeeNote: "The price is the credit. Tax is added on the payment screen.",
   howTitle: "How AI credit works",
-  faqTitle: "Questions about the plans",
+  faqTitle: "Questions about pricing",
 } as const;
 
 /** Shown under the field when a signup could not be taken. */

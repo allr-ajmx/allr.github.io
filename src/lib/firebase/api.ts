@@ -106,8 +106,10 @@ export type CreditResponse = {
 export const fetchCredits = () => call<CreditResponse>("/account/credits/");
 
 export type LedgerSummary = {
+  availableUsd?: number;
+  purchasedUsd?: number;
   includedUsd: number;
-  remaining: { includedUsd: number; topupUsd: number; grantsUsd: number };
+  remaining: { includedUsd: number; topupUsd: number; grantsUsd: number; availableUsd?: number };
   grants: { id: string; usd: number; expiresAt: string | null; note: string | null }[];
   spentThisCycleUsd: number;
   topupBalanceUsd: number;
@@ -142,11 +144,21 @@ export const fetchBilling = () => call<BillingSummary>("/account/billing/");
 export const fetchBillingHistory = () =>
   call<{ items: HistoryItem[]; invoicesUnavailable: boolean }>("/account/billing/history/");
 
-export const startSubscription = (username?: string, plan?: "workspace" | "workspace_ai") =>
+export const startSubscription = (username?: string, creditUsd = 0) =>
   call<SubscribeResponse>("/account/billing/subscribe/", {
     method: "POST",
-    body: JSON.stringify({ ...(username ? { username } : {}), ...(plan ? { plan } : {}) }),
+    body: JSON.stringify({ ...(username ? { username } : {}), creditUsd }),
   });
+
+export const startCreditSubscription = (amountUsd: number) =>
+  call<{
+    subscriptionId: string;
+    keyId: string;
+    amountUsd: number;
+    currency: "USD" | "INR";
+    amountMinor: number;
+    startsAt: string | null;
+  }>("/account/billing/credits/", { method: "POST", body: JSON.stringify({ amountUsd }) });
 
 export type PlanChange = {
   subscriptionId: string;

@@ -5,10 +5,12 @@ import Link from "next/link";
 import { useAuth } from "./AuthProvider";
 import { ComingSoon, PageHeader } from "./PageHeader";
 import { hasWorkspace } from "@/lib/account/state";
+import { CREDIT_MIN_USD } from "@/lib/billing/plans";
 import { getAllrAuth } from "@/lib/firebase/app";
 import {
   ApiCallFailed,
   fetchLedger,
+  startCreditSubscription,
   startTopup,
   type LedgerResponse,
 } from "@/lib/firebase/api";
@@ -16,11 +18,9 @@ import {
 /**
  * The credit meter and the top-up shop.
  *
- * $20 of AI credit comes with every month of the subscription and expires
- * with it; purchased packs carry until used. The meter is as fresh as the
- * platform's last usage push and says so. Payment is a one-time Razorpay
- * order; the balance changes when the webhook lands, never on the browser's
- * say-so — so after checkout this page polls until it does.
+ * Available credit is everything purchased minus everything used. Monthly
+ * credit and top-ups add to the same balance and roll over. The meter is as
+ * fresh as the platform's last usage push.
  */
 
 declare global {
@@ -49,9 +49,9 @@ export function CreditsPage() {
   const { profile } = useAuth();
   // The server refuses a pack without a workspace; don't offer one either.
   const workspaceLive = profile ? hasWorkspace(profile) : false;
-  // Packs come with Workspace + AI; the workspace-only plan brings its own key.
-  const ownKeyPlan = profile?.billing?.status === "active" && profile.billing.plan === "workspace";
+  const workspacePaid = profile?.billing?.status === "active";
   const [data, setData] = useState<LedgerResponse | null>(null);
+  const [monthly, setMonthly] = useState(String(CREDIT_MIN_USD === 1 ? 20 : CREDIT_MIN_USD));
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -67,6 +67,42 @@ export function CreditsPage() {
     const t = setTimeout(() => void refresh(), 0);
     return () => clearTimeout(t);
   }, [refresh]);
+
+  const buyMonthly = useCallback(async () => {
+    const amount = Math.round(Number(monthly));
+    if (!Number.isInteger(amount) || amount < CREDIT_MIN_USD) {
+      setMessage(`Enter at least $${CREDIT_MIN_USD}.`);
+      return;
+    }
+    setMessage(null);
+    setBusy("monthly");
+    try {
+      const [credit] = await Promise.all([startCreditSubscription(amount), loadCheckout()]);
+      const user = getAllrAuth().currentUser;
+      const rzp = new window.Razorpay!({
+        key: credit.keyId,
+        subscription_id: credit.subscriptionId,
+        name: "Allr",
+        description: `AI credit · $${credit.amountUsd}/month`,
+        prefill: { name: user?.displayName ?? "", email: user?.email ?? "" },
+        theme: { color: "#1E7A49" },
+        handler: async () => {
+          await refresh();
+          setBusy(null);
+          setMessage(
+            credit.startsAt
+              ? `$${credit.amountUsd} a month starts at your next renewal. Available credit is unchanged until then.`
+              : "Monthly credit is set. The balance updates when the payment lands.",
+          );
+        },
+        modal: { ondismiss: () => setBusy(null) },
+      });
+      rzp.open();
+    } catch (error) {
+      setBusy(null);
+      setMessage(error instanceof ApiCallFailed ? error.message : "Checkout could not open. Try again?");
+    }
+  }, [monthly, refresh]);
 
   const buy = useCallback(
     async (packId: string) => {
@@ -116,8 +152,8 @@ export function CreditsPage() {
   return (
     <>
       <PageHeader eyebrow="Credits" title="Credit management">
-        AI credit comes with every month of your subscription. Bonus credit is
-        used before packs, and packs you buy carry over until they’re used.
+        Available credit is what you have paid for and not yet used. Monthly
+        credit and top-ups add to the same balance.
       </PageHeader>
 
       {!data ? (
@@ -130,24 +166,11 @@ export function CreditsPage() {
       ) : (
         <div className="flex flex-col gap-5">
           <div className="rounded-card border border-line bg-card p-6">
-            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <p className="text-[.8rem] font-bold tracking-[0.05em] text-ink-soft uppercase">This month</p>
-                <p className="text-[1.6rem] font-bold text-green-deep">
-                  ${ledger.remaining.includedUsd.toFixed(2)}
-                  <span className="text-[.95rem] font-semibold text-ink-soft"> of ${ledger.includedUsd} included</span>
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-[.8rem] font-bold tracking-[0.05em] text-ink-soft uppercase">Top-up balance</p>
-                <p className="text-[1.2rem] font-bold">${ledger.remaining.topupUsd.toFixed(2)}</p>
-              </div>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-paper">
-              <div
-                className="h-full rounded-full bg-green transition-[width] duration-500"
-                style={{ width: `${Math.min(100, (ledger.remaining.includedUsd / Math.max(1, ledger.includedUsd)) * 100)}%` }}
-              />
+            <div className="mb-4">
+              <p className="text-[.8rem] font-bold tracking-[0.05em] text-ink-soft uppercase">Available</p>
+              <p className="text-[1.6rem] font-bold text-green-deep">
+                ${(ledger.availableUsd ?? ledger.remaining.includedUsd).toFixed(2)}
+              </p>
             </div>
             {ledger.grants?.length ? (
               <ul className="mt-4 flex flex-col gap-1 text-[.88rem]">
@@ -163,11 +186,45 @@ export function CreditsPage() {
               </ul>
             ) : null}
             <p className="mt-2 text-[.82rem] text-ink-soft">
-              Spent this cycle: ${ledger.spentThisCycleUsd.toFixed(2)}
               {ledger.usageSyncedAt
-                ? ` · as of ${new Date(ledger.usageSyncedAt).toLocaleTimeString()}`
-                : " · first usage report pending"}
+                ? `Usage last reported ${new Date(ledger.usageSyncedAt).toLocaleTimeString()}.`
+                : "First usage report pending."}
             </p>
+          </div>
+
+          <div className="rounded-card border border-line bg-card p-6">
+            <h3 className="mb-1 text-[1.1rem] font-bold">Monthly credit</h3>
+            {workspacePaid ? (
+              <>
+                <p className="mb-3 text-[.92rem] text-ink-soft">
+                  A whole number of dollars, at least ${CREDIT_MIN_USD}. Changing it replaces your current monthly credit at the next renewal. The balance you have stays.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-bold">$</span>
+                  <input
+                    type="number"
+                    min={CREDIT_MIN_USD}
+                    step={1}
+                    value={monthly}
+                    onChange={(e) => setMonthly(e.target.value)}
+                    className="allr-field w-[6rem]"
+                    aria-label="Monthly AI credit in dollars"
+                  />
+                  <button
+                    type="button"
+                    disabled={busy !== null}
+                    onClick={() => void buyMonthly()}
+                    className="cursor-pointer rounded-control bg-green px-4 py-2 text-[.92rem] font-bold text-white hover:bg-green-deep disabled:opacity-60"
+                  >
+                    {busy === "monthly" ? "Opening checkout…" : "Update monthly credit"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="text-[.92rem] text-ink-soft">
+                Subscribe to a workspace first. Then you can add a monthly credit here.
+              </p>
+            )}
           </div>
 
           <div className="rounded-card border border-line bg-card p-6">
@@ -177,17 +234,10 @@ export function CreditsPage() {
                 Credit packs top up a live workspace, and you don’t have one right now.{" "}
                 <Link href="/account/billing/" className="font-bold text-green-deep">Subscribe first →</Link>
               </p>
-            ) : ownKeyPlan ? (
-              <p className="text-[.92rem] text-ink-soft">
-                Your plan uses your own AI key (the Keys page in your workspace), so there are no packs to buy.{" "}
-                <Link href="/account/billing/" className="font-bold text-green-deep">Upgrade to Workspace + AI →</Link>{" "}
-                for monthly credit and packs.
-              </p>
             ) : (
             <>
             <p className="mb-4 text-[.92rem] text-ink-soft">
-              One-time payment; never expires until used. Pack prices cover
-              payment and AI-provider fees.
+              One-time payment added to available credit. The price is the credit. Tax is added on the payment screen.
             </p>
             <div className="flex flex-wrap gap-3">
               {(data.packs ?? []).map((pack) => (

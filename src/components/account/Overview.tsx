@@ -93,11 +93,10 @@ export function Overview() {
             <PlanCard status={status} billing={billing} />
             <CreditsCard
               ledger={ledger}
-              ownKey={status.kind === "live" && status.paid && status.plan === "workspace" && status.switching?.plan !== "workspace_ai"}
               canTopUp={
-                ((status.kind === "live" && status.paid && status.plan !== "workspace") ||
-                  status.kind === "paymentDue" ||
-                  (status.kind === "ending" && !status.over))
+                (status.kind === "live" && status.paid) ||
+                status.kind === "paymentDue" ||
+                (status.kind === "ending" && !status.over)
               }
             />
           </div>
@@ -303,49 +302,19 @@ function PlanCard({ status: s, billing }: { status: WorkspaceStatus; billing: Bi
   );
 }
 
-function CreditsCard({ ledger, canTopUp, ownKey }: { ledger: LedgerSummary | null; canTopUp: boolean; ownKey: boolean }) {
+function CreditsCard({ ledger, canTopUp }: { ledger: LedgerSummary | null; canTopUp: boolean }) {
   const money = (n: number) => `$${n.toFixed(2)}`;
-  if (ownKey) {
-    return (
-      <Card>
-        <p className="mb-1 text-[.78rem] font-bold tracking-[0.05em] text-ink-soft uppercase">AI</p>
-        <p className="text-[1.1rem] font-bold text-ink">Your own key</p>
-        <p className="mt-1 text-[.9rem] leading-[1.6] text-ink-soft">
-          Your plan doesn’t include AI credit. Add or change your key on the Keys page in your workspace.
-        </p>
-        <Link href="/account/billing/" className="mt-4 inline-block text-[.92rem] font-bold text-green-deep">
-          Upgrade to Workspace + AI →
-        </Link>
-      </Card>
-    );
-  }
+  const available = ledger ? (ledger.availableUsd ?? ledger.remaining.includedUsd) : 0;
   return (
     <Card>
       <p className="mb-1 text-[.78rem] font-bold tracking-[0.05em] text-ink-soft uppercase">AI credit</p>
       {ledger ? (
-        <>
-          <p className="text-[1.35rem] font-bold text-ink">
-            {money(ledger.remaining.includedUsd + ledger.remaining.grantsUsd + ledger.remaining.topupUsd)}
-            <span className="text-[.95rem] font-semibold text-ink-soft"> left</span>
-          </p>
-          <div
-            className="mt-2 h-2 overflow-hidden rounded-full bg-line-soft"
-            role="img"
-            aria-label={`${money(ledger.remaining.includedUsd)} of ${money(ledger.includedUsd)} monthly credit left`}
-          >
-            <div
-              className="h-full rounded-full bg-honey transition-[width] duration-500"
-              style={{ width: `${Math.min(100, (ledger.remaining.includedUsd / Math.max(1, ledger.includedUsd)) * 100)}%` }}
-            />
-          </div>
-          <p className="mt-2 text-[.88rem] text-ink-soft">
-            {money(ledger.remaining.includedUsd)} of {money(ledger.includedUsd)} this month
-            {ledger.remaining.grantsUsd > 0 ? ` · ${money(ledger.remaining.grantsUsd)} bonus` : ""}
-            {ledger.remaining.topupUsd > 0 ? ` · ${money(ledger.remaining.topupUsd)} from packs` : ""}
-          </p>
-        </>
+        <p className="text-[1.35rem] font-bold text-ink">
+          {money(available)}
+          <span className="text-[.95rem] font-semibold text-ink-soft"> available</span>
+        </p>
       ) : (
-        <p className="text-[.92rem] text-ink-soft">Your credit meter appears once the workspace is set up.</p>
+        <p className="text-[.92rem] text-ink-soft">Your available credit appears once the workspace is set up.</p>
       )}
       <Link href="/account/credits/" className="mt-4 inline-block text-[.92rem] font-bold text-green-deep">
         {canTopUp ? "Add credit →" : "Credit details →"}

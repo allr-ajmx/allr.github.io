@@ -10,8 +10,8 @@ import { startSubscription } from "@/lib/server/billing";
 export async function POST(request: Request) {
   try {
     const caller = await requireUser(request);
-    const body = (await request.json().catch(() => ({}))) as { username?: unknown; plan?: unknown };
-    return Response.json(await startSubscription(caller, body.username, body.plan ?? undefined));
+    const body = (await request.json().catch(() => ({}))) as { username?: unknown; creditUsd?: unknown };
+    return Response.json(await startSubscription(caller, body.username, body.creditUsd ?? 0));
   } catch (error) {
     return toResponse(error);
   }

@@ -1,15 +1,21 @@
-# Billing: the workspace subscription (Razorpay)
+# Billing: workspace subscription and AI credits (Razorpay)
 
-The Allr app is free; the workspace is the plan. Two plans, billed monthly
-through Razorpay Subscriptions (prices live in `src/lib/billing/plans.ts`):
+The Allr app is free. Two things are sold, and they are not the same subscription:
 
-| Plan | USD | INR | AI |
-|---|---|---|---|
-| Workspace | $10 | ₹899 | bring your own key (Keys page in the workspace); our key sits at $0 |
-| Workspace + AI | $30 | ₹2,698 | $20 of AI credit each cycle, expiring at its end; packs available |
+| Product | Billing | What it buys |
+|---|---|---|
+| Workspace | Monthly subscription, `$10` / `₹899` | The workspace. No AI allowance. The person can use their own keys. |
+| Monthly AI credit | A second monthly subscription, optional | OpenRouter credit of the amount they chose (preset `$20`, any whole dollars, minimum `$1`). Unused credit rolls over. |
+| AI credit top-up | One-time order | The same balance. Face value is the credit (`$10` paid → `$10` of credit). |
 
-Indian accounts (`country === "IN"`) are billed the INR siblings; everyone
-else pays USD. A subscriber keeps the currency their subscription was made in.
+Indian accounts (`country === "IN"`) are billed in INR; everyone else pays USD.
+A subscriber keeps the currency their subscription was made in. Credit is
+denominated in USD. The INR charge for `$1` of credit is `₹89.90` (the
+workspace rate: `₹899` / `$10`). Tax is added on the Razorpay payment screen
+and is not taken out of the credit.
+
+A legacy `workspace_ai` subscription already in Firestore is left on its
+existing Razorpay mandate. New checkouts sell only the workspace plan.
 
 ## The billing core (how every change is applied)
 
@@ -30,26 +36,22 @@ else pays USD. A subscriber keeps the currency their subscription was made in.
   (including plan changes in flight) and applies what webhooks missed —
   flagged in Needs attention as "webhook missed".
 
-## Changing plan
+## Monthly AI credit
 
-Razorpay can't change a UPI or e-mandate subscription in place, so a change
-is a **new subscription on the new plan that starts at the current renewal
-date** (`billing.upcoming`). The billing date never moves.
+The credit subscription is a `$1` (or `₹89.90`) Razorpay plan with
+`quantity` equal to the dollar amount, so any whole-dollar amount is one
+subscription. It is stored on `users.creditSubscription`, separate from
+`users.billing`.
 
-- **Upgrade** (`POST /api/account/billing/change {plan}`): the prorated price
-  difference for the rest of the cycle is charged **now**, as an upfront
-  amount in the same Checkout; once Razorpay confirms the mandate
-  (`authenticated`), the same share of AI credit is granted until the renewal
-  date and the current subscription is told to end at renewal. At the
-  renewal the new subscription charges and takes over (allowance → $20).
-- **Downgrade**: nothing charged now; the AI credit already paid for lasts
-  until the renewal date, when the Workspace subscription takes over
-  (allowance → $0). Once set, it can't be undone until it takes effect.
-- The handover gap (old ended, new not yet charged) never pauses anything.
-- Abandoned or failed changes are dropped; cancelling mid-change cancels both.
-- **To verify in Razorpay test mode before relying on it**: that an `addons`
-  upfront amount is charged at authentication when `start_at` is in the future,
-  for both card and UPI. If it isn't, upgrades need a separate one-off order.
+Razorpay can't change a UPI or e-mandate subscription in place, so a new
+amount is a **new credit subscription that starts at the current renewal
+date** (`creditSubscription.upcoming`). The account still has one credit
+subscription. The balance is not reset. Checkout for the first amount starts
+immediately, after the workspace mandate is active.
+
+`notes.kind` is `credits` on that subscription and `workspace` on the
+workspace one. A credit charge adds its `amountUsd` to `credits.purchasedUsd`
+once per `paid_count`. A workspace charge does not grant AI credit.
 
 ## Flow — fully self-serve
 
@@ -64,8 +66,9 @@ date** (`billing.upcoming`). The billing date never moves.
    paid account with no workspace goes onto `provision_queue`.
 4. The **provisioner worker on the VPS** (allr.os `sitequeue.py`) polls
    `POST /api/admin/provision-queue/claim` (outbound only — the VPS listens to
-   nobody), runs the ordinary create job — minted OpenRouter key, $20/month
-   spend limit, capacity-capped by `ALLR_SELF_SERVE_MAX` — and its `site` step
+   nobody), runs the ordinary create job — minted OpenRouter key, spend limit
+   equal to available credit (zero when they have not bought any),
+   capacity-capped by `ALLR_SELF_SERVE_MAX` — and its `site` step
    stamps the profile through `POST /api/admin/workspace/`. The verdict lands
    via `POST /api/admin/provision-queue/complete`.
 5. `deriveState`: paid + no workspace = `provisioning` (the billing page shows
@@ -98,8 +101,9 @@ they paid for.
    `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`,
    the plan ids printed by `node scripts/razorpay-setup.mjs` —
    `RAZORPAY_PLAN_ID_WORKSPACE_USD`, `RAZORPAY_PLAN_ID_WORKSPACE_INR`,
-   `RAZORPAY_PLAN_ID_AI_USD` (or the older `RAZORPAY_PLAN_ID_USD`),
-   `RAZORPAY_PLAN_ID_AI_INR` (or `RAZORPAY_PLAN_ID_INR`). Redeploy.
+   `RAZORPAY_PLAN_ID_CREDIT_USD` (`$1` unit), `RAZORPAY_PLAN_ID_CREDIT_INR`
+   (`₹89.90` unit). Legacy `RAZORPAY_PLAN_ID_AI_*` plan ids are unused by new
+   checkouts. Redeploy.
 4. Go live: repeat 1–3 with live-mode keys/webhook/plans.
 
 ## Test cards
@@ -118,18 +122,20 @@ Razorpay test mode: `4111 1111 1111 1111`, any future expiry, any CVV, OTP
 
 ## Credits
 
-$20 of AI credit is included per subscription month (expires with the month);
-purchased packs — $10 / $25 / $50 / $100 (₹899 / ₹2,199 / ₹4,299 / ₹8,499) —
-carry until used. A pack's credit is its price less `PACK_FEE_SHARE` (8%,
-OpenRouter funding + Razorpay fees): $9.20 / $23 / $46 / $92.
-The ledger (`users/{uid}.credits`, math in `src/lib/billing/credits.ts`) is
-the source of truth; the workspace's OpenRouter key is a cumulative-limit key
-(`limit_reset: never`) and every ledger change becomes a `set_limit` op in
-`workspace_ops`, which the VPS worker applies and acknowledges. The worker
-also pushes usage snapshots (~5 min) to `/api/admin/usage`, which is what the
-meter on /account/credits renders. Top-ups are one-time Razorpay Orders; the
+Available credit is `purchasedUsd − usageUsd`. Monthly refills and top-ups
+add to `purchasedUsd` and never expire. The credits page shows that available
+balance, not a monthly allowance. Packs are `$10` / `$25` / `$50` / `$100`
+(₹899 / ₹2,199 / ₹4,299 / ₹8,499) and each dollar of price is a dollar of
+credit. The ledger (`users/{uid}.credits`, math in `src/lib/billing/credits.ts`)
+is the source of truth; the workspace's OpenRouter key is a cumulative-limit
+key (`limit_reset: never`) whose limit is `purchasedUsd`, and every ledger
+change becomes a `sync_limit` op in `workspace_ops`, which the VPS worker
+applies and acknowledges. The worker also pushes usage snapshots (~5 min) to
+`/api/admin/usage`. Top-ups are one-time Razorpay Orders; the
 `payment.captured` webhook re-fetches the order server-side and applies the
-pack idempotently by payment id (`credit_purchases`).
+pack idempotently by payment id (`credit_purchases`). An older ledger with no
+`purchasedUsd` is read as its previous remaining balance plus usage, so
+nothing already granted disappears.
 
 ## Adopting pre-self-serve workspaces
 

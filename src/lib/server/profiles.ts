@@ -1,6 +1,6 @@
 import "server-only";
 
-import { billingFromDoc, compFromDoc, enforcementFromDoc, promoFromDoc } from "@/lib/billing/records";
+import { billingFromDoc, compFromDoc, creditSubscriptionFromDoc, enforcementFromDoc, promoFromDoc } from "@/lib/billing/records";
 import { createHash } from "node:crypto";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "./admin";
@@ -78,6 +78,8 @@ function toProfile(data: FirebaseFirestore.DocumentData): UserProfile {
     pendingWorkspaceUsername: data.pending_workspace_username ?? null,
     enforcement: enforcementFromDoc(data.enforcement),
     billing: billingFromDoc(data.billing),
+    creditSubscription: creditSubscriptionFromDoc(data.creditSubscription),
+    pendingCreditUsd: Number.isFinite(Number(data.pending_credit_usd)) ? Number(data.pending_credit_usd) : 0,
     promo: promoFromDoc(data.promo),
     comp: compFromDoc(data.comp),
     trial: data.trial

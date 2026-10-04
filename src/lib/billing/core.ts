@@ -12,8 +12,8 @@
  * state, and the upcoming one's progress until it takes over.
  */
 
-import { normalizeProviderStatus, type Billing, type PlanCurrency } from "./model.ts";
-import { PLANS, type PlanKey } from "./plans.ts";
+import { normalizeProviderStatus, type Billing, type CreditSubscription, type PlanCurrency } from "./model.ts";
+import type { PlanKey } from "./plans.ts";
 
 /** Razorpay's subscription entity, the fields we read. */
 export type SubscriptionState = {
@@ -153,14 +153,14 @@ function decideCurrent(
   };
 
   const paid = status === "active";
-  // The allowance follows the plan from the first charge of a subscription.
-  const firstChargeOfThisSub = grantMonth && (!sameSub || (prior?.paidCount ?? 0) === 0);
+  // Workspace charges do not grant AI credit. Monthly credit is its own
+  // subscription and adds to purchasedUsd on that path.
   const effects: Effects = {
     ...NO_EFFECTS,
     grantMonth,
     queueBuild: paid && !facts.hasWorkspace && Boolean(facts.pendingUsername),
     resume: paid && facts.suspended && facts.hasWorkspace,
-    setIncludedUsd: firstChargeOfThisSub ? PLANS[plan].aiUsd : null,
+    setIncludedUsd: null,
   };
 
   return { kind: "apply", billing, effects, changed: changedFrom(prior, billing) || grantMonth };
@@ -195,7 +195,7 @@ function decideUpcoming(
     if (promoted.kind === "stale") return promoted;
     return {
       ...promoted,
-      effects: { ...promoted.effects, setIncludedUsd: PLANS[u.plan].aiUsd },
+      effects: { ...promoted.effects, setIncludedUsd: null },
       changed: true,
     };
   }
@@ -256,4 +256,126 @@ export const missing = (id: string): SubscriptionState => ({ id, status: "missin
  */
 export function switchingPlans(b: Pick<Billing, "upcoming"> | null | undefined): boolean {
   return b?.upcoming?.status === "authenticated";
+}
+
+export type CreditEffects = {
+  /** Dollars to add to purchasedUsd for this charge. 0 when nothing new was paid. */
+  addUsd: number;
+  /** Tell Razorpay the current credit subscription ends at the renewal date. */
+  cancelCurrentAtPeriodEnd: string | null;
+};
+
+export type CreditDecision =
+  | { kind: "stale"; reason: string }
+  | { kind: "apply"; subscription: Omit<CreditSubscription, "updatedAt">; effects: CreditEffects; changed: boolean };
+
+const NO_CREDIT: CreditEffects = { addUsd: 0, cancelCurrentAtPeriodEnd: null };
+
+export type DecideCreditOptions = {
+  currency: PlanCurrency;
+  /** The dollar amount this Razorpay subscription represents. */
+  amountUsd: number;
+  intent?: Intent;
+  chargeHint?: boolean;
+  now?: Date;
+};
+
+/**
+ * The monthly AI-credit subscription. A charge adds `amountUsd` to the
+ * balance (rollover). An amount change is an upcoming subscription that
+ * takes over at renewal; the balance is not reset.
+ */
+export function decideCredit(
+  prior: CreditSubscription | null,
+  sub: SubscriptionState,
+  opts: DecideCreditOptions,
+): CreditDecision {
+  if (prior?.upcoming && prior.upcoming.subscriptionId === sub.id) {
+    return decideCreditUpcoming(prior, sub, opts);
+  }
+  return decideCreditCurrent(prior, sub, opts);
+}
+
+function decideCreditCurrent(
+  prior: CreditSubscription | null,
+  sub: SubscriptionState,
+  opts: DecideCreditOptions,
+): CreditDecision {
+  const now = opts.now ?? new Date();
+  const sameSub = prior?.subscriptionId === sub.id;
+  if (prior && !sameSub && prior.status === "active") {
+    return { kind: "stale", reason: `credit subscription is active on ${prior.subscriptionId}` };
+  }
+  const status = opts.intent?.endedNow || sub.status === "missing" ? "ended" : normalizeProviderStatus(sub.status);
+  const { grant, next: paidCount } = grantDecision(
+    sameSub ? prior?.paidCount : 0,
+    sub.paid_count,
+    Boolean(opts.chargeHint),
+  );
+  const addUsd = grant && status === "active" ? opts.amountUsd : 0;
+  const subscription: Omit<CreditSubscription, "updatedAt"> = {
+    status,
+    currency: opts.currency,
+    amountUsd: opts.amountUsd,
+    subscriptionId: sub.id,
+    customerId: sub.customer_id ?? (sameSub ? (prior?.customerId ?? "") : ""),
+    currentPeriodEnd: opts.intent?.endedNow
+      ? now.toISOString()
+      : (isoFromUnix(sub.current_end) ?? (sameSub ? (prior?.currentPeriodEnd ?? null) : null)),
+    currentPeriodStart: isoFromUnix(sub.current_start) ?? (sameSub ? (prior?.currentPeriodStart ?? null) : null),
+    providerStatus: sub.status,
+    statusSince: sameSub && prior?.status === status ? (prior?.statusSince ?? now.toISOString()) : now.toISOString(),
+    cancelAtPeriodEnd: opts.intent?.cancelAtPeriodEnd ? true : sameSub ? Boolean(prior?.cancelAtPeriodEnd) : false,
+    paidCount,
+    upcoming: sameSub ? (prior?.upcoming ?? null) : null,
+  };
+  const changed =
+    !prior ||
+    prior.subscriptionId !== subscription.subscriptionId ||
+    prior.status !== subscription.status ||
+    prior.amountUsd !== subscription.amountUsd ||
+    prior.providerStatus !== subscription.providerStatus ||
+    prior.currentPeriodEnd !== subscription.currentPeriodEnd ||
+    (prior.paidCount ?? null) !== (subscription.paidCount ?? null) ||
+    Boolean(prior.cancelAtPeriodEnd) !== subscription.cancelAtPeriodEnd ||
+    addUsd > 0;
+  return { kind: "apply", subscription, effects: { ...NO_CREDIT, addUsd }, changed };
+}
+
+function decideCreditUpcoming(
+  prior: CreditSubscription,
+  sub: SubscriptionState,
+  opts: DecideCreditOptions,
+): CreditDecision {
+  const u = prior.upcoming!;
+  const status = sub.status === "missing" ? "ended" : normalizeProviderStatus(sub.status);
+  if (status === "active") {
+    const promoted = decideCreditCurrent(
+      { ...prior, status: "ended", upcoming: null },
+      sub,
+      { ...opts, amountUsd: u.amountUsd },
+    );
+    if (promoted.kind === "stale") return promoted;
+    return { ...promoted, changed: true };
+  }
+  if (TERMINAL.has(sub.status) && (sub.paid_count ?? 0) === 0) {
+    const { updatedAt: _ignored, ...rest } = prior;
+    void _ignored;
+    return { kind: "apply", subscription: { ...rest, upcoming: null }, effects: NO_CREDIT, changed: true };
+  }
+  const authenticated = sub.status === "authenticated" || u.status === "authenticated";
+  const next = {
+    ...u,
+    status: authenticated ? ("authenticated" as const) : u.status,
+    startsAt: u.startsAt ?? prior.currentPeriodEnd,
+  };
+  const { updatedAt: _ignored, ...rest } = prior;
+  void _ignored;
+  const subscription = { ...rest, upcoming: next };
+  const effects: CreditEffects = {
+    addUsd: 0,
+    cancelCurrentAtPeriodEnd: authenticated && !u.oldCancelled ? prior.subscriptionId : null,
+  };
+  const changed = next.status !== u.status || next.startsAt !== u.startsAt || Boolean(effects.cancelCurrentAtPeriodEnd);
+  return { kind: "apply", subscription, effects, changed };
 }

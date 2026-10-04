@@ -3,11 +3,9 @@
  * place prices and AI allowances live. Checkout, the billing core, /pricing
  * and the account pages all read from here.
  *
- * Two plans, one subscription each:
- * - workspace     — the workspace only; the person brings their own AI key
- *                   (the Keys page in their workspace), our key sits at $0.
- * - workspace_ai  — the workspace plus a monthly AI allowance that expires at
- *                   the end of each billing cycle.
+ * The workspace is one subscription. AI credit is a separate subscription
+ * (any whole-dollar amount) plus one-time top-ups. `workspace_ai` remains
+ * only so a subscription created before the split still decodes.
  *
  * Moving between them (the standard pattern):
  * - upgrade:   takes effect now; the price difference for the rest of the
@@ -49,8 +47,31 @@ export const PLANS: Record<PlanKey, Plan> = {
 
 export const PLAN_KEYS: readonly PlanKey[] = ["workspace", "workspace_ai"];
 export const PLAN_INTERVAL = "month";
-/** Subscriptions made before there were two plans were all Workspace + AI. */
+/** Documents written before `plan` existed. New checkouts use `workspace`. */
 export const LEGACY_PLAN: PlanKey = "workspace_ai";
+
+/** Suggested monthly AI credit at checkout. Not an included allowance. */
+export const CREDIT_PRESET_USD = 20;
+/** Smallest monthly AI credit subscription. Unticked checkout sends 0. */
+export const CREDIT_MIN_USD = 1;
+/**
+ * Paise charged per $1 of AI credit. Same rate as the workspace:
+ * ₹899 / $10 = ₹89.90.
+ */
+export const INR_PAISE_PER_USD = 8_990;
+
+export function creditAmountMinor(usd: number, currency: PlanCurrency): number {
+  const dollars = Math.max(0, Math.round(usd));
+  return currency === "USD" ? dollars * 100 : dollars * INR_PAISE_PER_USD;
+}
+
+/** 0, or a whole number of dollars at least CREDIT_MIN_USD. */
+export function parseCreditUsd(raw: unknown): number | null {
+  if (raw === 0 || raw === "0" || raw === null || raw === undefined || raw === "") return 0;
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isInteger(n) || n < CREDIT_MIN_USD) return null;
+  return n;
+}
 
 export const isPlanKey = (v: unknown): v is PlanKey => v === "workspace" || v === "workspace_ai";
 

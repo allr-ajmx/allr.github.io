@@ -8,7 +8,7 @@
  * mishandle one.
  */
 
-import type { Billing } from "@/lib/billing/model";
+import type { Billing, CreditSubscription } from "@/lib/billing/model";
 import type { Complimentary, Enforcement } from "@/lib/billing/lifecycle";
 import type { Promo } from "@/lib/billing/promo";
 
@@ -90,6 +90,12 @@ export type UserProfile = {
    * describes, and never trusted from a checkout callback.
    */
   billing: Billing | null;
+
+  /** Optional monthly AI credit. Null until they subscribe to it. */
+  creditSubscription: CreditSubscription | null;
+
+  /** Dollars of monthly credit chosen at workspace checkout, not yet mandated. */
+  pendingCreditUsd: number;
 
   /** The lifecycle enforcer's mark: set when it suspends, cleared on resume. */
   enforcement: Enforcement;

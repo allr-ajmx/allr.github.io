@@ -10,15 +10,15 @@ import { capturePayment, createOrder, fetchOrder, razorpayKeyId, refundPayment, 
 import { enqueueOp } from "./provisioning";
 import { planCurrencyFor } from "@/lib/billing/model";
 import {
-  applyMonthlyGrant,
+  addPurchased,
   applyTopup,
   applyUsage,
+  availableUsd,
   initialLedger,
   ledgerFromDoc,
   packById,
   remaining,
   spentThisCycle,
-  targetOf,
   type CreditLedger,
   type TopupPackId,
 } from "@/lib/billing/credits";
@@ -51,11 +51,10 @@ export async function readLedger(uid: string): Promise<CreditLedger | null> {
  * Workspace, 20 for Workspace + AI). `includedLeftUsd`: this cycle's starting
  * amount when it differs (a promotional month's credit).
  */
-export function initialLedgerFields(opts: { includedUsd?: number; includedLeftUsd?: number } = {}) {
-  const l = initialLedger();
-  const includedUsd = opts.includedUsd ?? l.includedUsd;
-  const next = { ...l, includedUsd, includedLeftUsd: opts.includedLeftUsd ?? includedUsd };
-  return { credits: { ...next, targetLimitUsd: targetOf(next) } };
+export function initialLedgerFields(opts: { purchasedUsd?: number; includedUsd?: number; includedLeftUsd?: number } = {}) {
+  const seed = opts.purchasedUsd ?? opts.includedLeftUsd ?? opts.includedUsd ?? 0;
+  const next = seed > 0 ? addPurchased(initialLedger(), seed) : initialLedger();
+  return { credits: next };
 }
 
 /** POST /api/account/credits/topup — create the order Checkout will pay. */
@@ -67,9 +66,6 @@ export async function startTopup(caller: Caller, packId: unknown) {
   if (!profile) throw badRequest("no-profile", "Make an account first.");
   if (!hasWorkspace(profile)) {
     throw forbidden("no-workspace", "Credits top up a live workspace. Subscribe first.");
-  }
-  if (profile.billing?.status === "active" && profile.billing.plan === "workspace") {
-    throw forbidden("upgrade-for-packs", "Credit packs come with Workspace + AI. Upgrade to add credit — or use your own key.");
   }
 
   const currency = planCurrencyFor(profile.country);
@@ -258,7 +254,7 @@ export function applyMonthlyGrantInTransaction(
 ): void {
   const ledger = asLedger(data);
   if (!ledger) return;
-  const next = applyMonthlyGrant(ledger);
+  const next = addPurchased(ledger, 0);
   tx.update(userRef, { credits: next });
   // No workspace yet (paying again after a removal): there is no key to move.
   // Linking the new workspace queues the sync that settles this charge.
@@ -300,9 +296,12 @@ export async function ingestUsage(items: { email: string; usageUsd: number; user
 /** What /account/credits shows once a ledger exists. */
 export function summarizeLedger(ledger: CreditLedger) {
   const rem = remaining(ledger);
+  const available = rem.availableUsd ?? availableUsd(ledger);
   return {
-    includedUsd: ledger.includedUsd ?? 20,
-    remaining: { includedUsd: rem.includedUsd, topupUsd: rem.topupUsd, grantsUsd: rem.grantsUsd },
+    availableUsd: available,
+    purchasedUsd: ledger.purchasedUsd,
+    includedUsd: available,
+    remaining: { includedUsd: available, topupUsd: rem.topupUsd, grantsUsd: rem.grantsUsd, availableUsd: available },
     grants: rem.grants.map((g) => ({ id: g.id, usd: g.usd, expiresAt: g.expiresAt, note: g.note ?? null })),
     spentThisCycleUsd: spentThisCycle(ledger),
     topupBalanceUsd: ledger.topupBalanceUsd,

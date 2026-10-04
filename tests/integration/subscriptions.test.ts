@@ -92,7 +92,7 @@ describe("signing up", () => {
   });
 });
 
-describe("renewals and credit", () => {
+describe("renewals", () => {
   async function liveCustomer() {
     const { initialLedger } = await import("@/lib/billing/credits");
     await seedUser("u1", "k@example.com", { ws: "kamal" });
@@ -106,31 +106,32 @@ describe("renewals and credit", () => {
     return subscriptionId;
   }
 
-  it("each renewal grants the month exactly once, whichever path sees it", async () => {
+  it("each renewal is recorded once, whichever path sees it, and adds no AI credit", async () => {
     const subId = await liveCustomer();
     rzp.charge(subId);
     const sub = rzp.subscriptions.get(subId)!;
     await webhook("subscription.charged", { subscription: sub });
     await webhook("subscription.charged", { subscription: sub }); // a second delivery, new event id
     await worker("reconcile"); // and the safety net sees the same charge
-    const credits = (await read("users/u1"))?.credits;
-    assert.equal(credits.grantsPending, 1);
+    const u = await read("users/u1");
+    assert.equal(u?.billing.paidCount, 2);
+    assert.equal(u?.credits.purchasedUsd, 0);
   });
 
-  it("the activation arriving before the charge doesn't swallow the month (regression)", async () => {
+  it("the activation arriving before the charge doesn't swallow the renewal (regression)", async () => {
     const subId = await liveCustomer();
     rzp.charge(subId);
     const sub = rzp.subscriptions.get(subId)!;
     await webhook("subscription.activated", { subscription: sub });
     await webhook("subscription.charged", { subscription: sub });
-    assert.equal((await read("users/u1"))?.credits.grantsPending, 1);
+    assert.equal((await read("users/u1"))?.billing.paidCount, 2);
   });
 
-  it("a renewal no webhook reported is found and granted by the reconciler, and flagged", async () => {
+  it("a renewal no webhook reported is found by the reconciler and flagged", async () => {
     const subId = await liveCustomer();
     rzp.charge(subId); // silent renewal
     await worker("reconcile");
-    assert.equal((await read("users/u1"))?.credits.grantsPending, 1);
+    assert.equal((await read("users/u1"))?.billing.paidCount, 2);
     const flags = (await import("./harness.ts")).list;
     const events = await flags("billing_events");
     assert.ok(events.some((e) => (e as { flag?: boolean; reason?: string }).flag && /webhook missed/.test(String((e as { reason?: string }).reason))));

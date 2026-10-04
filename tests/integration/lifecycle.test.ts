@@ -39,7 +39,7 @@ describe("removing a workspace", () => {
     assert.equal(u?.billing.status, "ended");
     assert.equal(u?.credits.usageUsd, 0);
     assert.equal(u?.credits.includedLeftUsd, 0);
-    assert.equal(u?.credits.topupBalanceUsd, 4.2); // 25 spent: 20 included + 5 of the 9.20 pack
+    assert.equal(u?.credits.purchasedUsd, 0); // 25 used against 9.20 purchased — nothing left to carry
   });
 
   it("a test-mode subscription doesn't block removal (regression)", async () => {

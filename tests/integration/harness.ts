@@ -13,6 +13,8 @@ process.env.RAZORPAY_PLAN_ID_USD ??= "plan_usd";
 process.env.RAZORPAY_PLAN_ID_INR ??= "plan_inr";
 process.env.RAZORPAY_PLAN_ID_WORKSPACE_USD ??= "plan_ws_usd";
 process.env.RAZORPAY_PLAN_ID_WORKSPACE_INR ??= "plan_ws_inr";
+process.env.RAZORPAY_PLAN_ID_CREDIT_USD ??= "plan_credit_usd";
+process.env.RAZORPAY_PLAN_ID_CREDIT_INR ??= "plan_credit_inr";
 process.env.RAZORPAY_WEBHOOK_SECRET ??= "whsec_harness";
 process.env.ALLR_ADMIN_API_TOKEN ??= "x".repeat(40);
 
