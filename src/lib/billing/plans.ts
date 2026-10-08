@@ -46,6 +46,12 @@ export const PLANS: Record<PlanKey, Plan> = {
 };
 
 export const PLAN_KEYS: readonly PlanKey[] = ["workspace", "workspace_ai"];
+/**
+ * The workspace's list price. New checkouts are priced from this in USD and
+ * converted at the day's rate (quote.ts); `price.INR` above is only for
+ * subscriptions made before that.
+ */
+export const WORKSPACE_USD = PLANS.workspace.price.USD / 100;
 export const PLAN_INTERVAL = "month";
 /** Documents written before `plan` existed. New checkouts use `workspace`. */
 export const LEGACY_PLAN: PlanKey = "workspace_ai";

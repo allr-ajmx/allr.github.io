@@ -35,6 +35,7 @@ import {
 import {
   PLANS,
   PLAN_KEYS,
+  WORKSPACE_USD,
   changeKind,
   creditAmountMinor,
   isPlanKey,
@@ -43,6 +44,8 @@ import {
   type PlanKey,
 } from "@/lib/billing/plans";
 import { creditSubscriptionFromDoc } from "@/lib/billing/records";
+import { money, type Quote } from "@/lib/billing/quote";
+import { planForAmount, priceFor } from "./pricing";
 import { hasWorkspace } from "@/lib/account/state";
 import type { UserProfile } from "@/lib/account/model";
 
@@ -79,6 +82,8 @@ export async function summarize(profile: UserProfile): Promise<BillingSummary> {
   const workspace = hasWorkspace(profile);
   const current: PlanKey =
     profile.billing && profile.billing.status !== "ended" ? profile.billing.plan : "workspace";
+  const view = planView(current, currency);
+  const locked = profile.billing && profile.billing.status !== "ended" ? profile.billing.bill : null;
   return {
     billing: readBilling(profile),
     creditSubscription: profile.creditSubscription,
@@ -89,7 +94,10 @@ export async function summarize(profile: UserProfile): Promise<BillingSummary> {
     pendingUsername: profile.pendingWorkspaceUsername,
     provisioning:
       !workspace && (profile.billing || profile.promo) ? await readQueue(profile.uid) : null,
-    plan: planView(current, currency),
+    // A subscription priced at checkout shows what it actually charges.
+    plan: locked
+      ? { ...view, currency: locked.currency, amountMinor: locked.totalMinor, display: money(locked.totalMinor, locked.currency) }
+      : view,
     plans: PLAN_KEYS.map((k) => {
       const v = planView(k, currency);
       return { key: v.key, name: v.name, aiUsd: v.aiUsd, amountMinor: v.amountMinor, display: v.display };
@@ -126,8 +134,16 @@ export async function startSubscription(
     }
   }
 
-  const currency = planCurrencyFor(profile.country);
-  const plan = planView(planKey, currency);
+  // The bill: dollar lines → the person's currency at the day's rate, + GST.
+  const bill = await quoteSubscription(profile.country, creditUsd);
+  const currency = bill.currency;
+  const answer = (subscriptionId: string, q: Quote = bill, credit = creditUsd): SubscribeResponse => ({
+    subscriptionId,
+    keyId: razorpayKeyId(),
+    plan: { ...planView(planKey, q.currency), amountMinor: q.totalMinor, display: money(q.totalMinor, q.currency) },
+    creditUsd: credit,
+    quote: q,
+  });
 
   const existing = profile.billing;
   if (existing) {
@@ -147,10 +163,17 @@ export async function startSubscription(
         if (now.status === "active") {
           throw conflict("already-subscribed", "Your payment went through — your workspace is on its way.");
         }
-        // A failing mandate is fixed on its own plan; an abandoned checkout is
-        // reused only for the same plan (choosing another starts a new one).
-        if (now.status === "pastDue" || (now.status === "pending" && now.plan === planKey)) {
-          return { subscriptionId: now.subscriptionId, keyId: razorpayKeyId(), plan, pendingCreditUsd: creditUsd };
+        // A failing mandate is fixed on its own plan. An abandoned checkout
+        // is reused only for the same bill — same credit, same currency, and
+        // priced with today's rate (choosing anything else starts a new one).
+        if (now.status === "pastDue") {
+          return answer(now.subscriptionId, lockedQuote(now, bill), now.creditUsd);
+        }
+        if (
+          now.status === "pending" && now.plan === planKey && now.creditUsd === creditUsd &&
+          now.bill?.currency === currency && now.bill.totalMinor === bill.totalMinor
+        ) {
+          return answer(now.subscriptionId);
         }
       }
     }
@@ -169,16 +192,86 @@ export async function startSubscription(
   });
   try {
     const customer = await createCustomer(profile.name, caller.email);
-    const sub = await createSubscription(planIdFor(currency, planKey), customer.id, caller.uid, {
-      notes: { kind: "workspace" },
+    // One subscription for the whole bill: workspace + monthly AI credit,
+    // converted and taxed. Its notes say what each cycle buys.
+    const planId = await planForAmount(bill.totalMinor, currency, `Allr workspace, monthly (${money(bill.totalMinor, currency)} incl. tax)`);
+    const sub = await createSubscription(planId, customer.id, caller.uid, {
+      notes: {
+        kind: "workspace",
+        credit_usd: String(creditUsd),
+        currency,
+        fx_rate: String(bill.fxRate),
+        subtotal_minor: String(bill.subtotalMinor),
+        tax_rate: String(bill.taxRate),
+        tax_minor: String(bill.taxMinor),
+        total_minor: String(bill.totalMinor),
+      },
     });
-    await adminDb().collection(USERS).doc(caller.uid).update({ pending_credit_usd: creditUsd });
+    // A two-step choice left from before is superseded by this one.
+    await adminDb().collection(USERS).doc(caller.uid).update({ pending_credit_usd: 0 });
     await syncSubscription(sub.id, { source: "checkout", uidHint: caller.uid, planCurrency: currency }, sub);
-    shipLog("billing", "subscription created", { email: caller.email, currency, sub: sub.id, creditUsd });
-    return { subscriptionId: sub.id, keyId: razorpayKeyId(), plan, pendingCreditUsd: creditUsd };
+    shipLog("billing", "subscription created", {
+      email: caller.email, currency, sub: sub.id, creditUsd, totalMinor: bill.totalMinor, fx: bill.fxRate,
+    });
+    return answer(sub.id);
   } finally {
     await lock.delete().catch(() => {});
   }
+}
+
+/** Workspace + optional monthly AI credit, priced for this country today. */
+export function quoteSubscription(country: string, creditUsd: number): Promise<Quote> {
+  return priceFor(
+    [
+      { label: "Workspace", usd: WORKSPACE_USD },
+      { label: "AI credit", usd: creditUsd },
+    ],
+    country,
+  );
+}
+
+/**
+ * What an existing subscription charges, in the shape the page shows: its
+ * locked bill, or for one made before pricing at checkout, its fixed plan.
+ */
+function lockedQuote(b: Billing, fallback: Quote): Quote {
+  if (!b.bill) {
+    const minor = PLANS[b.plan].price[b.planCurrency];
+    const usd = PLANS[b.plan].price.USD / 100;
+    return {
+      currency: b.planCurrency, fxRate: b.planCurrency === "USD" ? 1 : fallback.fxRate,
+      lines: [{ label: PLANS[b.plan].name, usd, minor }], subtotalUsd: usd,
+      subtotalMinor: minor, taxRate: 0, taxMinor: 0, totalMinor: minor,
+    };
+  }
+  const bill = b.bill;
+  const lines = [
+    { label: "Workspace", usd: WORKSPACE_USD },
+    { label: "AI credit", usd: b.creditUsd },
+  ].filter((l) => l.usd > 0);
+  const share = (usd: number) => Math.round((bill.subtotalMinor * usd) / (WORKSPACE_USD + b.creditUsd));
+  return {
+    ...fallback,
+    currency: bill.currency,
+    fxRate: bill.fxRate,
+    lines: lines.map((l) => ({ ...l, minor: share(l.usd) })),
+    subtotalUsd: WORKSPACE_USD + b.creditUsd,
+    subtotalMinor: bill.subtotalMinor,
+    taxRate: bill.taxRate,
+    taxMinor: bill.taxMinor,
+    totalMinor: bill.totalMinor,
+  };
+}
+
+/** GET /api/account/billing/quote — the bill before Checkout opens. */
+export async function quoteFor(caller: Caller, requestedCredit: unknown): Promise<Quote> {
+  const creditUsd = parseCreditUsd(requestedCredit);
+  if (creditUsd === null) {
+    throw badRequest("bad-credit", "Monthly AI credit is a whole number of dollars, at least $1, or none.");
+  }
+  const profile = await readOrAdoptProfile(caller);
+  if (!profile) throw badRequest("no-profile", "Make an account first.");
+  return quoteSubscription(profile.country, creditUsd);
 }
 
 /**
@@ -201,6 +294,15 @@ export async function startCreditSubscription(caller: Caller, requested: unknown
   }
   const currency = billing.planCurrency;
   const existing = profile.creditSubscription;
+  // Monthly credit is chosen with the workspace subscription now. A separate
+  // credit subscription is only for accounts that already have one (to
+  // change its amount) or chose one in the old two-step checkout.
+  if (!existing && !(profile.pendingCreditUsd > 0)) {
+    throw conflict(
+      "credit-with-plan",
+      "Monthly AI credit is part of your workspace plan. To add credit now, buy a one-time top-up.",
+    );
+  }
   const view = {
     amountUsd,
     currency,

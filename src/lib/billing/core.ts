@@ -12,7 +12,7 @@
  * state, and the upcoming one's progress until it takes over.
  */
 
-import { normalizeProviderStatus, type Billing, type CreditSubscription, type PlanCurrency } from "./model.ts";
+import { normalizeProviderStatus, type Billing, type CreditSubscription, type LockedBill, type PlanCurrency } from "./model.ts";
 import type { PlanKey } from "./plans.ts";
 
 /** Razorpay's subscription entity, the fields we read. */
@@ -43,6 +43,8 @@ export type Intent = {
 export type Effects = {
   /** A charge we haven't granted for: settle the cycle, grant the month. */
   grantMonth: boolean;
+  /** Monthly AI credit bought with the workspace subscription, added for this charge (USD). */
+  addCreditUsd: number;
   /** Paid and no workspace: build it. */
   queueBuild: boolean;
   /** Paid and paused by us: bring it back. */
@@ -57,6 +59,7 @@ export type Effects = {
 
 const NO_EFFECTS: Effects = {
   grantMonth: false,
+  addCreditUsd: 0,
   queueBuild: false,
   resume: false,
   setIncludedUsd: null,
@@ -83,10 +86,31 @@ function grantDecision(stored: number | null | undefined, live: number | null | 
   return live > stored ? { grant: true, next: live } : { grant: false, next: stored };
 }
 
+/**
+ * The paid_count to record. A charge seen before the subscription reads
+ * active (Razorpay can report "authenticated" with the first charge already
+ * counted) is not granted yet — so the count must not move either, or the
+ * first active sync would see nothing new and the cycle's credit is lost.
+ */
+function grantFor(
+  stored: number | null | undefined,
+  live: number | null | undefined,
+  chargeHint: boolean,
+  active: boolean,
+): { grant: boolean; paidCount: number | null } {
+  const d = grantDecision(stored, live, chargeHint);
+  if (d.grant && !active) return { grant: false, paidCount: stored ?? null };
+  return { grant: d.grant, paidCount: d.next };
+}
+
 export type DecideOptions = {
   planCurrency: PlanCurrency;
   /** The plan this subscription is for (from its Razorpay plan id). */
   plan: PlanKey;
+  /** Monthly AI credit this subscription carries (USD, from its notes). */
+  creditUsd?: number;
+  /** The bill quoted at checkout (from its notes), kept for display. */
+  bill?: LockedBill | null;
   intent?: Intent;
   chargeHint?: boolean;
   now?: Date;
@@ -122,12 +146,14 @@ function decideCurrent(
   // "missing": Razorpay doesn't know the id (a test-mode leftover) — it can
   // never charge, so it is ended, not the "pending" an unknown status maps to.
   const status = opts.intent?.endedNow || sub.status === "missing" ? "ended" : normalizeProviderStatus(sub.status);
-  const { grant, next: paidCount } = grantDecision(
+  const { grant: grantMonth, paidCount } = grantFor(
     sameSub ? prior?.paidCount : 0,
     sub.paid_count,
     Boolean(opts.chargeHint),
+    status === "active",
   );
-  const grantMonth = grant && status === "active";
+  const creditUsd = opts.creditUsd ?? (sameSub ? (prior?.creditUsd ?? 0) : 0);
+  const bill = opts.bill ?? (sameSub ? (prior?.bill ?? null) : null);
 
   const currentPeriodEnd = opts.intent?.endedNow
     ? now.toISOString()
@@ -150,14 +176,18 @@ function decideCurrent(
     // A change in flight stays with the subscription it would replace; a
     // brand-new current subscription starts with none.
     upcoming: sameSub ? (prior?.upcoming ?? null) : null,
+    creditUsd,
+    bill,
   };
 
   const paid = status === "active";
-  // Workspace charges do not grant AI credit. Monthly credit is its own
-  // subscription and adds to purchasedUsd on that path.
+  // A paid cycle adds the monthly AI credit the subscription was bought
+  // with (0 for workspace only). Older accounts' separate credit
+  // subscription adds on its own path.
   const effects: Effects = {
     ...NO_EFFECTS,
     grantMonth,
+    addCreditUsd: grantMonth ? creditUsd : 0,
     queueBuild: paid && !facts.hasWorkspace && Boolean(facts.pendingUsername),
     resume: paid && facts.suspended && facts.hasWorkspace,
     setIncludedUsd: null,
@@ -243,7 +273,9 @@ function changedFrom(prior: Billing | null, b: Omit<Billing, "updatedAt">): bool
     prior.currentPeriodStart !== b.currentPeriodStart ||
     Boolean(prior.cancelAtPeriodEnd) !== b.cancelAtPeriodEnd ||
     (prior.paidCount ?? null) !== (b.paidCount ?? null) ||
-    prior.plan !== b.plan
+    prior.plan !== b.plan ||
+    (prior.creditUsd ?? 0) !== b.creditUsd ||
+    JSON.stringify(prior.bill ?? null) !== JSON.stringify(b.bill)
   );
 }
 
@@ -307,12 +339,13 @@ function decideCreditCurrent(
     return { kind: "stale", reason: `credit subscription is active on ${prior.subscriptionId}` };
   }
   const status = opts.intent?.endedNow || sub.status === "missing" ? "ended" : normalizeProviderStatus(sub.status);
-  const { grant, next: paidCount } = grantDecision(
+  const { grant, paidCount } = grantFor(
     sameSub ? prior?.paidCount : 0,
     sub.paid_count,
     Boolean(opts.chargeHint),
+    status === "active",
   );
-  const addUsd = grant && status === "active" ? opts.amountUsd : 0;
+  const addUsd = grant ? opts.amountUsd : 0;
   const subscription: Omit<CreditSubscription, "updatedAt"> = {
     status,
     currency: opts.currency,

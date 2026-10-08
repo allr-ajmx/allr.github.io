@@ -12,6 +12,7 @@ import {
   type LedgerSummary,
 } from "@/lib/firebase/api";
 import type { BillingSummary } from "@/lib/billing/model";
+import { WORKSPACE_USD } from "@/lib/billing/plans";
 import { workspaceStatus, type WorkspaceStatus } from "@/lib/account/workspace-status";
 
 /**
@@ -86,7 +87,7 @@ export function Overview() {
       </PageHeader>
 
       <div className="flex flex-col gap-5">
-        <WorkspaceCard status={status} justWentLive={justWentLive} plan={billing?.plan ?? null} />
+        <WorkspaceCard status={status} justWentLive={justWentLive} />
 
         {status.kind !== "none" && status.kind !== "building" ? (
           <div className="grid gap-5 min-[720px]:grid-cols-2">
@@ -142,20 +143,18 @@ function Card({ children }: { children: React.ReactNode }) {
 function WorkspaceCard({
   status: s,
   justWentLive,
-  plan,
 }: {
   status: WorkspaceStatus;
   justWentLive: boolean;
-  plan: BillingSummary["plan"] | null;
 }) {
   if (s.kind === "none") {
     return (
       <Card>
         <h2 className="mb-1 font-serif text-[1.2rem] text-ink">Get your workspace</h2>
         <p className="mb-5 max-w-[56ch] text-[.96rem] leading-[1.7] text-ink-soft">
-          One workspace of your own, with $20 of AI credit every month
-          {plan ? ` — ${plan.display}/${plan.interval}` : ""}. Cancel any time. Have a
-          promo code? Enter it when you choose a name.
+          One workspace of your own for ${WORKSPACE_USD}/month + GST, with optional monthly
+          AI credit in the same payment. Cancel any time. Have a promo code? Enter it
+          when you choose a name.
         </p>
         <Button href="/account/billing/">Choose a name</Button>
       </Card>

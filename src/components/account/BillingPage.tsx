@@ -13,6 +13,7 @@ import {
   confirmSubscription,
   fetchBilling,
   fetchBillingHistory,
+  fetchQuote,
   redeemPromoCode,
   startCreditSubscription,
   startSubscription,
@@ -21,7 +22,9 @@ import { checkUsernameShape } from "@/lib/admin/username";
 import type { BillingSummary } from "@/lib/billing/model";
 import { workspaceStatus } from "@/lib/account/workspace-status";
 import { formatMoney, type HistoryItem } from "@/lib/billing/history";
-import { CREDIT_MIN_USD, CREDIT_PRESET_USD, creditAmountMinor } from "@/lib/billing/plans";
+import { CREDIT_MIN_USD, CREDIT_PRESET_USD, WORKSPACE_USD } from "@/lib/billing/plans";
+import { describeQuote, type Quote } from "@/lib/billing/quote";
+import { Bill } from "./Bill";
 
 /**
  * The workspace is the plan, and paying for it is what creates it: pick a
@@ -70,6 +73,7 @@ export function BillingPage() {
   const [promoOpen, setPromoOpen] = useState(false);
   const [creditOn, setCreditOn] = useState(true);
   const [creditUsd, setCreditUsd] = useState(CREDIT_PRESET_USD);
+  const [quote, setQuote] = useState<Quote | null>(null);
   const [promoCode, setPromoCode] = useState("");
   const [redeeming, setRedeeming] = useState(false);
   /** False once the page is gone: background waits stop touching state. */
@@ -191,16 +195,13 @@ export function BillingPage() {
         setMessage(null);
         fetchBillingHistory().then(setHistory).catch(() => {});
         await refreshProfile();
-        if ((next.pendingCreditUsd ?? 0) >= CREDIT_MIN_USD) {
-          await openCreditCheckout(next.pendingCreditUsd);
-        }
         return;
       }
     }
     if (!mounted.current) return;
     await refresh();
     setMessage("Payment received — it can take a minute to reflect here.");
-  }, [refresh, refreshProfile, openCreditCheckout]);
+  }, [refresh, refreshProfile]);
 
   const redeem = useCallback(async () => {
     setMessage(null);
@@ -230,7 +231,7 @@ export function BillingPage() {
     }
     try {
       const needName = summary ? !summary.hasWorkspace : true;
-      const [{ subscriptionId, keyId }] = await Promise.all([
+      const [{ subscriptionId, keyId, quote: bill }] = await Promise.all([
         startSubscription(needName ? username : undefined, monthly),
         loadCheckout(),
       ]);
@@ -239,7 +240,7 @@ export function BillingPage() {
         key: keyId,
         subscription_id: subscriptionId,
         name: "Allr",
-        description: "Allr workspace · monthly",
+        description: describeQuote(bill),
         prefill: { name: user?.displayName ?? "", email: user?.email ?? "" },
         theme: { color: "#1E7A49" },
         handler: () => void awaitWebhook(subscriptionId),
@@ -284,6 +285,25 @@ export function BillingPage() {
     (status?.kind === "ending" && status.canResubscribe) ||
     (status?.kind === "paused" && !status.resuming);
   const card = "rounded-card border border-line bg-card p-6 shadow-soft";
+
+  // The bill for what's chosen, in their currency with GST, before Checkout.
+  const monthlyCredit = creditOn ? Math.max(0, Math.round(creditUsd) || 0) : 0;
+  const wantsQuote = canSubscribe && status?.kind !== "paymentDue";
+  useEffect(() => {
+    if (!wantsQuote) return;
+    if (creditOn && monthlyCredit < CREDIT_MIN_USD) return;
+    let live = true;
+    const t = setTimeout(() => {
+      setQuote(null);
+      fetchQuote({ creditUsd: monthlyCredit })
+        .then((q) => live && setQuote(q))
+        .catch((error) => live && setMessage(error instanceof ApiCallFailed ? error.message : "Couldn’t work out the total."));
+    }, 300);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [wantsQuote, creditOn, monthlyCredit]);
 
   return (
     <>
@@ -374,11 +394,13 @@ export function BillingPage() {
             <section className={card}>
               <p className="font-serif text-[1.2rem] text-ink">AI credit</p>
               <p className="mt-2 text-[.95rem] leading-[1.7] text-ink-soft">
-                {summary?.creditSubscription?.status === "active"
+                {(billing?.creditUsd ?? 0) > 0
+                  ? `$${billing!.creditUsd} of AI credit is added each month with your plan. Unused credit stays. Need more now? Buy a top-up on the Credits page.`
+                  : summary?.creditSubscription?.status === "active"
                   ? `$${summary.creditSubscription.amountUsd} of AI credit is added each month. Unused credit stays. Change the amount on the Credits page.`
                   : (summary?.pendingCreditUsd ?? 0) >= CREDIT_MIN_USD
                     ? `You chose $${summary!.pendingCreditUsd} of AI credit a month at checkout, but it isn’t set up yet. It takes one more confirmation in Razorpay.`
-                    : "This workspace has no monthly AI credit. You can use your own key, or add credit from the Credits page."}
+                    : "This workspace has no monthly AI credit. You can use your own key, or buy a one-time top-up on the Credits page."}
               </p>
               {summary?.creditSubscription?.status !== "active" && (summary?.pendingCreditUsd ?? 0) >= CREDIT_MIN_USD ? (
                 <button
@@ -468,7 +490,7 @@ export function BillingPage() {
                   <div className="rounded-control border border-line p-4">
                     <span className="block font-bold text-ink">Workspace</span>
                     <span className="block text-[1.1rem] font-bold text-ink">
-                      {plan.display}<span className="text-[.85rem] font-semibold text-ink-soft">/{plan.interval}</span>
+                      ${WORKSPACE_USD}<span className="text-[.85rem] font-semibold text-ink-soft">/{plan.interval}</span>
                     </span>
                     <span className="mt-1 block text-[.85rem] text-ink-soft">
                       The workspace itself. Use your own AI key, or add credit below.
@@ -503,22 +525,9 @@ export function BillingPage() {
                       </span>
                     )}
                   </label>
-                  <p className="text-[.92rem] text-ink">
-                    <span className="block">Workspace {plan.display}</span>
-                    {creditOn ? (
-                      <span className="block">
-                        AI credit {formatMoney(creditAmountMinor(Math.max(0, Math.round(creditUsd) || 0), plan.currency), plan.currency)}
-                      </span>
-                    ) : null}
-                    <span className="mt-1 block font-bold">
-                      Total {formatMoney(
-                        plan.amountMinor + (creditOn ? creditAmountMinor(Math.max(0, Math.round(creditUsd) || 0), plan.currency) : 0),
-                        plan.currency,
-                      )} before tax
-                    </span>
-                    <span className="mt-1 block text-[.82rem] font-normal text-ink-soft">
-                      Tax is added on the payment screen. Two payments when credit is on: the workspace, then the credit.
-                    </span>
+                  <Bill quote={quote} per={plan.interval} />
+                  <p className="text-[.82rem] text-ink-soft">
+                    One monthly payment for both. Need more AI credit later? Top up any time from the Credits page.
                   </p>
                 </div>
               ) : null}
@@ -526,7 +535,7 @@ export function BillingPage() {
               <button
                 type="button"
                 onClick={() => void subscribe()}
-                disabled={phase === "paying" || phase === "waiting" || !nameReady}
+                disabled={phase === "paying" || phase === "waiting" || !nameReady || (wantsQuote && !quote)}
                 className="cursor-pointer rounded-control bg-green px-5 py-2.5 text-[.95rem] font-bold text-white shadow-[0_8px_20px_rgba(46,158,99,.28)] hover:bg-green-deep disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {phase === "waiting"

@@ -28,6 +28,9 @@ export class FakeRazorpay {
   payments = new Map<string, FakePayment>();
   refunds = new Map<string, { id: string; payment_id: string; amount: number; currency: string; status: string; notes: Record<string, string>; created_at: number }>();
   invoices: Json[] = [];
+  plans = new Map<string, { id: string; period: string; interval: number; item: { name: string; amount: number; currency: string } }>();
+  /** The USD→INR rate the fake exchange-rate feed answers with; null: the feed is down. */
+  fxRate: number | null = 90;
   calls: { method: string; path: string; body: Json | null }[] = [];
   /** Make the next N calls to paths matching this fail with a 5xx. */
   outage: { match: RegExp; remaining: number } | null = null;
@@ -46,6 +49,11 @@ export class FakeRazorpay {
     };
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+      if (url.hostname === "api.frankfurter.dev") {
+        // The exchange-rate feed checkout prices India with.
+        if (this.fxRate === null) return json(503, { message: "down" });
+        return json(200, { amount: 1, base: "USD", date: new Date().toISOString().slice(0, 10), rates: { INR: this.fxRate } });
+      }
       if (url.hostname !== "api.razorpay.com") return original(input, init);
       const path = url.pathname.replace(/^\/v1/, "");
       const body = init?.body ? (JSON.parse(String(init.body)) as Json) : null;
@@ -122,6 +130,12 @@ export class FakeRazorpay {
       const c = { id: nid("cust"), ...body };
       this.customers.set(c.id as string, c);
       return json(200, c);
+    }
+    if (method === "POST" && path === "/plans") {
+      const item = body!.item as { name: string; amount: number; currency: string };
+      const p = { id: nid("plan"), period: String(body!.period), interval: Number(body!.interval), item };
+      this.plans.set(p.id, p);
+      return json(200, p);
     }
     if (method === "POST" && path === "/subscriptions") {
       const s: FakeSub = {

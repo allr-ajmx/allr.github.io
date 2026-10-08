@@ -1,7 +1,8 @@
 /**
- * Workspace subscription and the separate monthly AI-credit subscription.
- * A workspace charge grants no credit. Credit is quantity on a $1 plan,
- * rolls over, and an amount change replaces the one credit subscription.
+ * Workspace subscription and the separate monthly AI-credit subscription
+ * that older accounts have (new checkouts carry the credit on the workspace
+ * subscription — checkout.test.ts). Credit is quantity on a $1 plan, rolls
+ * over, and an amount change replaces the one credit subscription.
  */
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
@@ -15,19 +16,25 @@ beforeEach(async () => { await resetDb(); rzp.subscriptions.clear(); rzp.payment
 
 const U = { uid: "u1", email: "k@example.com" };
 
-async function subscribeWorkspace() {
+async function subscribeWorkspace(after: Record<string, unknown> = {}) {
   await seedUser(U.uid, U.email, { ws: "kamal" });
   const { startSubscription } = await import("@/lib/server/billing");
   const { subscriptionId } = await startSubscription(caller(U.uid, U.email), undefined, 0);
+  if (Object.keys(after).length) {
+    const { adminDb } = await import("@/lib/server/admin");
+    await adminDb().doc(`users/${U.uid}`).update(after);
+  }
   rzp.charge(subscriptionId);
   await webhook("subscription.charged", { subscription: rzp.subscriptions.get(subscriptionId)! });
   return subscriptionId;
 }
 
 describe("workspace subscription", () => {
-  it("sells the workspace plan and grants no AI credit", async () => {
+  it("workspace only: priced in rupees with GST, and grants no AI credit", async () => {
     const subId = await subscribeWorkspace();
-    assert.equal(rzp.subscriptions.get(subId)?.plan_id, "plan_ws_inr");
+    const plan = rzp.plans.get(rzp.subscriptions.get(subId)!.plan_id);
+    assert.deepEqual(plan?.item.currency, "INR");
+    assert.equal(plan?.item.amount, 900_00 + 162_00); // $10 at ₹90, + 18% GST
     const u = await read("users/u1");
     assert.equal(u?.billing.plan, "workspace");
     assert.equal(u?.credits, undefined);
@@ -44,9 +51,12 @@ describe("workspace subscription", () => {
   });
 });
 
-describe("monthly AI credit", () => {
+// Chose credit in the old two-step checkout: the second mandate is still theirs to open.
+const LEGACY = { pending_credit_usd: 20 };
+
+describe("separate monthly AI credit (older accounts)", () => {
   it("opens one subscription whose quantity is the dollar amount and adds it when charged", async () => {
-    await subscribeWorkspace();
+    await subscribeWorkspace(LEGACY);
     const { startCreditSubscription } = await import("@/lib/server/billing");
     const opened = await startCreditSubscription(caller(U.uid, U.email), 20);
     const created = rzp.calls.find((c) => c.path === "/subscriptions" && c.body?.notes && (c.body.notes as { kind?: string }).kind === "credits");
@@ -66,7 +76,7 @@ describe("monthly AI credit", () => {
   });
 
   it("changing the amount schedules one replacement and does not reset the balance", async () => {
-    await subscribeWorkspace();
+    await subscribeWorkspace(LEGACY);
     const { startCreditSubscription } = await import("@/lib/server/billing");
     const first = await startCreditSubscription(caller(U.uid, U.email), 20);
     rzp.charge(first.subscriptionId);
@@ -92,7 +102,7 @@ describe("monthly AI credit", () => {
   });
 
   it("a credit charge no webhook reported is applied by the reconciler, flagged, once", async () => {
-    await subscribeWorkspace();
+    await subscribeWorkspace(LEGACY);
     const { startCreditSubscription } = await import("@/lib/server/billing");
     const opened = await startCreditSubscription(caller(U.uid, U.email), 20);
     rzp.charge(opened.subscriptionId); // paid; the webhook never comes
@@ -116,7 +126,7 @@ describe("monthly AI credit", () => {
   });
 
   it("an amount change in flight is followed by the reconciler", async () => {
-    await subscribeWorkspace();
+    await subscribeWorkspace(LEGACY);
     const { startCreditSubscription } = await import("@/lib/server/billing");
     const first = await startCreditSubscription(caller(U.uid, U.email), 20);
     rzp.charge(first.subscriptionId);
@@ -137,7 +147,7 @@ describe("monthly AI credit", () => {
   });
 
   it("checkout confirm applies a credit charge without waiting for the webhook", async () => {
-    await subscribeWorkspace();
+    await subscribeWorkspace(LEGACY);
     const { confirmCheckout, startCreditSubscription } = await import("@/lib/server/billing");
     const opened = await startCreditSubscription(caller(U.uid, U.email), 5);
     rzp.charge(opened.subscriptionId);

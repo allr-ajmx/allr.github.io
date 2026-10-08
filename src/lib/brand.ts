@@ -430,11 +430,11 @@ export const PRICING = {
     },
   },
   creditCardTitle: "Monthly AI credit",
-  creditCardTagline: "Optional. A second subscription, billed with the workspace only if you turn it on.",
+  creditCardTagline: "Optional. Added to the workspace’s monthly payment only if you turn it on.",
   cta: "Get Started",
   creditTitle: "Top up any time",
   creditSub: "A top-up is a one-time payment. It adds to the same balance as monthly credit and stays until you use it.",
-  creditFeeNote: "The price is the credit. Tax is added on the payment screen.",
+  creditFeeNote: "The price is the credit. 18% GST is added, and India pays in rupees at the day’s rate.",
   howTitle: "How AI credit works",
   faqTitle: "Questions about pricing",
 } as const;

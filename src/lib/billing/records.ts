@@ -9,7 +9,7 @@
  * value read and written back is always a valid Firestore value.
  */
 
-import type { Billing, BillingStatus, CreditSubscription, CreditUpcoming, PlanCurrency, UpcomingChange } from "./model.ts";
+import type { Billing, BillingStatus, CreditSubscription, CreditUpcoming, LockedBill, PlanCurrency, UpcomingChange } from "./model.ts";
 import { LEGACY_PLAN, isPlanKey } from "./plans.ts";
 import type { Promo } from "./promo.ts";
 import type { Complimentary, Enforcement } from "./lifecycle.ts";
@@ -43,7 +43,21 @@ export function billingFromDoc(raw: Raw): Billing | null {
     plan: isPlanKey(raw.plan) ? raw.plan : LEGACY_PLAN,
     currentPeriodStart: str(raw.currentPeriodStart),
     upcoming: upcomingFromDoc(raw.upcoming as Raw),
+    creditUsd: num(raw.creditUsd) ?? 0,
+    bill: billFromDoc(raw.bill as Raw),
     updatedAt: isoOf(raw.updatedAt),
+  };
+}
+
+export function billFromDoc(raw: Raw): LockedBill | null {
+  if (!raw || num(raw.totalMinor) === null) return null;
+  return {
+    currency: raw.currency === "INR" ? "INR" : "USD",
+    subtotalMinor: num(raw.subtotalMinor) ?? 0,
+    taxMinor: num(raw.taxMinor) ?? 0,
+    taxRate: num(raw.taxRate) ?? 0,
+    totalMinor: num(raw.totalMinor)!,
+    fxRate: num(raw.fxRate) ?? 1,
   };
 }
 

@@ -4,7 +4,7 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { decide, missing } from "../src/lib/billing/core.ts";
+import { decide, decideCredit, missing } from "../src/lib/billing/core.ts";
 
 const NOW = new Date("2026-10-04T12:00:00Z");
 const end = Date.parse("2026-11-04T00:00:00Z") / 1000;
@@ -159,5 +159,58 @@ describe("changing plan (a second subscription that takes over at renewal)", () 
     const d = decide(ws({ upcoming: upcoming() }), sub({ id: "sub_2", status: "cancelled", paid_count: 0 }), live, opts);
     assert.equal(d.billing.upcoming, null);
     assert.equal(d.billing.subscriptionId, "sub_1");
+  });
+});
+
+describe("monthly AI credit on the workspace subscription", () => {
+  const ws = { ...opts, plan: "workspace", creditUsd: 5 };
+  it("the first paid cycle adds the credit once, with the build", () => {
+    const d = decide(rec({ status: "pending", providerStatus: "created", paidCount: 0, plan: "workspace" }), sub(), facts, ws);
+    assert.equal(d.effects.grantMonth, true);
+    assert.equal(d.effects.addCreditUsd, 5);
+    assert.equal(d.effects.queueBuild, true);
+    assert.equal(d.billing.creditUsd, 5);
+    const again = decide({ ...d.billing, updatedAt: "" }, sub(), facts, ws);
+    assert.equal(again.effects.addCreditUsd, 0);
+    assert.equal(again.changed, false);
+  });
+  it("each renewal adds it again; the amount sticks from the record when notes are absent", () => {
+    const d = decide(rec({ plan: "workspace", creditUsd: 5 }), sub({ paid_count: 2 }), { ...facts, hasWorkspace: true }, { ...opts, plan: "workspace" });
+    assert.equal(d.effects.addCreditUsd, 5);
+  });
+  it("workspace only: nothing added", () => {
+    const d = decide(rec({ status: "pending", providerStatus: "created", paidCount: 0, plan: "workspace" }), sub(), facts, { ...opts, plan: "workspace" });
+    assert.equal(d.effects.grantMonth, true);
+    assert.equal(d.effects.addCreditUsd, 0);
+  });
+});
+
+describe("a charge seen before the subscription reads active", () => {
+  it("is not consumed: the first active sync grants it, exactly once", () => {
+    const ws = { ...opts, plan: "workspace", creditUsd: 5 };
+    const start = rec({ status: "pending", providerStatus: "created", paidCount: 0, plan: "workspace" });
+    const early = decide(start, sub({ status: "authenticated", paid_count: 1 }), facts, ws);
+    assert.equal(early.billing.status, "pending");
+    assert.equal(early.effects.addCreditUsd, 0);
+    assert.equal(early.billing.paidCount, 0); // regression: was 1, and the credit was lost
+    const active = decide({ ...early.billing, updatedAt: "" }, sub({ status: "active", paid_count: 1 }), facts, ws);
+    assert.equal(active.effects.grantMonth, true);
+    assert.equal(active.effects.addCreditUsd, 5);
+    assert.equal(active.billing.paidCount, 1);
+    const again = decide({ ...active.billing, updatedAt: "" }, sub({ status: "active", paid_count: 1 }), facts, ws);
+    assert.equal(again.effects.addCreditUsd, 0);
+  });
+});
+
+describe("separate credit subscription (older accounts): same early-charge rule", () => {
+  it("authenticated with a charge counted adds nothing yet; active adds it once", () => {
+    const o = { currency: "USD", amountUsd: 5, now: NOW };
+    const early = decideCredit(null, sub({ status: "authenticated", paid_count: 1 }), o);
+    assert.equal(early.effects.addUsd, 0);
+    assert.equal(early.subscription.paidCount, 0);
+    const active = decideCredit({ ...early.subscription, updatedAt: "" }, sub({ paid_count: 1 }), o);
+    assert.equal(active.effects.addUsd, 5);
+    const again = decideCredit({ ...active.subscription, updatedAt: "" }, sub({ paid_count: 1 }), o);
+    assert.equal(again.effects.addUsd, 0);
   });
 });

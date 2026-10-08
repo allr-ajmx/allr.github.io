@@ -11,6 +11,7 @@ import type {
 } from "@/lib/account/model";
 import type { JourneyState } from "@/lib/account/state";
 import type { Billing, BillingSummary, SubscribeResponse } from "@/lib/billing/model";
+import type { Quote } from "@/lib/billing/quote";
 
 /**
  * The browser's half of the account API.
@@ -117,8 +118,9 @@ export type LedgerSummary = {
 };
 export type CreditPack = {
   id: string;
+  /** List price in USD; charged in the buyer's currency with GST (see fetchQuote). */
+  priceUsd: number;
   creditUsd: number;
-  display: { USD: string; INR: string };
 };
 export type LedgerResponse = CreditResponse & {
   ledger?: LedgerSummary;
@@ -135,7 +137,16 @@ export const startTopup = (pack: string) =>
     currency: "USD" | "INR";
     display: string;
     creditUsd: number;
+    quote: Quote;
   }>("/account/credits/topup/", { method: "POST", body: JSON.stringify({ pack }) });
+
+/** The bill before Checkout: the workspace plan with this monthly credit, or a credit pack. */
+export const fetchQuote = (what: { creditUsd: number } | { pack: string }) =>
+  call<Quote>(
+    "pack" in what
+      ? `/account/billing/quote/?pack=${encodeURIComponent(what.pack)}`
+      : `/account/billing/quote/?creditUsd=${Math.max(0, Math.round(what.creditUsd))}`,
+  );
 
 export const fetchUrls = () => call<{ urls: PublishedUrl[] }>("/account/urls/");
 

@@ -8,7 +8,8 @@ import type { Caller } from "./session";
 import { readOrAdoptProfile } from "./profiles";
 import { capturePayment, createOrder, fetchOrder, razorpayKeyId, refundPayment, type RzpPayment } from "./razorpay";
 import { enqueueOp } from "./provisioning";
-import { planCurrencyFor } from "@/lib/billing/model";
+import { money, type Quote } from "@/lib/billing/quote";
+import { priceFor } from "./pricing";
 import {
   addPurchased,
   applyTopup,
@@ -68,24 +69,34 @@ export async function startTopup(caller: Caller, packId: unknown) {
     throw forbidden("no-workspace", "Credits top up a live workspace. Subscribe first.");
   }
 
-  const currency = planCurrencyFor(profile.country);
-  const order = await createOrder(pack.price[currency], currency, {
+  // Listed in USD; charged in the person's currency at the day's rate, + GST.
+  const bill = await quoteTopup(profile.country, pack.priceUsd);
+  const currency = bill.currency;
+  const order = await createOrder(bill.totalMinor, currency, {
     kind: "topup",
     uid: caller.uid,
     // The account can move to a new login before the payment lands.
     email: caller.email,
     pack: pack.id,
     credit_usd: String(pack.creditUsd),
+    fx_rate: String(bill.fxRate),
+    tax_minor: String(bill.taxMinor),
   });
 
   return {
     orderId: order.id,
     keyId: razorpayKeyId(),
-    amountMinor: pack.price[currency],
+    amountMinor: bill.totalMinor,
     currency,
-    display: pack.display[currency],
+    display: money(bill.totalMinor, currency),
     creditUsd: pack.creditUsd,
+    quote: bill,
   };
+}
+
+/** A credit pack's bill for this country today. */
+export function quoteTopup(country: string, priceUsd: number): Promise<Quote> {
+  return priceFor([{ label: "AI credit", usd: priceUsd }], country);
 }
 
 export type TopupOutcome = "applied" | "ignored" | "duplicate" | "refunded" | "refund-failed";

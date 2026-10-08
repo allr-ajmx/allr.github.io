@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/Button";
 import { PetalShape } from "@/components/ui/PetalShape";
 import { PRICING } from "@/lib/brand";
 import { GRACE_DAYS } from "@/lib/billing/model";
-import { CREDIT_MIN_USD, CREDIT_PRESET_USD, INR_PAISE_PER_USD, PLANS, PLAN_INTERVAL } from "@/lib/billing/plans";
+import { CREDIT_MIN_USD, CREDIT_PRESET_USD, PLANS, PLAN_INTERVAL, WORKSPACE_USD } from "@/lib/billing/plans";
 import { TOPUP_PACKS } from "@/lib/billing/credits";
 import { REMOVE_AFTER_DAYS } from "@/lib/billing/lifecycle";
 
@@ -16,16 +16,16 @@ import { REMOVE_AFTER_DAYS } from "@/lib/billing/lifecycle";
 const money = (usd: number) => `$${Number.isInteger(usd) ? usd : usd.toFixed(2)}`;
 const PETALS = ["#74926b", "#f7c14c", "#e6981a", "#34905e"];
 const workspace = PLANS.workspace;
-const presetInr = `₹${((CREDIT_PRESET_USD * INR_PAISE_PER_USD) / 100).toLocaleString("en-IN")}`;
+const workspacePrice = money(WORKSPACE_USD);
 
 const HOW = [
   {
     title: "Your workspace",
-    body: `One monthly subscription (${workspace.display.USD}). It does not include AI. Use your own key, or add credit.`,
+    body: `One monthly subscription (${workspacePrice}). It does not include AI. Use your own key, or add credit.`,
   },
   {
     title: "Monthly AI credit",
-    body: `Optional. Starts at ${money(CREDIT_PRESET_USD)} and you can set any whole-dollar amount from ${money(CREDIT_MIN_USD)}. What you don’t use rolls into next month.`,
+    body: `Optional, chosen with the workspace and paid in the same monthly payment. Starts at ${money(CREDIT_PRESET_USD)}; any whole-dollar amount from ${money(CREDIT_MIN_USD)}. What you don’t use rolls into next month.`,
   },
   {
     title: "Top-ups",
@@ -40,19 +40,19 @@ const FAQ = [
   },
   {
     q: "Do I have to buy AI credit?",
-    a: `No. The workspace (${workspace.display.USD} a ${PLAN_INTERVAL}) runs with your own AI key. Monthly credit is a separate subscription you can leave off, or set from ${money(CREDIT_MIN_USD)} up. ${money(CREDIT_PRESET_USD)} is only the starting suggestion.`,
+    a: `No. The workspace (${workspacePrice} a ${PLAN_INTERVAL}) runs with your own AI key. Monthly credit is optional: leave it off, or add it to the same monthly payment from ${money(CREDIT_MIN_USD)} up. ${money(CREDIT_PRESET_USD)} is only the starting suggestion.`,
   },
   {
-    q: "Can I change the monthly credit later?",
-    a: "Yes. The new amount replaces the current credit subscription at your next renewal. You still have one credit subscription, and the balance you have already paid for stays.",
+    q: "Need more credit before your next renewal?",
+    a: "Buy a top-up any time from the Credits page. It adds to the same balance, and the credit you already paid for stays.",
   },
   {
     q: "Which currency am I charged in?",
-    a: `Accounts in India pay in rupees (${workspace.display.INR} a ${PLAN_INTERVAL} for the workspace, ${presetInr} for ${money(CREDIT_PRESET_USD)} of credit); everywhere else pays in US dollars. It follows the country on your account.`,
+    a: "Prices are in US dollars. Accounts in India pay in rupees, converted at the day’s exchange rate when you subscribe (the monthly amount then stays fixed for that subscription). Everywhere else pays in US dollars, and cards from other countries can pay in their own currency on the payment screen. You see the exact total before you pay.",
   },
   {
     q: "How do I pay?",
-    a: "Through Razorpay, by card — and by UPI in India. Each subscription renews every month until you cancel. Tax is added on the payment screen.",
+    a: "Through Razorpay, by card — and by UPI in India. Your plan renews every month until you cancel. 18% GST is added to every payment and shown on the bill before you pay.",
   },
   {
     q: "What happens if I cancel?",
@@ -92,11 +92,11 @@ export function PricingPageContent() {
             <div className="relative h-full rounded-card border border-line bg-card p-8 shadow-soft">
               <p className="mb-1 text-[.8rem] font-bold tracking-[0.04em] text-ink-soft uppercase">{workspace.name}</p>
               <p className="mb-1 flex items-baseline gap-1.5">
-                <span className="text-[2.6rem] leading-none font-extrabold text-ink">{workspace.display.USD}</span>
+                <span className="text-[2.6rem] leading-none font-extrabold text-ink">{workspacePrice}</span>
                 <span className="text-[1.05rem] font-semibold text-ink-soft">/ {PLAN_INTERVAL}</span>
               </p>
               <p className="mb-2 text-[.95rem] text-ink-soft">
-                {workspace.display.INR} a {PLAN_INTERVAL} in India
+                + GST · charged in rupees in India at the day’s rate
               </p>
               <p className="mb-5 text-[.98rem] text-ink">{PRICING.plans.workspace.tagline}</p>
               <ul className="mb-7 flex flex-col gap-2.5">
@@ -120,14 +120,14 @@ export function PricingPageContent() {
                 <span className="text-[1.05rem] font-semibold text-ink-soft">/ {PLAN_INTERVAL}</span>
               </p>
               <p className="mb-2 text-[.95rem] text-ink-soft">
-                {presetInr} a {PLAN_INTERVAL} in India · any amount from {money(CREDIT_MIN_USD)}
+                + GST · any amount from {money(CREDIT_MIN_USD)}
               </p>
               <p className="mb-5 text-[.98rem] text-ink">{PRICING.creditCardTagline}</p>
               <ul className="mb-7 flex flex-col gap-2.5">
                 {[
-                  "Added only when you opt in, after the workspace",
+                  "Chosen with the workspace — one monthly payment",
                   "Unused credit rolls over in full",
-                  "Change the amount later — still one subscription",
+                  "Top up any time if you need more",
                   "Or leave it off and use your own key",
                 ].map((line) => (
                   <li key={line} className="flex gap-2.5 text-[1rem] text-ink">
@@ -156,8 +156,8 @@ export function PricingPageContent() {
                 <PetalShape color={PETALS[i % PETALS.length]} className="mb-3 size-5" />
                 <p className="text-[1.35rem] leading-tight font-extrabold text-ink">{money(pack.creditUsd)}</p>
                 <p className="mb-3 text-[.88rem] text-ink-soft">of AI credit</p>
-                <p className="text-[.95rem] font-bold text-ink">{pack.display.USD}</p>
-                <p className="text-[.85rem] text-ink-soft">{pack.display.INR} in India</p>
+                <p className="text-[.95rem] font-bold text-ink">{money(pack.priceUsd)}</p>
+                <p className="text-[.85rem] text-ink-soft">+ GST</p>
               </div>
             </Reveal>
           ))}

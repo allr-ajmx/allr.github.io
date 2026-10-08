@@ -14,7 +14,7 @@ import {
 } from "./razorpay";
 import { addPurchased, initialLedger, ledgerFromDoc, queueChange } from "@/lib/billing/credits";
 import { LEGACY_PLAN } from "@/lib/billing/plans";
-import { decide, decideCredit, missing, type Intent, type SubscriptionState } from "@/lib/billing/core";
+import { decide, decideCredit, missing, type DecideOptions, type Intent, type SubscriptionState } from "@/lib/billing/core";
 import type { PlanCurrency } from "@/lib/billing/model";
 import { billingFromDoc, creditSubscriptionFromDoc } from "@/lib/billing/records";
 
@@ -107,7 +107,7 @@ export async function syncSubscription(
     const data = user.data();
     if (!data) return { outcome: "unmatched" as const };
     const prior = billingFromDoc(data.billing);
-    const known = planOf("plan_id" in state ? (state as RzpSubscription).plan_id : undefined);
+    const known = planOf("plan_id" in state ? (state as RzpSubscription).plan_id : undefined, notes);
     const decision = decide(
       prior,
       state,
@@ -121,6 +121,7 @@ export async function syncSubscription(
         plan: known?.plan ?? prior?.plan ?? LEGACY_PLAN,
         intent: opts.intent,
         chargeHint: opts.eventName === "subscription.charged",
+        ...billingNotes(notes),
       },
     );
 
@@ -145,17 +146,33 @@ export async function syncSubscription(
     });
     // Every credit consequence composes into ONE ledger write (several
     // tx.update calls on the same field would silently keep only the last).
-    const ledger = ledgerFromDoc(data.credits);
-    // A workspace charge does not add AI credit. A legacy plan-change grant
-    // still lands on the purchased balance when it settles.
+    let ledger = ledgerFromDoc(data.credits);
+    let ledgerMoved = false;
+    // The monthly AI credit bought with the workspace: added on each paid
+    // cycle. Before the workspace exists the ledger is opened here; the
+    // stamp keeps it and brings the new key's limit to it.
+    if (effects.addCreditUsd > 0) {
+      ledger = addPurchased(ledger ?? initialLedger(), effects.addCreditUsd);
+      ledgerMoved = true;
+    }
+    // A legacy plan-change grant lands on the purchased balance when it settles.
     if (ledger && effects.grantCredit) {
-      const next = queueChange(ledger, {
+      ledger = queueChange(ledger, {
         type: "grant",
         grant: { ...effects.grantCredit, note: "upgrade: AI credit for the rest of this cycle" },
       });
-      tx.update(userRef, { credits: next });
+      ledgerMoved = true;
+    }
+    if (ledger && ledgerMoved) {
+      tx.update(userRef, { credits: ledger });
       if (String(data.workspace_username ?? "").trim()) {
-        enqueueOp(tx, { uid: userRef.id, email: data.email, username: data.workspace_username, op: "sync_limit", valueUsd: 0 });
+        enqueueOp(tx, {
+          uid: userRef.id,
+          email: data.email,
+          username: data.workspace_username,
+          op: "sync_limit",
+          valueUsd: ledger.targetLimitUsd,
+        });
       }
     }
     if (effects.queueBuild) {
@@ -186,7 +203,13 @@ export async function syncSubscription(
               resolved: false,
             }
           : missed
-            ? { reason: "webhook missed — applied from Razorpay", flag: true, resolved: false }
+            ? {
+                reason: effects.addCreditUsd > 0
+                  ? `webhook missed — applied from Razorpay, with $${effects.addCreditUsd} monthly AI credit`
+                  : "webhook missed — applied from Razorpay",
+                flag: true,
+                resolved: false,
+              }
             : { flag: false }),
         receivedAt: FieldValue.serverTimestamp(),
       },
@@ -220,10 +243,34 @@ export async function syncSubscription(
       sub: subscriptionId,
       source: opts.source,
       grant: result.effects.grantMonth,
+      creditUsd: result.effects.addCreditUsd,
       build: result.effects.queueBuild,
     }, result.billing.status === "pastDue" ? "warn" : "info");
   }
   return result.outcome;
+}
+
+/** What a priced-at-checkout subscription's notes say about its credit and bill. */
+function billingNotes(notes: Record<string, string> | null | undefined): Pick<DecideOptions, "creditUsd" | "bill"> {
+  if (!notes || notes.kind !== "workspace") return {};
+  const n = (k: string) => (notes[k] !== undefined && Number.isFinite(Number(notes[k])) ? Number(notes[k]) : null);
+  const credit = n("credit_usd");
+  const total = n("total_minor");
+  return {
+    ...(credit !== null && credit >= 0 ? { creditUsd: credit } : {}),
+    ...(total !== null && (notes.currency === "USD" || notes.currency === "INR")
+      ? {
+          bill: {
+            currency: notes.currency,
+            subtotalMinor: n("subtotal_minor") ?? total,
+            taxMinor: n("tax_minor") ?? 0,
+            taxRate: n("tax_rate") ?? 0,
+            totalMinor: total,
+            fxRate: n("fx_rate") ?? 1,
+          },
+        }
+      : {}),
+  };
 }
 
 async function creditAccountFor(

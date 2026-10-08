@@ -19,6 +19,8 @@ describe("billingFromDoc", () => {
       subscriptionId: "sub_2", plan: "workspace_ai", kind: "upgrade", status: "authenticated",
       startsAt: "2026-11-04T00:00:00.000Z", chargeMinor: 800, creditUsd: 8, creditGranted: true, oldCancelled: false,
     },
+    creditUsd: 5,
+    bill: { currency: "INR", subtotalMinor: 145_200, taxMinor: 26_100, taxRate: 0.18, totalMinor: 171_300, fxRate: 96.78 },
     updatedAt: "2026-10-04T00:00:00.000Z",
   };
   it("every field survives (regression: cancelAtPeriodEnd, paidCount)", () => {
@@ -35,6 +37,8 @@ describe("billingFromDoc", () => {
     assert.equal(b.planCurrency, "USD");
     assert.equal(b.plan, "workspace_ai"); // everything before two plans was Workspace + AI
     assert.equal(b.upcoming, null);
+    assert.equal(b.creditUsd, 0); // before credit joined the workspace subscription
+    assert.equal(b.bill, null);
     assert.equal(hasUndefined(b), false);
   });
   it("junk is refused or normalised", () => {

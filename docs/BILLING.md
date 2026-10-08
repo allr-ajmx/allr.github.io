@@ -1,18 +1,41 @@
 # Billing: workspace subscription and AI credits (Razorpay)
 
-The Allr app is free. Two things are sold, and they are not the same subscription:
+The Allr app is free. What is sold:
 
 | Product | Billing | What it buys |
 |---|---|---|
-| Workspace | Monthly subscription, `$10` / `₹899` | The workspace. No AI allowance. The person can use their own keys. |
-| Monthly AI credit | A second monthly subscription, optional | OpenRouter credit of the amount they chose (preset `$20`, any whole dollars, minimum `$1`). Unused credit rolls over. |
-| AI credit top-up | One-time order | The same balance. Face value is the credit (`$10` paid → `$10` of credit). |
+| Workspace + optional monthly AI credit | **One** monthly subscription: `$10` + the credit chosen (preset `$20`, any whole dollars, minimum `$1`, or none) | The workspace, and each paid cycle adds that much OpenRouter credit. Unused credit rolls over. |
+| AI credit top-up | One-time order | The same balance. Face value is the credit (`$10` → `$10` of credit). |
 
-Indian accounts (`country === "IN"`) are billed in INR; everyone else pays USD.
-A subscriber keeps the currency their subscription was made in. Credit is
-denominated in USD. The INR charge for `$1` of credit is `₹89.90` (the
-workspace rate: `₹899` / `$10`). Tax is added on the Razorpay payment screen
-and is not taken out of the credit.
+**Prices are listed in USD.** What is charged is priced at checkout by
+`quote()` (`src/lib/billing/quote.ts`):
+
+- **India** (`country === "IN"`): rupees, at the day's ECB rate
+  (`api.frankfurter.dev`, cached once a day in `billing_fx/USD-INR`; a cached
+  rate up to 3 days old is used if the feed is down, otherwise checkout
+  answers 503 `pricing-unavailable` rather than guess). Razorpay does not let
+  an Indian customer be charged in USD.
+- **Everyone else**: US dollars. Turn on **Dynamic Currency Conversion** in
+  the Razorpay dashboard so foreign cards are offered their own currency on
+  the payment form.
+- **GST**: Razorpay never adds tax — the amount sent is the amount charged —
+  so it is added here: `ALLR_GST_RATE_IN` (India) and `ALLR_GST_RATE_EXPORT`
+  (abroad), each `0.18` / `18` / `18%`; both default to 18%. With an LUT on
+  file, exports of services can be zero-rated: set `ALLR_GST_RATE_EXPORT=0`
+  (confirm with your CA). Turn on Razorpay's **GST invoicing** so invoices
+  carry GSTIN, HSN/SAC and place of supply.
+- The bill (lines in $, converted subtotal, GST, total) is shown before
+  Checkout opens (`GET /api/account/billing/quote/?creditUsd=` or `?pack=`).
+
+A subscription's amount is **locked** when it is created: Razorpay plans are
+made on demand for the exact total (`planForAmount`, cached by
+currency+amount in `billing_plans`), and renewals charge the same amount.
+The subscription's notes carry `credit_usd` and the bill
+(`currency`, `fx_rate`, `subtotal_minor`, `tax_rate`, `tax_minor`,
+`total_minor`); the core records them as `billing.creditUsd` and
+`billing.bill`, and every paid cycle adds `creditUsd` to the ledger — before
+the workspace exists too (the stamp keeps that ledger and syncs the new key's
+limit to it).
 
 A legacy `workspace_ai` subscription already in Firestore is left on its
 existing Razorpay mandate. New checkouts sell only the workspace plan.
@@ -47,10 +70,17 @@ existing Razorpay mandate. New checkouts sell only the workspace plan.
   the reconciler's "since …" line shows that one.
 - **Checkout confirm** (`POST /api/account/billing/confirm`): Checkout's
   success handler asks the site to sync that subscription from Razorpay right
-  away, so the page — and the AI-credit mandate that follows a workspace
-  checkout — never waits on the webhook.
+  away, so the page never waits on the webhook.
+- **A charge seen before `active`** (Razorpay can report `authenticated`
+  with the first charge already counted) is not granted and does not move
+  `paidCount`; the first sync that sees `active` grants it, once.
 
-## Monthly AI credit
+## Separate monthly AI credit (older accounts)
+
+Before credit joined the workspace subscription it was a second mandate.
+Accounts that have one (or chose one in that two-step checkout,
+`pending_credit_usd`) still manage it on Credits; new accounts are refused
+(`credit-with-plan`) and buy top-ups instead.
 
 The credit subscription is a `$1` (or `₹89.90`) Razorpay plan with
 `quantity` equal to the dollar amount, so any whole-dollar amount is one
@@ -113,15 +143,19 @@ they paid for.
      `subscription.completed`; for credit top-ups `payment.captured` and
      `payment.authorized`; `refund.processed`; and the `payment.dispute.*`
      events.
-2. **Plans**: `RAZORPAY_KEY_ID=… RAZORPAY_KEY_SECRET=… node scripts/razorpay-setup.mjs`
-   prints the two plan ids.
+2. **Plans**: new checkouts create their own plans (one per exact amount).
+   `RAZORPAY_KEY_ID=… RAZORPAY_KEY_SECRET=… node scripts/razorpay-setup.mjs`
+   is only for the fixed plans older subscriptions use.
 3. **Vercel env** (Production; repeat per mode):
    `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`,
    the plan ids printed by `node scripts/razorpay-setup.mjs` —
    `RAZORPAY_PLAN_ID_WORKSPACE_USD`, `RAZORPAY_PLAN_ID_WORKSPACE_INR`,
    `RAZORPAY_PLAN_ID_CREDIT_USD` (`$1` unit), `RAZORPAY_PLAN_ID_CREDIT_INR`
-   (`₹89.90` unit). Legacy `RAZORPAY_PLAN_ID_AI_*` plan ids are unused by new
-   checkouts. Redeploy.
+   (`₹89.90` unit) — only older subscriptions use these. Legacy
+   `RAZORPAY_PLAN_ID_AI_*` plan ids are unused by new checkouts. Optional:
+   `ALLR_GST_RATE_IN`, `ALLR_GST_RATE_EXPORT` (default 18% each). Enable
+   **Dynamic Currency Conversion** and **GST invoicing** in the dashboard.
+   Redeploy.
 4. Go live: repeat 1–3 with live-mode keys/webhook/plans. Live mode has its
    **own** webhooks — the test-mode one does not carry over — so add it again
    in live mode and set `RAZORPAY_WEBHOOK_SECRET` to the live webhook's

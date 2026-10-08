@@ -10,16 +10,20 @@ import { getAllrAuth } from "@/lib/firebase/app";
 import {
   ApiCallFailed,
   fetchLedger,
+  fetchQuote,
   startCreditSubscription,
   startTopup,
   type LedgerResponse,
 } from "@/lib/firebase/api";
+import { describeQuote, type Quote } from "@/lib/billing/quote";
+import { Bill } from "./Bill";
 
 /**
  * The credit meter and the top-up shop.
  *
  * Available credit is everything purchased minus everything used. Monthly
- * credit and top-ups add to the same balance and roll over. The meter is as
+ * credit (bought with the workspace plan) and top-ups add to the same
+ * balance and roll over. The meter is as
  * fresh as the platform's last usage push.
  */
 
@@ -50,10 +54,28 @@ export function CreditsPage() {
   // The server refuses a pack without a workspace; don't offer one either.
   const workspaceLive = profile ? hasWorkspace(profile) : false;
   const workspacePaid = profile?.billing?.status === "active";
+  // Monthly credit comes with the workspace plan now; a separate credit
+  // subscription is managed here only by accounts that already have one.
+  const planCreditUsd = workspacePaid ? (profile?.billing?.creditUsd ?? 0) : 0;
+  const separateMonthly = Boolean(profile?.creditSubscription) && profile?.creditSubscription?.status !== "ended";
   const [data, setData] = useState<LedgerResponse | null>(null);
   const [monthly, setMonthly] = useState(String(CREDIT_MIN_USD === 1 ? 20 : CREDIT_MIN_USD));
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  /** The pack picked, and its bill in their currency with GST. */
+  const [picked, setPicked] = useState<{ id: string; quote: Quote | null } | null>(null);
+
+  const pick = useCallback(async (packId: string) => {
+    setMessage(null);
+    setPicked({ id: packId, quote: null });
+    try {
+      const quote = await fetchQuote({ pack: packId });
+      setPicked((p) => (p?.id === packId ? { id: packId, quote } : p));
+    } catch (error) {
+      setPicked(null);
+      setMessage(error instanceof ApiCallFailed ? error.message : "Couldn’t work out the total. Try again?");
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -118,7 +140,7 @@ export function CreditsPage() {
           amount: order.amountMinor,
           currency: order.currency,
           name: "Allr",
-          description: `Credit pack · ${order.display} → $${order.creditUsd.toFixed(2)} of AI credit`,
+          description: `$${order.creditUsd} of AI credit · ${describeQuote(order.quote)}`,
           prefill: { name: user?.displayName ?? "", email: user?.email ?? "" },
           theme: { color: "#1E7A49" },
           handler: async () => {
@@ -129,6 +151,7 @@ export function CreditsPage() {
               if (next?.ledger && next.ledger.topupBalanceUsd > before) {
                 setData(next);
                 setBusy(null);
+                setPicked(null);
                 return;
               }
             }
@@ -194,7 +217,7 @@ export function CreditsPage() {
 
           <div className="rounded-card border border-line bg-card p-6">
             <h3 className="mb-1 text-[1.1rem] font-bold">Monthly credit</h3>
-            {workspacePaid ? (
+            {separateMonthly && workspacePaid ? (
               <>
                 <p className="mb-3 text-[.92rem] text-ink-soft">
                   A whole number of dollars, at least ${CREDIT_MIN_USD}. Changing it replaces your current monthly credit at the next renewal. The balance you have stays.
@@ -222,7 +245,11 @@ export function CreditsPage() {
               </>
             ) : (
               <p className="text-[.92rem] text-ink-soft">
-                Subscribe to a workspace first. Then you can add a monthly credit here.
+                {planCreditUsd > 0
+                  ? `$${planCreditUsd} is added each month with your workspace plan. Need more? Add a top-up below.`
+                  : workspacePaid
+                    ? "Your plan has no monthly AI credit. Add a top-up below whenever you need it."
+                    : "Monthly AI credit is chosen when you subscribe to a workspace."}
               </p>
             )}
           </div>
@@ -237,7 +264,7 @@ export function CreditsPage() {
             ) : (
             <>
             <p className="mb-4 text-[.92rem] text-ink-soft">
-              One-time payment added to available credit. The price is the credit. Tax is added on the payment screen.
+              One-time payment added to available credit. The price is the credit; GST is added on top.
             </p>
             <div className="flex flex-wrap gap-3">
               {(data.packs ?? []).map((pack) => (
@@ -245,16 +272,27 @@ export function CreditsPage() {
                   key={pack.id}
                   type="button"
                   disabled={busy !== null}
-                  onClick={() => void buy(pack.id)}
-                  className="cursor-pointer rounded-control border border-line bg-card px-5 py-3 text-left font-bold shadow-soft transition-[transform,border-color] duration-150 hover:-translate-y-0.5 hover:border-green-line disabled:cursor-wait disabled:opacity-60"
+                  onClick={() => void pick(pack.id)}
+                  className={`cursor-pointer rounded-control border bg-card px-5 py-3 text-left font-bold shadow-soft transition-[transform,border-color] duration-150 hover:-translate-y-0.5 hover:border-green-line disabled:cursor-wait disabled:opacity-60 ${picked?.id === pack.id ? "border-green-line" : "border-line"}`}
                 >
-                  <span className="block text-[1.05rem]">${pack.creditUsd.toFixed(2)} credit</span>
-                  <span className="block text-[.82rem] font-semibold text-ink-soft">
-                    {busy === pack.id ? "Opening checkout…" : `${pack.display.USD} · ${pack.display.INR} in India`}
-                  </span>
+                  <span className="block text-[1.05rem]">${pack.creditUsd} credit</span>
+                  <span className="block text-[.82rem] font-semibold text-ink-soft">${pack.priceUsd} + GST</span>
                 </button>
               ))}
             </div>
+            {picked ? (
+              <div className="mt-4 max-w-[26rem]">
+                <Bill quote={picked.quote} />
+                <button
+                  type="button"
+                  disabled={busy !== null || !picked.quote}
+                  onClick={() => void buy(picked.id)}
+                  className="mt-3 cursor-pointer rounded-control bg-green px-4 py-2 text-[.92rem] font-bold text-white hover:bg-green-deep disabled:opacity-60"
+                >
+                  {busy === picked.id ? "Opening checkout…" : "Pay and add credit"}
+                </button>
+              </div>
+            ) : null}
             </>
             )}
           </div>

@@ -62,7 +62,14 @@ export function planIdFor(currency: "USD" | "INR", plan: PlanKey = "workspace_ai
 }
 
 /** Which plan (and currency) a Razorpay plan id is, or null if it's none of ours. */
-export function planOf(planId: string | undefined): { plan: PlanKey; currency: "USD" | "INR" } | null {
+export function planOf(
+  planId: string | undefined,
+  notes?: Record<string, string> | null,
+): { plan: PlanKey; currency: "USD" | "INR" } | null {
+  // A priced-at-checkout plan (server/pricing.ts) is known by its notes.
+  if (notes?.kind === "workspace" && (notes.currency === "USD" || notes.currency === "INR")) {
+    return { plan: "workspace", currency: notes.currency };
+  }
   if (!planId) return null;
   for (const plan of ["workspace_ai", "workspace"] as PlanKey[]) {
     for (const currency of ["USD", "INR"] as const) {
@@ -177,6 +184,24 @@ export const createSubscription = (
       // The webhook maps events back to a person through this, not through
       // email — addresses change hands, uids do not.
       notes: { uid, ...(extra.notes ?? {}) },
+    }),
+  });
+
+export type RzpPlan = { id: string };
+
+/**
+ * A monthly plan for one exact amount. Checkout prices a subscription per
+ * person (dollar lines, the day's rate, GST), so plans are made on demand and
+ * cached by amount (see server/pricing.ts) rather than set up by hand.
+ */
+export const createPlan = (amountMinor: number, currency: "USD" | "INR", name: string, notes: Record<string, string> = {}) =>
+  rzp<RzpPlan>("/plans", {
+    method: "POST",
+    body: JSON.stringify({
+      period: "monthly",
+      interval: 1,
+      item: { name: name.slice(0, 255), amount: amountMinor, currency },
+      notes,
     }),
   });
 

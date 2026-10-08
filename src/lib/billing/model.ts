@@ -12,6 +12,7 @@ export type PlanCurrency = "USD" | "INR";
 // Prices and plans live in plans.ts (PLANS); this file is the shapes.
 export { PLAN_INTERVAL } from "./plans.ts";
 import type { PlanKey } from "./plans.ts";
+import type { Quote } from "./quote.ts";
 
 /** Days after the trial lapses before the workspace is suspended (manually, for now). */
 export const GRACE_DAYS = 2;
@@ -80,8 +81,26 @@ export type Billing = {
   currentPeriodStart: string | null;
   /** A plan change waiting for its start (a new subscription), or null. */
   upcoming: UpcomingChange | null;
+  /**
+   * Monthly AI credit bought with this subscription (USD), added to the
+   * balance on every paid cycle. 0: workspace only.
+   */
+  creditUsd: number;
+  /** What each cycle charges, as quoted at checkout. Null for older subscriptions. */
+  bill: LockedBill | null;
   /** ISO 8601. */
   updatedAt: string;
+};
+
+/** The monthly bill, fixed when the subscription was created (rate and tax included). */
+export type LockedBill = {
+  currency: PlanCurrency;
+  subtotalMinor: number;
+  taxMinor: number;
+  taxRate: number;
+  totalMinor: number;
+  /** INR per USD used; 1 for USD. */
+  fxRate: number;
 };
 
 /**
@@ -131,9 +150,9 @@ export type BillingSummary = {
   /** The name their workspace will get, reserved before checkout. */
   pendingUsername: string | null;
   provisioning: ProvisioningStatus | null;
-  /** Monthly AI credit, when they have turned it on. */
+  /** A separate monthly AI-credit subscription (accounts from before credit joined the workspace one). */
   creditSubscription: CreditSubscription | null;
-  /** Chosen at workspace checkout, waiting for the second mandate. */
+  /** Legacy: chosen at a two-step checkout, waiting for the second mandate. */
   pendingCreditUsd: number;
 };
 
@@ -142,8 +161,10 @@ export type SubscribeResponse = {
   subscriptionId: string;
   keyId: string;
   plan: BillingSummary["plan"];
-  /** 0 when they unticked monthly credit. */
-  pendingCreditUsd: number;
+  /** Monthly AI credit in this subscription; 0 when they unticked it. */
+  creditUsd: number;
+  /** The monthly bill they are about to authorise. */
+  quote: Quote;
 };
 
 /** What POST /api/account/billing/credits returns. */
