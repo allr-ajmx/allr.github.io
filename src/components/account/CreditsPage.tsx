@@ -9,6 +9,7 @@ import { CREDIT_MIN_USD } from "@/lib/billing/plans";
 import { getAllrAuth } from "@/lib/firebase/app";
 import {
   ApiCallFailed,
+  confirmTopup,
   fetchLedger,
   fetchQuote,
   startCreditSubscription,
@@ -143,8 +144,20 @@ export function CreditsPage() {
           description: `$${order.creditUsd} of AI credit · ${describeQuote(order.quote)}`,
           prefill: { name: user?.displayName ?? "", email: user?.email ?? "" },
           theme: { color: "#1E7A49" },
-          handler: async () => {
-            // The webhook is the truth; wait for the balance to move.
+          handler: async (res: { razorpay_payment_id?: string }) => {
+            // Apply it now from Razorpay's record of the payment; the webhook
+            // and the reconciler would get there too, later.
+            const confirmed = res?.razorpay_payment_id
+              ? await confirmTopup(res.razorpay_payment_id).catch(() => null)
+              : null;
+            if (confirmed?.ledger && ["applied", "duplicate"].includes(confirmed.outcome)) {
+              setData((d) => (d ? { ...d, ledger: confirmed.ledger! } : d));
+              setBusy(null);
+              setPicked(null);
+              setMessage(`$${order.creditUsd} added. Your AI key’s limit updates within a minute.`);
+              return;
+            }
+            // Not confirmed yet: wait for the balance to move.
             for (let i = 0; i < 15; i++) {
               await new Promise((r) => setTimeout(r, 2000));
               const next = await fetchLedger().catch(() => null);

@@ -180,6 +180,62 @@ describe("the exchange rate", () => {
   });
 });
 
+async function liveWorkspaceWithLedger(uid = U.uid, email = U.email, ws = "kamal") {
+  await seedUser(uid, email, { ws });
+  const { initialLedger } = await import("@/lib/billing/credits");
+  const { adminDb } = await import("@/lib/server/admin");
+  await adminDb().doc(`users/${uid}`).update({ credits: initialLedger() });
+}
+
+describe("top-up confirm (Checkout's success handler)", () => {
+  it("applies the pack at once, moves the key's limit, and nothing after it adds again", async () => {
+    await liveWorkspaceWithLedger();
+    const { startTopup, confirmTopup } = await import("@/lib/server/credits");
+    const order = await startTopup(caller(U.uid, U.email), "s");
+    const pay = rzp.payOrder(order.orderId);
+    const r = await confirmTopup(caller(U.uid, U.email), pay.id);
+    assert.equal(r.outcome, "applied");
+    assert.equal(r.ledger?.purchasedUsd, 10);
+    assert.equal((await ops()).filter((o) => o.op === "sync_limit").length, 1);
+    // Not flagged as a missed webhook: this is the normal path.
+    assert.equal((await list("billing_events")).filter((e) => e.id === `reconcile:${pay.id}`).length, 0);
+
+    assert.equal((await confirmTopup(caller(U.uid, U.email), pay.id)).outcome, "duplicate");
+    await webhook("payment.captured", { payment: rzp.payments.get(pay.id)! });
+    await worker("reconcile");
+    assert.equal((await read("users/u1"))?.credits.purchasedUsd, 10);
+  });
+
+  it("an authorized payment is captured, then applied", async () => {
+    await liveWorkspaceWithLedger();
+    const { startTopup, confirmTopup } = await import("@/lib/server/credits");
+    const order = await startTopup(caller(U.uid, U.email), "s");
+    const pay = rzp.payOrder(order.orderId, "authorized");
+    assert.equal((await confirmTopup(caller(U.uid, U.email), pay.id)).outcome, "applied");
+    assert.equal(rzp.payments.get(pay.id)?.status, "captured");
+  });
+
+  it("someone else's payment is refused and credits nobody", async () => {
+    await liveWorkspaceWithLedger();
+    await liveWorkspaceWithLedger("u2", "b@example.com", "bina");
+    const { startTopup, confirmTopup } = await import("@/lib/server/credits");
+    const order = await startTopup(caller(U.uid, U.email), "s");
+    const pay = rzp.payOrder(order.orderId);
+    await assert.rejects(confirmTopup(caller("u2", "b@example.com"), pay.id), /isn't a credit pack on your account/);
+    assert.equal((await read("users/u1"))?.credits.purchasedUsd, 0);
+    assert.equal((await read("users/u2"))?.credits.purchasedUsd, 0);
+  });
+
+  it("an order not paid yet is pending", async () => {
+    await liveWorkspaceWithLedger();
+    const { startTopup, confirmTopup } = await import("@/lib/server/credits");
+    const order = await startTopup(caller(U.uid, U.email), "s");
+    const pay = rzp.addPayment({ amount: order.amountMinor, currency: order.currency, order_id: order.orderId, status: "created" });
+    assert.equal((await confirmTopup(caller(U.uid, U.email), pay.id)).outcome, "pending");
+    assert.equal((await read("users/u1"))?.credits.purchasedUsd, 0);
+  });
+});
+
 describe("top-ups", () => {
   it("a pack is charged in rupees at the day's rate + GST; the credit is the face price", async () => {
     await seedUser(U.uid, U.email, { ws: "kamal" });

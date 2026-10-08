@@ -140,6 +140,13 @@ export const startTopup = (pack: string) =>
     quote: Quote;
   }>("/account/credits/topup/", { method: "POST", body: JSON.stringify({ pack }) });
 
+/** Checkout reported a pack paid: apply it now from Razorpay's record, not the webhook. */
+export const confirmTopup = (paymentId: string) =>
+  call<{ outcome: string; ledger: LedgerSummary | null }>("/account/credits/confirm/", {
+    method: "POST",
+    body: JSON.stringify({ paymentId }),
+  });
+
 /** The bill before Checkout: the workspace plan with this monthly credit, or a credit pack. */
 export const fetchQuote = (what: { creditUsd: number } | { pack: string }) =>
   call<Quote>(

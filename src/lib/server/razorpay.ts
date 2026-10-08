@@ -299,7 +299,7 @@ export async function lastPaidPayment(subscriptionId: string): Promise<{ payment
 }
 
 export const fetchPayment = (id: string) =>
-  rzp<{ id: string; amount: number; amount_refunded?: number; status: string }>(`/payments/${id}`);
+  rzp<RzpPayment>(`/payments/${id}`);
 
 /** Full refund of one payment. Razorpay refuses a second refund once nothing is left to refund. */
 /** Notes mark it as ours, so the refund webhook / reconciler doesn't flag it. */

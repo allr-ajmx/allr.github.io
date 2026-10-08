@@ -6,7 +6,7 @@ import { adminDb } from "./admin";
 import { badRequest, forbidden } from "./errors";
 import type { Caller } from "./session";
 import { readOrAdoptProfile } from "./profiles";
-import { capturePayment, createOrder, fetchOrder, razorpayKeyId, refundPayment, type RzpPayment } from "./razorpay";
+import { capturePayment, createOrder, fetchOrder, fetchPayment, razorpayKeyId, refundPayment, type RzpPayment } from "./razorpay";
 import { enqueueOp } from "./provisioning";
 import { money, type Quote } from "@/lib/billing/quote";
 import { priceFor } from "./pricing";
@@ -101,6 +101,33 @@ export function quoteTopup(country: string, priceUsd: number): Promise<Quote> {
 
 export type TopupOutcome = "applied" | "ignored" | "duplicate" | "refunded" | "refund-failed";
 
+/**
+ * POST /api/account/credits/confirm — Checkout just reported a pack paid:
+ * apply it now, from Razorpay's own record of the payment, instead of
+ * waiting for the webhook (or the 5-minute reconciler). The browser only
+ * names the payment; nothing it says is trusted.
+ */
+export async function confirmTopup(caller: Caller, paymentId: unknown) {
+  if (typeof paymentId !== "string" || !/^pay_[A-Za-z0-9]+$/.test(paymentId)) {
+    throw badRequest("bad-payment", "That isn't a payment id.");
+  }
+  const payment = await fetchPayment(paymentId);
+  const order = payment.order_id ? await fetchOrder(payment.order_id) : null;
+  const notes = (order?.notes ?? {}) as Record<string, unknown>;
+  const mine =
+    notes.uid === caller.uid ||
+    (typeof notes.email === "string" && notes.email.trim().toLowerCase() === caller.email.trim().toLowerCase());
+  if (!order || notes.kind !== "topup" || !mine) {
+    throw badRequest("not-your-payment", "That payment isn't a credit pack on your account.");
+  }
+  const outcome: TopupOutcome | "pending" =
+    payment.status === "captured" || payment.status === "authorized"
+      ? await applyTopupPayment(payment, `checkout:${payment.id}`, { source: "checkout" })
+      : "pending";
+  const ledger = await readLedger(caller.uid);
+  return { outcome, ledger: ledger ? summarizeLedger(ledger) : null };
+}
+
 const emailKey = (email: string) =>
   createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
 
@@ -123,8 +150,9 @@ async function accountFor(uid: string, email: string | undefined) {
 }
 
 /**
- * A credit-pack payment, from the webhook (payment.authorized / .captured)
- * or the reconciler — idempotent by payment id either way.
+ * A credit-pack payment, from Checkout's confirm, the webhook
+ * (payment.authorized / .captured) or the reconciler — idempotent by payment
+ * id whichever gets there first.
  *
  * - Not one of our top-up orders: ignored (recorded when money is involved).
  * - Authorized but not captured: captured here, then applied.
@@ -135,7 +163,7 @@ async function accountFor(uid: string, email: string | undefined) {
 export async function applyTopupPayment(
   payment: RzpPayment,
   eventId = "",
-  { source = "webhook" }: { source?: "webhook" | "reconcile" } = {},
+  { source = "webhook" }: { source?: "webhook" | "reconcile" | "checkout" } = {},
 ): Promise<TopupOutcome> {
   if (!payment.order_id || payment.invoice_id) return "ignored";
   if (payment.status !== "captured" && payment.status !== "authorized") return "ignored";
