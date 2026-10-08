@@ -10,6 +10,7 @@ import {
   ApiCallFailed,
   cancelSubscription,
   checkUsername,
+  confirmSubscription,
   fetchBilling,
   fetchBillingHistory,
   redeemPromoCode,
@@ -25,8 +26,9 @@ import { CREDIT_MIN_USD, CREDIT_PRESET_USD, creditAmountMinor } from "@/lib/bill
 /**
  * The workspace is the plan, and paying for it is what creates it: pick a
  * name, pay, and the queue builds the workspace. Money moves only inside
- * Razorpay Checkout; the profile flips on Razorpay's webhook, never on the
- * browser's say-so.
+ * Razorpay Checkout; the profile flips on Razorpay's own state, never on the
+ * browser's say-so — Checkout's success only asks the site to re-read it
+ * (the webhook does the same, whichever comes first).
  */
 
 declare global {
@@ -138,12 +140,50 @@ export function BillingPage() {
     }, 350);
   }, []);
 
-  const awaitWebhook = useCallback(async () => {
+  const openCreditCheckout = useCallback(async (amount: number) => {
+    setPhase("paying");
+    try {
+      const [credit] = await Promise.all([startCreditSubscription(amount), loadCheckout()]);
+      const user = getAllrAuth().currentUser;
+      const rzp = new window.Razorpay!({
+        key: credit.keyId,
+        subscription_id: credit.subscriptionId,
+        name: "Allr",
+        description: credit.startsAt
+          ? `AI credit · $${credit.amountUsd}/month from your renewal`
+          : `AI credit · $${credit.amountUsd}/month`,
+        prefill: { name: user?.displayName ?? "", email: user?.email ?? "" },
+        theme: { color: "#1E7A49" },
+        handler: async () => {
+          // Apply it now from Razorpay; the webhook would get there too.
+          await confirmSubscription(credit.subscriptionId).catch(() => null);
+          if (!mounted.current) return;
+          setPhase("ready");
+          setMessage(
+            credit.startsAt
+              ? `Done — $${credit.amountUsd} of AI credit a month starts on your renewal date. The balance you have stays.`
+              : `AI credit is set to $${credit.amountUsd} a month. The balance updates when the payment lands.`,
+          );
+          void refresh();
+        },
+        modal: { ondismiss: () => setPhase("ready") },
+      });
+      rzp.open();
+    } catch (error) {
+      setMessage(error instanceof ApiCallFailed ? error.message : "Credit checkout could not open. You can add it from Credits.");
+      setPhase("ready");
+    }
+  }, [refresh]);
+
+  const awaitWebhook = useCallback(async (subscriptionId: string) => {
     setPhase("waiting");
     for (let i = 0; i < 15; i++) {
-      await new Promise((r) => setTimeout(r, 2000));
+      // Ask the site to apply it from Razorpay's own state, so a slow or
+      // lost webhook can't hold this page (or the credit mandate) up; the
+      // first look is immediate, Razorpay may need a moment to charge.
+      if (i > 0) await new Promise((r) => setTimeout(r, 2000));
       if (!mounted.current) return;
-      const next = await fetchBilling().catch(() => null);
+      const next = await confirmSubscription(subscriptionId).catch(() => fetchBilling().catch(() => null));
       if (!mounted.current) return;
       if (next?.billing?.status === "active") {
         setSummary(next);
@@ -160,7 +200,7 @@ export function BillingPage() {
     if (!mounted.current) return;
     await refresh();
     setMessage("Payment received — it can take a minute to reflect here.");
-  }, [refresh, refreshProfile]);
+  }, [refresh, refreshProfile, openCreditCheckout]);
 
   const redeem = useCallback(async () => {
     setMessage(null);
@@ -178,38 +218,6 @@ export function BillingPage() {
       setRedeeming(false);
     }
   }, [promoCode, username, refresh, refreshProfile]);
-
-  const openCreditCheckout = useCallback(async (amount: number) => {
-    setPhase("paying");
-    try {
-      const [credit] = await Promise.all([startCreditSubscription(amount), loadCheckout()]);
-      const user = getAllrAuth().currentUser;
-      const rzp = new window.Razorpay!({
-        key: credit.keyId,
-        subscription_id: credit.subscriptionId,
-        name: "Allr",
-        description: credit.startsAt
-          ? `AI credit · $${credit.amountUsd}/month from your renewal`
-          : `AI credit · $${credit.amountUsd}/month`,
-        prefill: { name: user?.displayName ?? "", email: user?.email ?? "" },
-        theme: { color: "#1E7A49" },
-        handler: () => {
-          setPhase("ready");
-          setMessage(
-            credit.startsAt
-              ? `Done — $${credit.amountUsd} of AI credit a month starts on your renewal date. The balance you have stays.`
-              : `AI credit is set to $${credit.amountUsd} a month. The balance updates when the payment lands.`,
-          );
-          void refresh();
-        },
-        modal: { ondismiss: () => setPhase("ready") },
-      });
-      rzp.open();
-    } catch (error) {
-      setMessage(error instanceof ApiCallFailed ? error.message : "Credit checkout could not open. You can add it from Credits.");
-      setPhase("ready");
-    }
-  }, [refresh]);
 
   const subscribe = useCallback(async () => {
     setMessage(null);
@@ -234,7 +242,7 @@ export function BillingPage() {
         description: "Allr workspace · monthly",
         prefill: { name: user?.displayName ?? "", email: user?.email ?? "" },
         theme: { color: "#1E7A49" },
-        handler: () => void awaitWebhook(),
+        handler: () => void awaitWebhook(subscriptionId),
         modal: { ondismiss: () => setPhase("ready") },
       });
       rzp.open();
@@ -368,8 +376,20 @@ export function BillingPage() {
               <p className="mt-2 text-[.95rem] leading-[1.7] text-ink-soft">
                 {summary?.creditSubscription?.status === "active"
                   ? `$${summary.creditSubscription.amountUsd} of AI credit is added each month. Unused credit stays. Change the amount on the Credits page.`
-                  : "This workspace has no monthly AI credit. You can use your own key, or add credit from the Credits page."}
+                  : (summary?.pendingCreditUsd ?? 0) >= CREDIT_MIN_USD
+                    ? `You chose $${summary!.pendingCreditUsd} of AI credit a month at checkout, but it isn’t set up yet. It takes one more confirmation in Razorpay.`
+                    : "This workspace has no monthly AI credit. You can use your own key, or add credit from the Credits page."}
               </p>
+              {summary?.creditSubscription?.status !== "active" && (summary?.pendingCreditUsd ?? 0) >= CREDIT_MIN_USD ? (
+                <button
+                  type="button"
+                  disabled={phase === "paying"}
+                  onClick={() => void openCreditCheckout(summary!.pendingCreditUsd)}
+                  className="mt-4 cursor-pointer rounded-control border border-line bg-card px-5 py-2.5 text-[.95rem] font-bold text-ink hover:border-honey-line disabled:cursor-default disabled:opacity-60"
+                >
+                  Finish setting up ${summary!.pendingCreditUsd}/month AI credit
+                </button>
+              ) : null}
             </section>
           ) : null}
 

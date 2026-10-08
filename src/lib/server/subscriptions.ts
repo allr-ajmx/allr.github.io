@@ -306,14 +306,26 @@ async function syncCreditSubscription(
         });
       }
     }
+    // Same rule as the workspace path: the reconciler moving money or
+    // status means a webhook was missed — worth a person's look.
+    const statusMoved = prior?.status !== subscription.status || prior?.subscriptionId !== subscription.subscriptionId;
+    const missed = opts.source === "reconcile" && (statusMoved || effects.addUsd > 0);
     tx.set(db.collection(EVENTS).doc(
       `credit:${opts.source}:${subscriptionId}:${subscription.status}:${subscription.paidCount ?? "?"}`,
     ), {
       eventName: opts.eventName ?? `sync:${opts.source}`,
       subscriptionId,
       uid: userRef.id,
-      outcome: "applied",
-      flag: false,
+      outcome: missed ? "applied-by-reconcile" : "applied",
+      ...(missed
+        ? {
+            reason: effects.addUsd > 0
+              ? `webhook missed — $${effects.addUsd} monthly AI credit applied from Razorpay`
+              : "webhook missed — credit subscription update applied from Razorpay",
+            flag: true,
+            resolved: false,
+          }
+        : { flag: false }),
       receivedAt: FieldValue.serverTimestamp(),
     });
     return { outcome: "applied" as const, effects, subscription };

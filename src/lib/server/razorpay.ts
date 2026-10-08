@@ -1,7 +1,7 @@
 import "server-only";
 
 import { ApiError } from "./errors";
-import { isMissingRefusal } from "@/lib/billing/razorpay-errors";
+import { isMissingRefusal, retryAfterMs } from "@/lib/billing/razorpay-errors";
 import type { PlanKey } from "@/lib/billing/plans";
 
 /**
@@ -73,17 +73,25 @@ export function planOf(planId: string | undefined): { plan: PlanKey; currency: "
 }
 
 async function rzp<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    ...init,
-    headers: {
-      Authorization: authHeader(),
-      "Content-Type": "application/json",
-      ...init.headers,
-    },
-    // Razorpay is a dependency that can be down; a hung socket must not hold
-    // a serverless function open until the platform kills it.
-    signal: AbortSignal.timeout(15_000),
-  });
+  const send = () =>
+    fetch(`${BASE}${path}`, {
+      ...init,
+      headers: {
+        Authorization: authHeader(),
+        "Content-Type": "application/json",
+        ...init.headers,
+      },
+      // Razorpay is a dependency that can be down; a hung socket must not hold
+      // a serverless function open until the platform kills it.
+      signal: AbortSignal.timeout(15_000),
+    });
+  let res = await send();
+  // Rate-limited: a read is retried once, shortly. Writes are never resent
+  // here — their callers decide, since a write may have half-happened.
+  if (res.status === 429 && (init.method ?? "GET").toUpperCase() === "GET") {
+    await new Promise((r) => setTimeout(r, retryAfterMs(res.headers.get("retry-after"))));
+    res = await send();
+  }
 
   const body = (await res.json().catch(() => null)) as
     | (T & { error?: { code?: string; description?: string } })

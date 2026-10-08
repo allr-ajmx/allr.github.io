@@ -7,7 +7,13 @@ import { applyTopupPayment } from "./credits";
 import { applyRefund } from "./payments";
 import { RazorpayError, listPayments, listRefunds } from "./razorpay";
 import { shipLog } from "./logship";
-import { isOrderPayment } from "@/lib/billing/reconcile";
+import {
+  appliedCount,
+  describeRun,
+  isOrderPayment,
+  webhookSilence,
+  type ReconcileSummary,
+} from "@/lib/billing/reconcile";
 
 /**
  * The safety net under the webhooks. Every few minutes the VPS worker calls
@@ -19,6 +25,11 @@ import { isOrderPayment } from "@/lib/billing/reconcile";
  *
  * Bounded per run so a slow Razorpay can't hold the function: a window of
  * three days, a capped number of pages, order lookups and subscriptions.
+ *
+ * Subscriptions are of two kinds since the split: the workspace one
+ * (`billing`) and the optional monthly AI-credit one (`creditSubscription`).
+ * Both are followed, sharing one per-run budget; syncSubscription routes each
+ * by its Razorpay notes.
  */
 
 const WINDOW_S = 3 * 86_400;
@@ -26,12 +37,11 @@ const MAX_PAGES = 3;
 const MAX_TOPUPS = 15;
 const MAX_SUBS = 20;
 
-export type ReconcileSummary = {
-  topups: Record<string, number>;
-  refunds: Record<string, number>;
-  subscriptions: { checked: number; applied: number; quiet: number; missing?: number };
-  errors: string[];
-};
+export type { ReconcileSummary };
+
+const LIVE = ["pending", "active", "pastDue"];
+const IN_FLIGHT = ["created", "authenticated"];
+type SubField = "billing" | "creditSubscription";
 
 const bump = (m: Record<string, number>, k: string) => (m[k] = (m[k] ?? 0) + 1);
 
@@ -40,21 +50,6 @@ const why = (e: unknown) =>
   e instanceof RazorpayError
     ? `Razorpay ${e.upstreamStatus}${e.upstreamCode ? ` ${e.upstreamCode}` : ""}: ${e.description || "no detail"}`
     : ((e as Error)?.message ?? String(e)).slice(0, 300);
-
-/** The run, as a sentence for the Needs-attention list. */
-function describe(s: ReconcileSummary): string {
-  const done: string[] = [];
-  if (s.topups.applied) done.push(`${s.topups.applied} missed credit pack(s) applied`);
-  if (s.topups.refunded) done.push(`${s.topups.refunded} credit pack(s) refunded automatically`);
-  if (s.topups["refund-failed"]) done.push(`${s.topups["refund-failed"]} automatic refund(s) FAILED`);
-  if (s.refunds.applied) done.push(`${s.refunds.applied} refund(s) applied`);
-  if (s.subscriptions.applied) done.push(`${s.subscriptions.applied} missed subscription update(s) applied`);
-  if (s.subscriptions.missing) done.push(`${s.subscriptions.missing} test-mode subscription(s) marked ended`);
-  const head = done.length ? `Billing check: ${done.join("; ")}.` : "Billing check:";
-  return s.errors.length
-    ? `${head} ${s.errors.length} problem(s) — ${s.errors.join(" · ")}`
-    : head;
-}
 
 async function pages<T>(fetchPage: (skip: number) => Promise<{ items?: T[] }>): Promise<T[]> {
   const out: T[] = [];
@@ -124,59 +119,81 @@ export async function reconcile(now = new Date()): Promise<ReconcileSummary> {
     summary.errors.push(`listing refunds: ${why(e)}`);
   }
 
-  // 3. Subscriptions whose state moved without us hearing. The least
-  //    recently checked first, a capped batch per run, so all get a turn.
+  // 3. Subscriptions whose state moved without us hearing — the workspace
+  //    one and the monthly AI-credit one. The least recently checked first,
+  //    a capped batch per run, so all get a turn.
   try {
-    const [tracked, changing] = await Promise.all([
-      db.collection("users").where("billing.status", "in", ["pending", "active", "pastDue"]).limit(500).get(),
-      db.collection("users").where("billing.upcoming.status", "in", ["created", "authenticated"]).limit(200).get(),
+    const users = db.collection("users");
+    const [tracked, changing, credit, creditChanging] = await Promise.all([
+      users.where("billing.status", "in", LIVE).limit(500).get(),
+      users.where("billing.upcoming.status", "in", IN_FLIGHT).limit(200).get(),
+      users.where("creditSubscription.status", "in", LIVE).limit(500).get(),
+      users.where("creditSubscription.upcoming.status", "in", IN_FLIGHT).limit(200).get(),
     ]);
-    // A plan change in flight: its new subscription is followed too (mandate
-    // set, takeover at renewal, the old one told to end).
-    for (const doc of changing.docs) {
-      const up = doc.data().billing?.upcoming;
+    // A change in flight (plan or credit amount): its new subscription is
+    // followed too (mandate set, takeover at renewal, the old one told to end).
+    const inFlight = [
+      ...changing.docs.map((doc) => ({ doc, what: "plan change", id: doc.data().billing?.upcoming?.subscriptionId })),
+      ...creditChanging.docs.map((doc) => ({ doc, what: "credit change", id: doc.data().creditSubscription?.upcoming?.subscriptionId })),
+    ];
+    for (const { doc, what, id } of inFlight) {
+      if (typeof id !== "string" || !id) continue;
       try {
-        await syncSubscription(up.subscriptionId, { source: "reconcile", uidHint: doc.id });
+        await syncSubscription(id, { source: "reconcile", uidHint: doc.id });
       } catch (e) {
-        summary.errors.push(`plan change ${up.subscriptionId}: ${why(e)}`);
+        summary.errors.push(`${what} ${id}: ${why(e)}`);
       }
     }
-    const batch = tracked.docs
-      .filter((d) => d.data().billing?.subscriptionId)
-      .sort((a, b) => String(a.data().billing?.reconciledAt ?? "").localeCompare(String(b.data().billing?.reconciledAt ?? "")))
+    const checkedAt = (doc: (typeof tracked.docs)[number], field: SubField) =>
+      String(doc.data()[field]?.reconciledAt ?? "");
+    const batch = [
+      ...tracked.docs.map((doc) => ({ doc, field: "billing" as SubField })),
+      ...credit.docs.map((doc) => ({ doc, field: "creditSubscription" as SubField })),
+    ]
+      .filter(({ doc, field }) => doc.data()[field]?.subscriptionId)
+      .sort((a, b) => checkedAt(a.doc, a.field).localeCompare(checkedAt(b.doc, b.field)))
       .slice(0, MAX_SUBS);
-    for (const doc of batch) {
-      const b = doc.data().billing;
+    for (const { doc, field } of batch) {
+      const b = doc.data()[field];
       try {
         const outcome = await syncSubscription(b.subscriptionId, { source: "reconcile", uidHint: doc.id });
         summary.subscriptions.checked++;
-        const after = (await doc.ref.get()).data()?.billing;
+        const after = (await doc.ref.get()).data()?.[field];
         if (outcome === "applied") {
           if (after?.providerStatus === "missing") summary.subscriptions.missing = (summary.subscriptions.missing ?? 0) + 1;
           else if (after?.status !== b.status || (after?.paidCount ?? 0) > (b.paidCount ?? 0)) summary.subscriptions.applied++;
           else summary.subscriptions.quiet++;
         }
-        await doc.ref.update({ "billing.reconciledAt": now.toISOString() });
+        await doc.ref.update({ [`${field}.reconciledAt`]: now.toISOString() });
       } catch (e) {
-        summary.errors.push(`subscription ${b.subscriptionId}: ${why(e)}`);
+        summary.errors.push(`${field === "billing" ? "subscription" : "credit subscription"} ${b.subscriptionId}: ${why(e)}`);
       }
     }
   } catch (e) {
     summary.errors.push(`listing subscriptions: ${why(e)}`);
   }
 
-  const applied =
-    (summary.topups.applied ?? 0) + (summary.topups.refunded ?? 0) + (summary.refunds.applied ?? 0) +
-    summary.subscriptions.applied;
+  // Applying what webhooks missed, with no webhook verified for a while,
+  // means the webhook path itself is down: say that once, up front.
+  const applied = appliedCount(summary);
+  if (applied) {
+    try {
+      const health = (await db.collection("billing_health").doc("webhook").get()).data();
+      const silent = webhookSilence(typeof health?.lastVerifiedAt === "string" ? health.lastVerifiedAt : null, now);
+      if (silent) summary.webhookSilentSince = silent;
+    } catch {
+      // Only a hint for the alert; never a reason for the run to fail.
+    }
+  }
   if (applied || summary.errors.length) {
     shipLog("billing", applied ? "reconcile applied missed events" : "reconcile had errors",
       { summary: JSON.stringify(summary) }, summary.errors.length ? "error" : "warn");
     // One row per hour, so a persistent failure is one flag, not twelve.
     await db.collection("billing_events").doc(`reconcile-run:${now.toISOString().slice(0, 13)}`).set({
       eventName: "reconcile",
-      outcome: summary.errors.length ? "errors" : "applied",
-      reason: describe(summary).slice(0, 1500),
-      flag: summary.errors.length > 0,
+      outcome: summary.errors.length ? "errors" : summary.webhookSilentSince ? "webhook-silent" : "applied",
+      reason: describeRun(summary).slice(0, 1500),
+      flag: summary.errors.length > 0 || Boolean(summary.webhookSilentSince),
       resolved: false,
       receivedAt: FieldValue.serverTimestamp(),
     });

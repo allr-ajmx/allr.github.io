@@ -271,6 +271,29 @@ export async function startCreditSubscription(caller: Caller, requested: unknown
   return { subscriptionId: sub.id, keyId: razorpayKeyId(), ...view, startsAt: null };
 }
 
+/**
+ * Checkout just finished in the browser: apply that subscription now, from
+ * Razorpay's own state, instead of waiting for the webhook. The webhook is
+ * still the truth — this is the same idempotent sync it runs — but the
+ * page (and the second, AI-credit mandate after a workspace checkout) no
+ * longer stalls when a webhook is slow or lost.
+ */
+export async function confirmCheckout(caller: Caller, requested: unknown): Promise<BillingSummary> {
+  const profile = await readOrAdoptProfile(caller);
+  if (!profile) throw badRequest("no-profile", "Make an account first.");
+  const ours = [
+    profile.billing?.subscriptionId,
+    profile.billing?.upcoming?.subscriptionId,
+    profile.creditSubscription?.subscriptionId,
+    profile.creditSubscription?.upcoming?.subscriptionId,
+  ].filter((id): id is string => Boolean(id));
+  if (typeof requested !== "string" || !ours.includes(requested)) {
+    throw badRequest("unknown-subscription", "That subscription isn't on your account.");
+  }
+  await syncSubscription(requested, { source: "checkout", uidHint: caller.uid });
+  return summarize((await readOrAdoptProfile(caller)) ?? profile);
+}
+
 /** Cancel at the end of the paid period — nobody loses time they paid for. */
 export type PlanChangeResponse = {
   subscriptionId: string;

@@ -33,8 +33,22 @@ existing Razorpay mandate. New checkouts sell only the workspace plan.
   (`ALLR_FIRESTORE_STRICT=1`); production also ignores undefined values.
 - **Reconciler** (`POST /api/admin/reconcile`, the VPS calls it every 5 min)
   re-reads the last 3 days of payments/refunds and every tracked subscription
-  (including plan changes in flight) and applies what webhooks missed —
-  flagged in Needs attention as "webhook missed".
+  — the workspace one (`billing`) and the monthly AI-credit one
+  (`creditSubscription`), including plan and amount changes in flight — and
+  applies what webhooks missed, flagged in Needs attention as "webhook missed".
+- **Webhook health**: every delivery that passes the signature check stamps
+  `billing_health/webhook.lastVerifiedAt`. When the reconciler has to apply
+  something and no webhook was verified in the last hour, its run row is
+  flagged and starts "No Razorpay webhook has reached the site since …" —
+  the webhook path is down, not one event. A delivery refused for its
+  signature (or an unset secret) is flagged too, once an hour, as
+  `webhook-rejected:<hour>`. A webhook URL without the trailing slash never
+  reaches the route at all (308, which Razorpay treats as a failure): only
+  the reconciler's "since …" line shows that one.
+- **Checkout confirm** (`POST /api/account/billing/confirm`): Checkout's
+  success handler asks the site to sync that subscription from Razorpay right
+  away, so the page — and the AI-credit mandate that follows a workspace
+  checkout — never waits on the webhook.
 
 ## Monthly AI credit
 
@@ -90,11 +104,15 @@ they paid for.
    - Account & Settings → **International payments** → enable card payments
      (required for the USD plan).
    - Settings → **Webhooks** → Add: URL
-     `https://www.allr.work/api/billing/webhook`, a strong secret, events:
-     `subscription.activated`, `subscription.charged`, `subscription.pending`,
-     `subscription.halted`, `subscription.paused`, `subscription.resumed`,
-     `subscription.cancelled`, `subscription.completed`, and — for credit
-   top-ups — `payment.captured`.
+     `https://www.allr.work/api/billing/webhook/` — **with the trailing
+     slash**: the site uses `trailingSlash`, so the bare path answers 308 and
+     Razorpay counts every delivery as failed. A strong secret, events:
+     `subscription.authenticated`, `subscription.activated`,
+     `subscription.charged`, `subscription.pending`, `subscription.halted`,
+     `subscription.paused`, `subscription.resumed`, `subscription.cancelled`,
+     `subscription.completed`; for credit top-ups `payment.captured` and
+     `payment.authorized`; `refund.processed`; and the `payment.dispute.*`
+     events.
 2. **Plans**: `RAZORPAY_KEY_ID=… RAZORPAY_KEY_SECRET=… node scripts/razorpay-setup.mjs`
    prints the two plan ids.
 3. **Vercel env** (Production; repeat per mode):
@@ -104,7 +122,11 @@ they paid for.
    `RAZORPAY_PLAN_ID_CREDIT_USD` (`$1` unit), `RAZORPAY_PLAN_ID_CREDIT_INR`
    (`₹89.90` unit). Legacy `RAZORPAY_PLAN_ID_AI_*` plan ids are unused by new
    checkouts. Redeploy.
-4. Go live: repeat 1–3 with live-mode keys/webhook/plans.
+4. Go live: repeat 1–3 with live-mode keys/webhook/plans. Live mode has its
+   **own** webhooks — the test-mode one does not carry over — so add it again
+   in live mode and set `RAZORPAY_WEBHOOK_SECRET` to the live webhook's
+   secret. Check with Razorpay's test delivery that
+   `billing_health/webhook.lastVerifiedAt` moves.
 
 ## Test cards
 

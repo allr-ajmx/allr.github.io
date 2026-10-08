@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { isMissingRefusal } from "../src/lib/billing/razorpay-errors.ts";
+import { isMissingRefusal, retryAfterMs } from "../src/lib/billing/razorpay-errors.ts";
 
 describe("isMissingRefusal", () => {
   it("Razorpay's 'id does not exist' is missing", () => {
@@ -21,5 +21,15 @@ describe("isMissingRefusal", () => {
     assert.equal(isMissingRefusal(400, "Refund amount exceeds the captured amount"), false);
     assert.equal(isMissingRefusal(400, "The amount is invalid"), false);
     assert.equal(isMissingRefusal(400, "payment_id is required"), false);
+  });
+});
+
+describe("retryAfterMs", () => {
+  it("waits about a second by default, Razorpay's Retry-After when given, never long", () => {
+    assert.equal(retryAfterMs(null), 1_000);
+    assert.equal(retryAfterMs("nonsense"), 1_000);
+    assert.equal(retryAfterMs("2"), 2_000);
+    assert.equal(retryAfterMs("0"), 250);
+    assert.equal(retryAfterMs("60"), 3_000);
   });
 });

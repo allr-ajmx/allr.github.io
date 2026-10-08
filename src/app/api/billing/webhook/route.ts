@@ -4,6 +4,7 @@ import { syncSubscription } from "@/lib/server/subscriptions";
 import { applyTopupPayment } from "@/lib/server/credits";
 import type { RzpPayment, RzpRefund, RzpSubscription } from "@/lib/server/razorpay";
 import { applyRefund, recordDispute, type RzpDispute } from "@/lib/server/payments";
+import { noteWebhookRejected, noteWebhookVerified } from "@/lib/server/webhook-health";
 
 /**
  * Razorpay calls this; nobody else can produce the signature. This route is
@@ -14,17 +15,22 @@ import { applyRefund, recordDispute, type RzpDispute } from "@/lib/server/paymen
  * retrying an event we chose to ignore is noise, not safety.
  */
 export async function POST(request: Request) {
+  // A refusal is recorded (once an hour) only when the request carries
+  // Razorpay's signature header: a misconfigured secret must be visible, a
+  // stray POST from anywhere else is not worth a flag.
+  const signature = request.headers.get("x-razorpay-signature") ?? "";
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
   if (!secret) {
     console.error("[billing] webhook hit but RAZORPAY_WEBHOOK_SECRET is unset");
+    if (signature) await noteWebhookRejected("unconfigured");
     return new Response(null, { status: 503 });
   }
 
   // The signature covers the raw bytes; parse only after verifying.
   const raw = await request.text();
-  const signature = request.headers.get("x-razorpay-signature") ?? "";
   if (!verifyWebhookSignature(raw, signature, secret)) {
     console.error("[billing] webhook signature mismatch");
+    if (signature) await noteWebhookRejected("signature");
     return new Response(null, { status: 401 });
   }
 
@@ -45,6 +51,7 @@ export async function POST(request: Request) {
 
   const eventId = request.headers.get("x-razorpay-event-id") ?? "";
   const name = event.event ?? "";
+  await noteWebhookVerified(name);
   try {
     // Credit top-ups arrive as captured one-time payments; idempotent by
     // payment id inside, so no event-id bookkeeping is needed here.

@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
-import { caller, freshRazorpay, ops, read, resetDb, seedUser, webhook, worker } from "./harness.ts";
+import { caller, freshRazorpay, list, ops, read, resetDb, seedUser, webhook, worker } from "./harness.ts";
 import type { FakeRazorpay } from "./fake-razorpay.ts";
 
 let rzp: FakeRazorpay;
@@ -135,6 +135,73 @@ describe("renewals", () => {
     const flags = (await import("./harness.ts")).list;
     const events = await flags("billing_events");
     assert.ok(events.some((e) => (e as { flag?: boolean; reason?: string }).flag && /webhook missed/.test(String((e as { reason?: string }).reason))));
+  });
+});
+
+describe("when webhooks don't arrive (prod, October 2026)", () => {
+  it("checkout applies a paid subscription itself, without a webhook and without a flag", async () => {
+    await seedUser("u1", "k@example.com");
+    const { subscriptionId } = await subscribe("u1", "k@example.com");
+    rzp.charge(subscriptionId);
+    const { confirmCheckout } = await import("@/lib/server/billing");
+    const summary = await confirmCheckout(caller("u1", "k@example.com"), subscriptionId);
+    assert.equal(summary.billing?.status, "active");
+    assert.equal((await read("provision_queue/u1"))?.status, "queued");
+    const events = await list("billing_events");
+    assert.ok(!events.some((e) => (e as { flag?: boolean }).flag));
+  });
+
+  it("checkout confirm refuses a subscription that isn't the caller's", async () => {
+    await seedUser("u1", "k@example.com");
+    await seedUser("u2", "m@example.com");
+    const theirs = await subscribe("u2", "m@example.com", "mira");
+    const { confirmCheckout } = await import("@/lib/server/billing");
+    await assert.rejects(confirmCheckout(caller("u1", "k@example.com"), theirs.subscriptionId), /isn't on your account/);
+    await assert.rejects(confirmCheckout(caller("u1", "k@example.com"), undefined), /isn't on your account/);
+  });
+
+  it("the reconciler names the cause once when no webhook is on record", async () => {
+    await seedUser("u1", "k@example.com");
+    const { subscriptionId } = await subscribe("u1", "k@example.com");
+    rzp.charge(subscriptionId); // paid; Razorpay's webhook never reaches us
+    const r = await worker("reconcile");
+    assert.equal(r.body.subscriptions.applied, 1);
+    assert.equal(r.body.webhookSilentSince, "never");
+    const runRow = (await list("billing_events")).find((e) => e.id.startsWith("reconcile-run:")) as Record<string, unknown>;
+    assert.equal(runRow.flag, true);
+    assert.equal(runRow.outcome, "webhook-silent");
+    assert.match(String(runRow.reason), /^No verified Razorpay webhook is on record/);
+  });
+
+  it("a single miss while webhooks are flowing is not blamed on the webhook path", async () => {
+    await seedUser("u1", "k@example.com", { ws: "kamal" });
+    const { subscriptionId } = await subscribe("u1", "k@example.com");
+    rzp.charge(subscriptionId);
+    await webhook("subscription.charged", { subscription: rzp.subscriptions.get(subscriptionId)! });
+    assert.ok((await read("billing_health/webhook"))?.lastVerifiedAt);
+    rzp.charge(subscriptionId); // this renewal's webhook alone went missing
+    const r = await worker("reconcile");
+    assert.equal(r.body.subscriptions.applied, 1);
+    assert.equal(r.body.webhookSilentSince, undefined);
+  });
+
+  it("a webhook with the wrong secret is refused and flagged once an hour", async () => {
+    const { POST } = await import("@/app/api/billing/webhook/route");
+    const send = (headers: Record<string, string>) =>
+      POST(new Request("https://www.allr.work/api/billing/webhook/", { method: "POST", headers, body: "{}" }));
+    assert.equal((await send({ "x-razorpay-signature": "deadbeef" })).status, 401);
+    assert.equal((await send({ "x-razorpay-signature": "cafebabe" })).status, 401);
+    const rows = (await list("billing_events")).filter((e) => e.id.startsWith("webhook-rejected:"));
+    assert.equal(rows.length, 1);
+    assert.equal((rows[0] as { flag?: boolean }).flag, true);
+    assert.match(String((rows[0] as { reason?: string }).reason), /signature mismatch/);
+  });
+
+  it("an unsigned stray POST is refused without a flag", async () => {
+    const { POST } = await import("@/app/api/billing/webhook/route");
+    const res = await POST(new Request("https://www.allr.work/api/billing/webhook/", { method: "POST", body: "{}" }));
+    assert.equal(res.status, 401);
+    assert.equal((await list("billing_events")).length, 0);
   });
 });
 

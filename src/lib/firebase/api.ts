@@ -160,6 +160,10 @@ export const startCreditSubscription = (amountUsd: number) =>
     startsAt: string | null;
   }>("/account/billing/credits/", { method: "POST", body: JSON.stringify({ amountUsd }) });
 
+/** Checkout succeeded: apply that subscription now rather than wait for the webhook. */
+export const confirmSubscription = (subscriptionId: string) =>
+  call<BillingSummary>("/account/billing/confirm/", { method: "POST", body: JSON.stringify({ subscriptionId }) });
+
 export type PlanChange = {
   subscriptionId: string;
   keyId: string;

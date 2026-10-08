@@ -11,3 +11,14 @@ export function isMissingRefusal(upstreamStatus: number, description: string): b
     /does not exist|not (?:be )?found|no such|\bid\b[^.]*\binvalid\b|\binvalid\b[^.]*\bid\b/i.test(description)
   );
 }
+
+/**
+ * How long to wait before the one retry of a read Razorpay rate-limited
+ * (429), from its Retry-After header when it sends one. Short and capped: the
+ * reconciler makes many reads per run inside one function's time limit.
+ */
+export function retryAfterMs(header: string | null | undefined): number {
+  const s = Number(header);
+  if (!header || !Number.isFinite(s) || s < 0) return 1_000;
+  return Math.min(3_000, Math.max(250, Math.round(s * 1000)));
+}
