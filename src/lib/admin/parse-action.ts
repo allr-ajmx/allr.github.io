@@ -4,6 +4,7 @@
  */
 
 import { checkUsernameShape } from "./username.ts";
+import { checkWorkspaceName } from "./reserved-usernames.ts";
 import { isCountryCode } from "../countries.ts";
 import { MAX_NAME } from "../account/model.ts";
 import {
@@ -238,7 +239,9 @@ export function parseAction(body: unknown, now: Date = new Date()): AdminAction 
       return { action: "link_workspace", uid, username: verdict.username };
     }
     case "provision": {
-      const verdict = checkUsernameShape(b.username);
+      // A new workspace: reserved names are refused. The ws_* and link
+      // actions act on workspaces that already exist, so shape alone.
+      const verdict = checkWorkspaceName(b.username);
       if (!verdict.ok) throw badRequest("bad-username", verdict.reason);
       return { action: "provision", uid, username: verdict.username };
     }

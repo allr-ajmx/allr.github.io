@@ -14,26 +14,26 @@ describe("promo codes", () => {
   it("redeems once per email, counts the use, queues the build", async () => {
     await admin({ action: "promo_create", code: "LAUNCH", maxUses: 2 });
     await seedUser("u1", "a@example.com");
-    const p = await redeem("u1", "a@example.com", "launch", "alpha");
+    const p = await redeem("u1", "a@example.com", "launch", "amara");
     assert.equal(p.creditUsd, 5);
     assert.equal((await read("promo_codes/LAUNCH"))?.uses, 1);
     assert.equal((await read("provision_queue/u1"))?.status, "queued");
     assert.equal((await read("users/u1"))?.promo.code, "LAUNCH");
-    await assert.rejects(redeem("u1", "a@example.com", "LAUNCH", "alpha"), /already/i);
+    await assert.rejects(redeem("u1", "a@example.com", "LAUNCH", "amara"), /already/i);
   });
 
   it("the cap holds", async () => {
     await admin({ action: "promo_create", code: "ONE", maxUses: 1 });
     await seedUser("u1", "a@example.com");
     await seedUser("u2", "b@example.com");
-    await redeem("u1", "a@example.com", "ONE", "alpha");
-    await assert.rejects(redeem("u2", "b@example.com", "ONE", "beta"), /fully used/i);
+    await redeem("u1", "a@example.com", "ONE", "amara");
+    await assert.rejects(redeem("u2", "b@example.com", "ONE", "bilal"), /fully used/i);
   });
 
   it("a switched-off code can't be redeemed", async () => {
     await admin({ action: "promo_create", code: "OFF", maxUses: 5 });
     await admin({ action: "promo_set_active", code: "OFF", active: false });
     await seedUser("u1", "a@example.com");
-    await assert.rejects(redeem("u1", "a@example.com", "OFF", "alpha"), /isn.t active/i);
+    await assert.rejects(redeem("u1", "a@example.com", "OFF", "amara"), /isn.t active/i);
   });
 });

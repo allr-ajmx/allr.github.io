@@ -4,7 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "./admin";
 import { ApiError, badRequest, conflict } from "./errors";
 import type { Caller } from "./session";
-import { checkUsernameShape } from "@/lib/admin/username";
+import { checkWorkspaceName } from "@/lib/admin/reserved-usernames";
 import { appliedLimit, forNewKey, ledgerFromDoc, settle } from "@/lib/billing/credits";
 import { shipLog } from "./logship";
 import { isDue, nextAttempt, shouldEnqueue } from "@/lib/admin/retry";
@@ -43,7 +43,7 @@ export async function usernameAvailable(username: string): Promise<boolean> {
  * strands a name nobody holds.
  */
 export async function reserveUsername(caller: Caller, raw: unknown): Promise<string> {
-  const verdict = checkUsernameShape(raw);
+  const verdict = checkWorkspaceName(raw);
   if (!verdict.ok) throw badRequest("bad-username", verdict.reason);
   const username = verdict.username;
 

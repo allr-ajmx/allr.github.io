@@ -71,7 +71,10 @@ describe("parseStamp", () => {
   });
 });
 
-import { checkUsernameShape, RESERVED_USERNAMES } from "../src/lib/admin/username.ts";
+import { checkUsernameShape } from "../src/lib/admin/username.ts";
+import { checkWorkspaceName, RESERVED_USERNAMES } from "../src/lib/admin/reserved-usernames.ts";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import path from "node:path";
 
 describe("checkUsernameShape", () => {
   it("accepts and lower-cases a plain name", () => {
@@ -86,10 +89,43 @@ describe("checkUsernameShape", () => {
     assert.equal(checkUsernameShape("a".repeat(32)).ok, false);
     assert.equal(checkUsernameShape("a".repeat(31)).ok, true);
   });
-  it("refuses every reserved name", () => {
+});
+
+describe("reserved workspace names", () => {
+  it("refuses every reserved name as taken, and still checks the shape", () => {
     for (const name of RESERVED_USERNAMES) {
-      assert.equal(checkUsernameShape(name).ok, false, name);
+      assert.deepEqual(checkWorkspaceName(name), { ok: false, reason: "That name is taken." }, name);
+      assert.equal(checkWorkspaceName(name.toUpperCase()).ok, false, name);
     }
+    assert.equal(checkWorkspaceName("vishal").ok, true);
+    assert.equal(checkWorkspaceName("a-b").ok, false);
+  });
+  it("holds the company's names, and every entry is a valid username", () => {
+    for (const name of ["app", "auth", "authenticate", "admin", "pgadmin", "ceo", "support", "postmaster", "www"]) {
+      assert.ok(RESERVED_USERNAMES.has(name), name);
+    }
+    for (const name of RESERVED_USERNAMES) assert.equal(checkUsernameShape(name).ok, true, name);
+  });
+  it("matches allr.os's list (when that repo sits beside this one)", (t) => {
+    const other = path.resolve(import.meta.dirname, "../../allr.os/provisioner/allr_provisioner/reserved_usernames.txt");
+    if (!existsSync(other)) return t.skip("allr.os not checked out beside this repo");
+    const theirs = readFileSync(other, "utf8").split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
+    assert.deepEqual([...RESERVED_USERNAMES].sort(), [...theirs].sort());
+  });
+  it("is never imported by browser code (it would ship the list)", () => {
+    const src = path.resolve(import.meta.dirname, "../src");
+    const offenders = [];
+    const walk = (dir) => {
+      for (const entry of readdirSync(dir)) {
+        const file = path.join(dir, entry);
+        if (statSync(file).isDirectory()) { walk(file); continue; }
+        if (!/\.(tsx?|mjs)$/.test(file)) continue;
+        const text = readFileSync(file, "utf8");
+        if (/^\s*["']use client["']/m.test(text) && /reserved-usernames/.test(text)) offenders.push(path.relative(src, file));
+      }
+    };
+    walk(src);
+    assert.deepEqual(offenders, []);
   });
 });
 
