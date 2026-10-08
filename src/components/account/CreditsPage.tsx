@@ -18,6 +18,7 @@ import {
 } from "@/lib/firebase/api";
 import { describeQuote, type Quote } from "@/lib/billing/quote";
 import { Bill } from "./Bill";
+import { useWhileVisible } from "./useWhileVisible";
 
 /**
  * The credit meter and the top-up shop.
@@ -90,6 +91,12 @@ export function CreditsPage() {
     const t = setTimeout(() => void refresh(), 0);
     return () => clearTimeout(t);
   }, [refresh]);
+
+  // Spend is reported about once a minute; keep the meter current while open.
+  const quietRefresh = useCallback(() => {
+    fetchLedger().then(setData).catch(() => {});
+  }, []);
+  useWhileVisible(quietRefresh, 60_000);
 
   const buyMonthly = useCallback(async () => {
     const amount = Math.round(Number(monthly));

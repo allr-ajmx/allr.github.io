@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "./AuthProvider";
 import { PageHeader } from "./PageHeader";
@@ -13,6 +13,7 @@ import {
 } from "@/lib/firebase/api";
 import type { BillingSummary } from "@/lib/billing/model";
 import { WORKSPACE_USD } from "@/lib/billing/plans";
+import { useWhileVisible } from "./useWhileVisible";
 import { workspaceStatus, type WorkspaceStatus } from "@/lib/account/workspace-status";
 
 /**
@@ -48,6 +49,12 @@ export function Overview() {
       live = false;
     };
   }, []);
+
+  // The credit card keeps up with reported spend (about once a minute).
+  const refreshLedger = useCallback(() => {
+    fetchLedger().then((l) => setLedger(l.ledger ?? null)).catch(() => {});
+  }, []);
+  useWhileVisible(refreshLedger, 60_000);
 
   // While it builds, look every few seconds; the moment the workspace exists,
   // reload the profile so every page flips to live together.
