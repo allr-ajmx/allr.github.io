@@ -415,12 +415,14 @@ async function applyPromoAction(
       if (snap.exists) throw conflict("code-taken", `${a.code} already exists. Pick another code.`);
       tx.set(ref, {
         code: a.code,
+        kind: a.kind,
         active: true,
         maxUses: a.maxUses,
         uses: 0,
         expiresAt: a.expiresAt,
         days: a.days,
         creditUsd: a.creditUsd,
+        waiveMonths: a.waiveMonths,
         note: a.note,
         createdBy: admin.email,
         createdAt: FieldValue.serverTimestamp(),
@@ -437,7 +439,11 @@ async function applyPromoAction(
       action: a.action,
       detail:
         a.action === "promo_create"
-          ? `${a.code} · ${a.maxUses} uses · ${a.days} days · $${a.creditUsd}${a.expiresAt ? ` · until ${a.expiresAt.slice(0, 10)}` : ""}`
+          ? `${a.code} · ${a.maxUses} uses · ${
+              a.kind === "waive_workspace"
+                ? `workspace waived ${a.waiveMonths ? `${a.waiveMonths} mo` : "no end"} · $${a.creditUsd}/mo AI`
+                : `${a.days} days · $${a.creditUsd}`
+            }${a.expiresAt ? ` · until ${a.expiresAt.slice(0, 10)}` : ""}`
           : `${a.code} → ${a.active ? "on" : "off"}`,
       at: FieldValue.serverTimestamp(),
     });

@@ -279,7 +279,8 @@ export type AdminActionBody = {
     | "ws_suspend" | "ws_resume" | "ws_set_email" | "ws_remove" | "retry"
     | "promo_create" | "promo_set_active" | "resolve_flag" | "refund_topup" | "set_comp" | "clear_comp" | "link_workspace";
   uid?: string;
-  kind?: "provision" | "op";
+  /** retry: what to retry. promo_create: the code's kind. */
+  kind?: "provision" | "op" | "free_month" | "waive_workspace";
   id?: string;
   usd?: number;
   username?: string;
@@ -298,6 +299,7 @@ export type AdminActionBody = {
   days?: number;
   creditUsd?: number;
   active?: boolean;
+  waiveMonths?: number | null;
 };
 
 export const adminAction = (body: AdminActionBody) =>
@@ -305,6 +307,8 @@ export const adminAction = (body: AdminActionBody) =>
 
 export type AdminPromoCode = {
   code: string;
+  kind: "free_month" | "waive_workspace";
+  waiveMonths: number | null;
   active: boolean;
   maxUses: number;
   uses: number;
@@ -323,7 +327,11 @@ export const fetchAdminPromos = () =>
   }>("/admin-ui/promos/");
 
 export const redeemPromoCode = (code: string, username?: string) =>
-  call<{ promo: { code: string; endsAt: string; creditUsd: number } }>("/account/promo/redeem/", {
+  call<{
+    promo:
+      | { kind: "free_month"; code: string; endsAt: string; creditUsd: number }
+      | { kind: "waive_workspace"; code: string; creditUsd: number; months: number | null };
+  }>("/account/promo/redeem/", {
     method: "POST",
     body: JSON.stringify({ code, ...(username ? { username } : {}) }),
   });

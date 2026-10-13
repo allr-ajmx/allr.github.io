@@ -8,11 +8,13 @@ import {
   adminAction,
   fetchAdminPromos,
   type AdminActionBody,
+  type AdminPromoCode,
 } from "@/lib/firebase/api";
 
 /**
- * Promo codes: each grants one free month (no payment details) with a small
- * AI credit, capped by uses and optionally by date. One per email, ever —
+ * Promo codes: a free month (no payment details) with a small AI credit, or
+ * the workspace fee waived while they pay for AI credit — capped by uses and
+ * optionally by date. One per email, ever —
  * enforced on the server; this page only creates, switches and shows.
  */
 
@@ -28,7 +30,11 @@ export function AdminPromosPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [now] = useState(() => Date.now());
-  const [form, setForm] = useState({ code: "", maxUses: "50", days: "30", creditUsd: "5", expiresAt: "", note: "" });
+  const [form, setForm] = useState({
+    code: "", kind: "free_month" as AdminPromoCode["kind"], maxUses: "50", days: "30", creditUsd: "5",
+    waiveMonths: "", expiresAt: "", note: "",
+  });
+  const waive = form.kind === "waive_workspace";
 
   const refresh = useCallback(async () => {
     try {
@@ -74,14 +80,19 @@ export function AdminPromosPage() {
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+  const terms = waive
+    ? `workspace waived ${form.waiveMonths ? `for ${form.waiveMonths} months` : "with no end"}, $${form.creditUsd}/month AI credit paid`
+    : `${form.days} free days, $${form.creditUsd} AI credit`;
   const today = new Date().toISOString().slice(0, 10);
 
   return (
     <>
       <PageHeader eyebrow="Admin" title="Promo codes">
-        Each code gives a free month — no payment details — with its own AI
-        credit. One promo per email address, ever. When the month ends unpaid,
-        the workspace pauses until they subscribe.
+        A free-month code gives a free month — no payment details — with its
+        own AI credit; when it ends unpaid, the workspace pauses until they
+        subscribe. A workspace-waived code lets them subscribe to the AI credit
+        alone, with no workspace fee, for the months you set; then they
+        subscribe again at the full price. One promo per email address, ever.
       </PageHeader>
 
       {error ? <p className="mb-4 font-semibold text-alert">{error}</p> : null}
@@ -95,6 +106,21 @@ export function AdminPromosPage() {
             <input id="pc-code" className={field} value={form.code} onChange={set("code")} placeholder="LAUNCH-2026" />
           </div>
           <div>
+            <label className={label} htmlFor="pc-kind">Kind</label>
+            <select
+              id="pc-kind"
+              className={field}
+              value={form.kind}
+              onChange={(e) => {
+                const kind = e.target.value as AdminPromoCode["kind"];
+                setForm((f) => ({ ...f, kind, creditUsd: kind === "waive_workspace" ? "20" : "5" }));
+              }}
+            >
+              <option value="free_month">Free month</option>
+              <option value="waive_workspace">Workspace waived, pay for AI</option>
+            </select>
+          </div>
+          <div>
             <label className={label} htmlFor="pc-uses">Max uses</label>
             <input id="pc-uses" className={field} inputMode="numeric" value={form.maxUses} onChange={set("maxUses")} />
           </div>
@@ -102,12 +128,19 @@ export function AdminPromosPage() {
             <label className={label} htmlFor="pc-exp">Expires (optional)</label>
             <input id="pc-exp" className={field} type="date" min={today} value={form.expiresAt} onChange={set("expiresAt")} />
           </div>
+          {waive ? (
+            <div>
+              <label className={label} htmlFor="pc-months">Waived months (blank: no end)</label>
+              <input id="pc-months" className={field} inputMode="numeric" value={form.waiveMonths} onChange={set("waiveMonths")} placeholder="3" />
+            </div>
+          ) : (
+            <div>
+              <label className={label} htmlFor="pc-days">Free days</label>
+              <input id="pc-days" className={field} inputMode="numeric" value={form.days} onChange={set("days")} />
+            </div>
+          )}
           <div>
-            <label className={label} htmlFor="pc-days">Free days</label>
-            <input id="pc-days" className={field} inputMode="numeric" value={form.days} onChange={set("days")} />
-          </div>
-          <div>
-            <label className={label} htmlFor="pc-credit">AI credit ($)</label>
+            <label className={label} htmlFor="pc-credit">{waive ? "Monthly AI credit they pay ($)" : "AI credit ($)"}</label>
             <input id="pc-credit" className={field} inputMode="decimal" value={form.creditUsd} onChange={set("creditUsd")} />
           </div>
           <div>
@@ -124,13 +157,16 @@ export function AdminPromosPage() {
               {
                 action: "promo_create",
                 code: form.code,
+                kind: form.kind,
                 maxUses: Number(form.maxUses),
-                days: Number(form.days),
+                ...(waive
+                  ? { waiveMonths: form.waiveMonths.trim() ? Number(form.waiveMonths) : null }
+                  : { days: Number(form.days) }),
                 creditUsd: Number(form.creditUsd),
                 expiresAt: form.expiresAt || null,
                 note: form.note,
               },
-              `Create ${form.code.trim().toUpperCase()}: ${form.maxUses} uses, ${form.days} free days, $${form.creditUsd} AI credit${form.expiresAt ? `, until ${form.expiresAt}` : ", no expiry"}?`,
+              `Create ${form.code.trim().toUpperCase()}: ${form.maxUses} uses, ${terms}${form.expiresAt ? `, redeemable until ${form.expiresAt}` : ", no expiry"}?`,
             );
             if (ok) setForm((f) => ({ ...f, code: "", note: "" }));
           }}
@@ -149,7 +185,7 @@ export function AdminPromosPage() {
                 <tr className="border-b border-line text-left text-[.72rem] tracking-[0.06em] text-ink-soft uppercase">
                   <th className="px-4 py-3">Code</th>
                   <th className="px-4 py-3">Used</th>
-                  <th className="px-4 py-3">Free month</th>
+                  <th className="px-4 py-3">Gives</th>
                   <th className="px-4 py-3">Expires</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3" />
@@ -169,7 +205,11 @@ export function AdminPromosPage() {
                           {c.note ? <span className="block text-[.8rem] text-ink-soft">{c.note}</span> : null}
                         </td>
                         <td className="px-4 py-3 tabular-nums">{c.uses} / {c.maxUses}</td>
-                        <td className="px-4 py-3">{c.days} days · ${c.creditUsd}</td>
+                        <td className="px-4 py-3">
+                          {c.kind === "waive_workspace"
+                            ? `Workspace waived · ${c.waiveMonths ? `${c.waiveMonths} mo` : "no end"} · $${c.creditUsd}/mo AI`
+                            : `${c.days} days free · $${c.creditUsd}`}
+                        </td>
                         <td className="px-4 py-3">{day(c.expiresAt)}</td>
                         <td className="px-4 py-3">
                           <span className={`rounded-chip border px-2 py-0.5 text-[.78rem] font-bold ${state === "Live" ? "border-green-line bg-green-tint text-green-deep" : "border-line bg-paper text-ink-soft"}`}>
@@ -209,7 +249,7 @@ export function AdminPromosPage() {
                   <li key={`${r.email}-${r.code}`} className="flex flex-wrap justify-between gap-2 py-2">
                     <span><b>{r.email}</b> · <span className="font-mono">{r.code}</span></span>
                     <span className="text-ink-soft">
-                      {day(r.redeemedAt)} → free until {day(r.endsAt)}
+                      {day(r.redeemedAt)}{r.endsAt ? ` → free until ${day(r.endsAt)}` : " · workspace waived at checkout"}
                     </span>
                   </li>
                 ))}

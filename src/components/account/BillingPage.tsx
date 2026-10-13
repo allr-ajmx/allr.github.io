@@ -24,6 +24,7 @@ import { workspaceStatus } from "@/lib/account/workspace-status";
 import { formatMoney, type HistoryItem } from "@/lib/billing/history";
 import { CREDIT_MIN_USD, CREDIT_PRESET_USD, WORKSPACE_USD } from "@/lib/billing/plans";
 import { describeQuote, type Quote } from "@/lib/billing/quote";
+import { waiverEndsAt } from "@/lib/billing/promo";
 import { Bill } from "./Bill";
 
 /**
@@ -211,7 +212,9 @@ export function BillingPage() {
       await Promise.all([refresh(), refreshProfile()]);
       setPromoOpen(false);
       setMessage(
-        `Code accepted — your free month runs until ${new Date(promo.endsAt).toLocaleDateString(undefined, { day: "numeric", month: "long" })}. Your workspace is being built.`,
+        promo.kind === "waive_workspace"
+          ? `Code accepted — no workspace fee${promo.months ? ` for ${promo.months} months` : ""}. Subscribe below to $${promo.creditUsd} of AI credit a month and your workspace is built.`
+          : `Code accepted — your free month runs until ${new Date(promo.endsAt).toLocaleDateString(undefined, { day: "numeric", month: "long" })}. Your workspace is being built.`,
       );
     } catch (error) {
       setMessage(error instanceof ApiCallFailed ? error.message : "That code couldn’t be applied. Try again?");
@@ -223,8 +226,10 @@ export function BillingPage() {
   const subscribe = useCallback(async () => {
     setMessage(null);
     setPhase("paying");
-    const monthly = creditOn ? Math.round(creditUsd) : 0;
-    if (creditOn && monthly < CREDIT_MIN_USD) {
+    // A waiver fixes the credit; the server prices it the same way.
+    const waived = summary?.waiver ?? null;
+    const monthly = waived ? waived.creditUsd : creditOn ? Math.round(creditUsd) : 0;
+    if (!waived && creditOn && monthly < CREDIT_MIN_USD) {
       setMessage(`Monthly AI credit starts at $${CREDIT_MIN_USD}, or turn it off.`);
       setPhase("ready");
       return;
@@ -267,6 +272,8 @@ export function BillingPage() {
 
   const billing = summary?.billing ?? null;
   const plan = summary?.plan ?? null;
+  const waiver = summary?.waiver ?? null;
+  const waivedUntil = waiverEndsAt(billing);
   const status =
     profile && summary
       ? workspaceStatus({ ...profile, billing }, summary.provisioning)
@@ -287,11 +294,11 @@ export function BillingPage() {
   const card = "rounded-card border border-line bg-card p-6 shadow-soft";
 
   // The bill for what's chosen, in their currency with GST, before Checkout.
-  const monthlyCredit = creditOn ? Math.max(0, Math.round(creditUsd) || 0) : 0;
+  const monthlyCredit = waiver ? waiver.creditUsd : creditOn ? Math.max(0, Math.round(creditUsd) || 0) : 0;
   const wantsQuote = canSubscribe && status?.kind !== "paymentDue";
   useEffect(() => {
     if (!wantsQuote) return;
-    if (creditOn && monthlyCredit < CREDIT_MIN_USD) return;
+    if (!waiver && creditOn && monthlyCredit < CREDIT_MIN_USD) return;
     let live = true;
     const t = setTimeout(() => {
       setQuote(null);
@@ -303,7 +310,7 @@ export function BillingPage() {
       live = false;
       clearTimeout(t);
     };
-  }, [wantsQuote, creditOn, monthlyCredit]);
+  }, [wantsQuote, waiver, creditOn, monthlyCredit]);
 
   return (
     <>
@@ -363,9 +370,18 @@ export function BillingPage() {
               </div>
               <p className="mb-5 text-[.95rem] leading-[1.7] text-ink-soft">
                 {status.kind === "live"
-                  ? status.renewsAt
-                    ? `Renews ${day(status.renewsAt)}. ${status.username}.allr.work is running.`
-                    : `${status.username}.allr.work is running.`
+                  ? (status.renewsAt
+                      ? `Renews ${day(status.renewsAt)}. ${status.username}.allr.work is running.`
+                      : `${status.username}.allr.work is running.`) +
+                    (billing?.waived
+                      ? waivedUntil
+                        ? ` This is your last month without a workspace fee: it ends ${day(waivedUntil)}. Subscribe again at the full price then to keep it running.`
+                        : billing.waived.months
+                        ? ` The workspace fee is waived for your first ${billing.waived.months} months — you pay only for AI credit.`
+                        : " The workspace fee is waived — you pay only for AI credit."
+                      : "")
+                  : status.kind === "ending" && billing?.waived?.months && !status.over
+                    ? `Your ${billing.waived.months} months without a workspace fee end ${day(waivedUntil ?? status.endsAt) ?? "soon"}. Subscribe below at the full price to keep ${status.username}.allr.work running after that.`
                   : status.kind === "ending"
                     ? status.over
                       ? `Your subscription has ended, so ${status.username}.allr.work is about to pause. Resubscribe below to keep it running.`
@@ -485,7 +501,29 @@ export function BillingPage() {
                 </div>
               ) : null}
 
-              {status.kind !== "paymentDue" && plan ? (
+              {status.kind !== "paymentDue" && plan && waiver ? (
+                <div className="mb-5 flex flex-col gap-3">
+                  <div className="rounded-control border border-green-line bg-green-tint/40 p-4">
+                    <span className="block font-bold text-ink">Workspace</span>
+                    <span className="block text-[1.1rem] font-bold text-ink">
+                      <s className="text-ink-soft">${WORKSPACE_USD}</s> $0
+                      <span className="text-[.85rem] font-semibold text-ink-soft">/{plan.interval}</span>
+                    </span>
+                    <span className="mt-1 block text-[.85rem] text-ink-soft">
+                      Waived with code <b className="font-mono">{waiver.code}</b>
+                      {waiver.months ? ` for ${waiver.months} months. After that, subscribe at the full price to keep it.` : "."}
+                    </span>
+                  </div>
+                  <div className="rounded-control border border-line p-4">
+                    <span className="block font-bold text-ink">Monthly AI credit</span>
+                    <span className="block text-[1.1rem] font-bold text-ink">
+                      ${waiver.creditUsd}<span className="text-[.85rem] font-semibold text-ink-soft">/{plan.interval}</span>
+                    </span>
+                    <span className="mt-1 block text-[.85rem] text-ink-soft">Set by your code. Unused credit stays.</span>
+                  </div>
+                  <Bill quote={quote} per={plan.interval} />
+                </div>
+              ) : status.kind !== "paymentDue" && plan ? (
                 <div className="mb-5 flex flex-col gap-3">
                   <div className="rounded-control border border-line p-4">
                     <span className="block font-bold text-ink">Workspace</span>
@@ -553,7 +591,7 @@ export function BillingPage() {
                 stays up to the end of the period you paid for.
               </p>
 
-              {status.kind === "none" && !profile?.promo ? (
+              {status.kind === "none" && !profile?.promo && !waiver ? (
                 <div className="mt-5 border-t border-line-soft pt-4">
                   {!promoOpen ? (
                     <button

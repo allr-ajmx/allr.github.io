@@ -90,7 +90,7 @@ export function Overview() {
   return (
     <>
       <PageHeader eyebrow="Overview" title={firstName ? `Hello, ${firstName}` : "Hello"}>
-        {lede(status)}
+        {lede(status, billing?.waiver ?? null)}
       </PageHeader>
 
       <div className="flex flex-col gap-5">
@@ -114,10 +114,12 @@ export function Overview() {
   );
 }
 
-function lede(s: WorkspaceStatus): string {
+function lede(s: WorkspaceStatus, waiver: { creditUsd: number; months: number | null } | null): string {
   switch (s.kind) {
     case "none":
-      return "Pick a name for your workspace and subscribe — it’s built for you in a few minutes.";
+      return waiver
+        ? `Your code waives the workspace fee${waiver.months ? ` for ${waiver.months} months` : ""}. Subscribe to $${waiver.creditUsd} of AI credit a month on Billing and your workspace is built in a few minutes.`
+        : "Pick a name for your workspace and subscribe — it’s built for you in a few minutes.";
     case "building":
       return "Payment received. Your workspace is being built.";
     case "live":

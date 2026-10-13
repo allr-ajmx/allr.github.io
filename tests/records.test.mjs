@@ -21,6 +21,7 @@ describe("billingFromDoc", () => {
     },
     creditUsd: 5,
     bill: { currency: "INR", subtotalMinor: 145_200, taxMinor: 26_100, taxRate: 0.18, totalMinor: 171_300, fxRate: 96.78 },
+    waived: { code: "TEAM", months: 3 },
     updatedAt: "2026-10-04T00:00:00.000Z",
   };
   it("every field survives (regression: cancelAtPeriodEnd, paidCount)", () => {
@@ -39,6 +40,7 @@ describe("billingFromDoc", () => {
     assert.equal(b.upcoming, null);
     assert.equal(b.creditUsd, 0); // before credit joined the workspace subscription
     assert.equal(b.bill, null);
+    assert.equal(b.waived, null);
     assert.equal(hasUndefined(b), false);
   });
   it("junk is refused or normalised", () => {

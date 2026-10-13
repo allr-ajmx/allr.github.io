@@ -110,8 +110,21 @@ describe("delete account", () => {
 describe("promo codes", () => {
   it("creates with defaults: 30 days, $5, normalized code, no expiry", () => {
     assert.deepEqual(parseAction({ action: "promo_create", code: " launch-26 ", maxUses: 50 }, NOW), {
-      action: "promo_create", code: "LAUNCH-26", maxUses: 50, expiresAt: null, days: 30, creditUsd: 5, note: "",
+      action: "promo_create", code: "LAUNCH-26", kind: "free_month", maxUses: 50, expiresAt: null, days: 30,
+      creditUsd: 5, waiveMonths: null, note: "",
     });
+  });
+  it("a workspace-waived code: $20 a month by default, months optional (blank: no end)", () => {
+    const a = parseAction({ action: "promo_create", code: "TEAM", kind: "waive_workspace", maxUses: 10, waiveMonths: 3 }, NOW);
+    assert.deepEqual([a.kind, a.creditUsd, a.waiveMonths], ["waive_workspace", 20, 3]);
+    const b = parseAction({ action: "promo_create", code: "TEAM", kind: "waive_workspace", maxUses: 10, waiveMonths: "", creditUsd: 40 }, NOW);
+    assert.deepEqual([b.creditUsd, b.waiveMonths], [40, null]);
+  });
+  it("a workspace-waived code refuses fractional credit, zero credit, and too many months", () => {
+    refused({ action: "promo_create", code: "TEAM", kind: "waive_workspace", maxUses: 5, creditUsd: 12.5 });
+    refused({ action: "promo_create", code: "TEAM", kind: "waive_workspace", maxUses: 5, creditUsd: 0 });
+    refused({ action: "promo_create", code: "TEAM", kind: "waive_workspace", maxUses: 5, waiveMonths: 37 });
+    refused({ action: "promo_create", code: "TEAM", kind: "free_lunch", maxUses: 5 });
   });
   it("accepts a future expiry and custom days/credit within bounds", () => {
     const a = parseAction({ action: "promo_create", code: "VIP", maxUses: 1, expiresAt: "2026-12-31", days: 60, creditUsd: 12.5 }, NOW);

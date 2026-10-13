@@ -7,6 +7,8 @@ import type { Caller } from "./session";
 import { checkWorkspaceName } from "@/lib/admin/reserved-usernames";
 import { appliedLimit, forNewKey, ledgerFromDoc, settle } from "@/lib/billing/credits";
 import { shipLog } from "./logship";
+import { promoActive } from "@/lib/billing/promo";
+import { promoFromDoc } from "@/lib/billing/records";
 import { isDue, nextAttempt, shouldEnqueue } from "@/lib/admin/retry";
 
 /**
@@ -104,11 +106,26 @@ export function enqueueInTransaction(
 export const queueRef = (uid: string) => adminDb().collection(QUEUE).doc(uid);
 
 /**
+ * The spend limit a workspace's first key should be minted with, so it never
+ * holds more than the account has before the stamp's sync_limit lands: the
+ * ledger's (a paid checkout has already credited it), else a running promo's
+ * credit. Null: nothing known — the worker uses its own default.
+ */
+export function newKeyLimit(user: FirebaseFirestore.DocumentData | undefined, now: Date = new Date()): number | null {
+  const ledger = ledgerFromDoc(user?.credits);
+  if (ledger) return appliedLimit(ledger, 0);
+  if (user?.billing?.status !== "active" && promoActive(promoFromDoc(user?.promo), now)) {
+    return Number(user!.promo.creditUsd);
+  }
+  return null;
+}
+
+/**
  * Hand the oldest queued entry to the worker, atomically. A crashed worker's
  * claim goes stale; claims older than an hour are offered again.
  */
 export async function claimNext(): Promise<
-  { uid: string; email: string; username: string } | null
+  { uid: string; email: string; username: string; limitUsd?: number } | null
 > {
   const db = adminDb();
   // No orderBy: status-in + createdAt ordering would demand a composite
@@ -141,7 +158,8 @@ export async function claimNext(): Promise<
     });
     if (claimed) {
       const d = doc.data();
-      return { uid: d.uid, email: d.email, username: d.username };
+      const limitUsd = newKeyLimit((await db.collection(USERS).doc(d.uid).get()).data());
+      return { uid: d.uid, email: d.email, username: d.username, ...(limitUsd !== null ? { limitUsd } : {}) };
     }
   }
   return null;

@@ -11,7 +11,7 @@
 
 import type { Billing, BillingStatus, CreditSubscription, CreditUpcoming, LockedBill, PlanCurrency, UpcomingChange } from "./model.ts";
 import { LEGACY_PLAN, isPlanKey } from "./plans.ts";
-import type { Promo } from "./promo.ts";
+import type { Promo, Waiver } from "./promo.ts";
 import type { Complimentary, Enforcement } from "./lifecycle.ts";
 
 type Raw = Record<string, unknown> | null | undefined;
@@ -45,7 +45,25 @@ export function billingFromDoc(raw: Raw): Billing | null {
     upcoming: upcomingFromDoc(raw.upcoming as Raw),
     creditUsd: num(raw.creditUsd) ?? 0,
     bill: billFromDoc(raw.bill as Raw),
+    waived: waivedFromDoc(raw.waived as Raw),
     updatedAt: isoOf(raw.updatedAt),
+  };
+}
+
+export function waivedFromDoc(raw: Raw): Billing["waived"] {
+  if (!raw || typeof raw !== "object") return null;
+  const months = num(raw.months);
+  return { code: str(raw.code) ?? "", months: months !== null && months > 0 ? months : null };
+}
+
+export function waiverFromDoc(raw: Raw): Waiver | null {
+  if (!raw || typeof raw !== "object" || !(num(raw.creditUsd)! > 0)) return null;
+  const months = num(raw.months);
+  return {
+    code: str(raw.code) ?? "",
+    redeemedAt: str(raw.redeemedAt) ?? "",
+    creditUsd: num(raw.creditUsd)!,
+    months: months !== null && months > 0 ? months : null,
   };
 }
 

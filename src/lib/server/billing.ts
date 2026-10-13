@@ -44,6 +44,7 @@ import {
   type PlanKey,
 } from "@/lib/billing/plans";
 import { creditSubscriptionFromDoc } from "@/lib/billing/records";
+import { waiverApplies } from "@/lib/billing/promo";
 import { money, type Quote } from "@/lib/billing/quote";
 import { planForAmount, priceFor } from "./pricing";
 import { hasWorkspace } from "@/lib/account/state";
@@ -88,6 +89,7 @@ export async function summarize(profile: UserProfile): Promise<BillingSummary> {
     billing: readBilling(profile),
     creditSubscription: profile.creditSubscription,
     pendingCreditUsd: profile.pendingCreditUsd,
+    waiver: waiverApplies(profile.waiver, profile.billing) ? profile.waiver : null,
     // Paying is the gate now; the workspace is what payment buys.
     canSubscribe: true,
     hasWorkspace: workspace,
@@ -116,13 +118,16 @@ export async function startSubscription(
   requestedUsername?: unknown,
   requestedCredit: unknown = 0,
 ): Promise<SubscribeResponse> {
-  const creditUsd = parseCreditUsd(requestedCredit);
-  if (creditUsd === null) {
+  const requested = parseCreditUsd(requestedCredit);
+  if (requested === null) {
     throw badRequest("bad-credit", "Monthly AI credit is a whole number of dollars, at least $1, or none.");
   }
   const planKey: PlanKey = "workspace";
   let profile = await readOrAdoptProfile(caller);
   if (!profile) throw badRequest("no-profile", "Make an account first.");
+  // A waive_workspace code fixes the bill: no workspace fee, its credit.
+  const waiver = waiverApplies(profile.waiver, profile.billing) ? profile.waiver : null;
+  const creditUsd = waiver ? waiver.creditUsd : requested;
 
   // Paying is the gate. An account without a workspace must bring the name
   // its workspace will get; reserving it here means checkout can only be
@@ -135,7 +140,7 @@ export async function startSubscription(
   }
 
   // The bill: dollar lines → the person's currency at the day's rate, + GST.
-  const bill = await quoteSubscription(profile.country, creditUsd);
+  const bill = await quoteSubscription(profile.country, creditUsd, Boolean(waiver));
   const currency = bill.currency;
   const answer = (subscriptionId: string, q: Quote = bill, credit = creditUsd): SubscribeResponse => ({
     subscriptionId,
@@ -171,6 +176,7 @@ export async function startSubscription(
         }
         if (
           now.status === "pending" && now.plan === planKey && now.creditUsd === creditUsd &&
+          Boolean(now.waived) === Boolean(waiver) &&
           now.bill?.currency === currency && now.bill.totalMinor === bill.totalMinor
         ) {
           return answer(now.subscriptionId);
@@ -196,7 +202,12 @@ export async function startSubscription(
     // converted and taxed. Its notes say what each cycle buys.
     const planId = await planForAmount(bill.totalMinor, currency, `Allr workspace, monthly (${money(bill.totalMinor, currency)} incl. tax)`);
     const sub = await createSubscription(planId, customer.id, caller.uid, {
+      // A waiver with an end runs that many paid months, then completes.
+      ...(waiver?.months ? { totalCount: waiver.months } : {}),
       notes: {
+        ...(waiver
+          ? { waived: "1", promo_code: waiver.code, waived_months: waiver.months ? String(waiver.months) : "" }
+          : {}),
         kind: "workspace",
         credit_usd: String(creditUsd),
         currency,
@@ -219,11 +230,15 @@ export async function startSubscription(
   }
 }
 
-/** Workspace + optional monthly AI credit, priced for this country today. */
-export function quoteSubscription(country: string, creditUsd: number): Promise<Quote> {
+/**
+ * Workspace + optional monthly AI credit, priced for this country today.
+ * `waived`: a waive_workspace code — the workspace line is free (and so
+ * drops out of the bill).
+ */
+export function quoteSubscription(country: string, creditUsd: number, waived = false): Promise<Quote> {
   return priceFor(
     [
-      { label: "Workspace", usd: WORKSPACE_USD },
+      { label: "Workspace", usd: waived ? 0 : WORKSPACE_USD },
       { label: "AI credit", usd: creditUsd },
     ],
     country,
@@ -245,17 +260,18 @@ function lockedQuote(b: Billing, fallback: Quote): Quote {
     };
   }
   const bill = b.bill;
+  const workspaceUsd = b.waived ? 0 : WORKSPACE_USD;
   const lines = [
-    { label: "Workspace", usd: WORKSPACE_USD },
+    { label: "Workspace", usd: workspaceUsd },
     { label: "AI credit", usd: b.creditUsd },
   ].filter((l) => l.usd > 0);
-  const share = (usd: number) => Math.round((bill.subtotalMinor * usd) / (WORKSPACE_USD + b.creditUsd));
+  const share = (usd: number) => Math.round((bill.subtotalMinor * usd) / (workspaceUsd + b.creditUsd));
   return {
     ...fallback,
     currency: bill.currency,
     fxRate: bill.fxRate,
     lines: lines.map((l) => ({ ...l, minor: share(l.usd) })),
-    subtotalUsd: WORKSPACE_USD + b.creditUsd,
+    subtotalUsd: workspaceUsd + b.creditUsd,
     subtotalMinor: bill.subtotalMinor,
     taxRate: bill.taxRate,
     taxMinor: bill.taxMinor,
@@ -271,6 +287,9 @@ export async function quoteFor(caller: Caller, requestedCredit: unknown): Promis
   }
   const profile = await readOrAdoptProfile(caller);
   if (!profile) throw badRequest("no-profile", "Make an account first.");
+  if (waiverApplies(profile.waiver, profile.billing)) {
+    return quoteSubscription(profile.country, profile.waiver.creditUsd, true);
+  }
   return quoteSubscription(profile.country, creditUsd);
 }
 

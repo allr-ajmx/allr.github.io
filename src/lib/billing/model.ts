@@ -13,6 +13,7 @@ export type PlanCurrency = "USD" | "INR";
 export { PLAN_INTERVAL } from "./plans.ts";
 import type { PlanKey } from "./plans.ts";
 import type { Quote } from "./quote.ts";
+import type { Waiver } from "./promo.ts";
 
 /** Days after the trial lapses before the workspace is suspended (manually, for now). */
 export const GRACE_DAYS = 2;
@@ -88,6 +89,11 @@ export type Billing = {
   creditUsd: number;
   /** What each cycle charges, as quoted at checkout. Null for older subscriptions. */
   bill: LockedBill | null;
+  /**
+   * Made with a waive_workspace code: no workspace fee, only the AI credit.
+   * `months`: the paid months it runs before ending (null: until cancelled).
+   */
+  waived: { code: string; months: number | null } | null;
   /** ISO 8601. */
   updatedAt: string;
 };
@@ -154,6 +160,8 @@ export type BillingSummary = {
   creditSubscription: CreditSubscription | null;
   /** Legacy: chosen at a two-step checkout, waiting for the second mandate. */
   pendingCreditUsd: number;
+  /** A redeemed waive_workspace code the next checkout is priced with. */
+  waiver: Waiver | null;
 };
 
 /** What POST /api/account/billing/subscribe returns. */

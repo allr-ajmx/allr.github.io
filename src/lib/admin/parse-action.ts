@@ -14,7 +14,13 @@ import {
   PROMO_MAX_CREDIT_USD,
   PROMO_MAX_DAYS,
   PROMO_MAX_USES,
+  WAIVE_CREDIT_USD_DEFAULT,
+  WAIVE_MAX_CREDIT_USD,
+  WAIVE_MAX_MONTHS,
+  isPromoKind,
+  type PromoKind,
 } from "../billing/promo.ts";
+import { CREDIT_MIN_USD } from "../billing/plans.ts";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const MAX_GRANT_USD = 500;
@@ -51,14 +57,20 @@ export type AdminAction =
   | { action: "ws_remove"; username: string; confirm: string }
   /** Put a failed provision (id = uid) or op (id = op doc id) back in the queue. */
   | { action: "retry"; kind: "provision" | "op"; id: string }
-  /** Promotional codes: a free month (no payment), capped and optionally expiring. */
+  /**
+   * Promotional codes, capped and optionally expiring: a free month (no
+   * payment), or the workspace fee waived for N months (null: no end) while
+   * they pay for `creditUsd` of AI credit a month.
+   */
   | {
       action: "promo_create";
       code: string;
+      kind: PromoKind;
       maxUses: number;
       expiresAt: string | null;
       days: number;
       creditUsd: number;
+      waiveMonths: number | null;
       note: string;
     }
   | { action: "promo_set_active"; code: string; active: boolean }
@@ -129,11 +141,23 @@ export function parseAction(body: unknown, now: Date = new Date()): AdminAction 
       if (!Number.isInteger(n) || n < min || n > max) throw badRequest("invalid", `${label} must be a whole number from ${min} to ${max}.`);
       return n;
     };
+    const blank = (v: unknown) => v === undefined || v === null || v === "";
+    if (!blank(b.kind) && !isPromoKind(b.kind)) throw badRequest("invalid", "Kind must be free_month or waive_workspace.");
+    const kind: PromoKind = isPromoKind(b.kind) ? b.kind : "free_month";
     const maxUses = int(b.maxUses, 1, PROMO_MAX_USES, "Max uses");
-    const days = b.days === undefined || b.days === "" ? PROMO_DAYS_DEFAULT : int(b.days, 1, PROMO_MAX_DAYS, "Days");
-    const credit = b.creditUsd === undefined || b.creditUsd === "" ? PROMO_CREDIT_USD_DEFAULT : Number(b.creditUsd);
-    if (!Number.isFinite(credit) || credit < 0 || credit > PROMO_MAX_CREDIT_USD) {
-      throw badRequest("invalid", `Credit must be between $0 and $${PROMO_MAX_CREDIT_USD}.`);
+    let days = PROMO_DAYS_DEFAULT;
+    let credit: number;
+    let waiveMonths: number | null = null;
+    if (kind === "waive_workspace") {
+      // The credit they subscribe to: whole dollars, as checkout charges it.
+      credit = blank(b.creditUsd) ? WAIVE_CREDIT_USD_DEFAULT : int(b.creditUsd, CREDIT_MIN_USD, WAIVE_MAX_CREDIT_USD, "Monthly AI credit");
+      waiveMonths = blank(b.waiveMonths) ? null : int(b.waiveMonths, 1, WAIVE_MAX_MONTHS, "Waived months");
+    } else {
+      days = blank(b.days) ? PROMO_DAYS_DEFAULT : int(b.days, 1, PROMO_MAX_DAYS, "Days");
+      credit = blank(b.creditUsd) ? PROMO_CREDIT_USD_DEFAULT : Number(b.creditUsd);
+      if (!Number.isFinite(credit) || credit < 0 || credit > PROMO_MAX_CREDIT_USD) {
+        throw badRequest("invalid", `Credit must be between $0 and $${PROMO_MAX_CREDIT_USD}.`);
+      }
     }
     let expiresAt: string | null = null;
     if (b.expiresAt !== undefined && b.expiresAt !== null && str(b.expiresAt) !== "") {
@@ -145,10 +169,12 @@ export function parseAction(body: unknown, now: Date = new Date()): AdminAction 
     return {
       action: "promo_create",
       code,
+      kind,
       maxUses,
       expiresAt,
       days,
       creditUsd: Math.round(credit * 100) / 100,
+      waiveMonths,
       note: str(b.note).slice(0, 120),
     };
   }

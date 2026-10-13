@@ -251,13 +251,17 @@ export async function syncSubscription(
 }
 
 /** What a priced-at-checkout subscription's notes say about its credit and bill. */
-function billingNotes(notes: Record<string, string> | null | undefined): Pick<DecideOptions, "creditUsd" | "bill"> {
+function billingNotes(notes: Record<string, string> | null | undefined): Pick<DecideOptions, "creditUsd" | "bill" | "waived"> {
   if (!notes || notes.kind !== "workspace") return {};
   const n = (k: string) => (notes[k] !== undefined && Number.isFinite(Number(notes[k])) ? Number(notes[k]) : null);
   const credit = n("credit_usd");
   const total = n("total_minor");
+  const months = n("waived_months");
   return {
     ...(credit !== null && credit >= 0 ? { creditUsd: credit } : {}),
+    ...(notes.waived === "1"
+      ? { waived: { code: notes.promo_code ?? "", months: months !== null && months > 0 ? months : null } }
+      : {}),
     ...(total !== null && (notes.currency === "USD" || notes.currency === "INR")
       ? {
           bill: {

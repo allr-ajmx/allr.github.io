@@ -162,6 +162,8 @@ export const createSubscription = (
     startAt?: number;
     /** Monthly AI credit: a $1 plan times this many dollars. */
     quantity?: number;
+    /** Charges before it completes on its own (a waived-workspace term). */
+    totalCount?: number;
     /** Charged with the authorisation (an upgrade's prorated difference). */
     upfront?: { name: string; amountMinor: number; currency: "USD" | "INR" };
     notes?: Record<string, string>;
@@ -174,7 +176,7 @@ export const createSubscription = (
       customer_id: customerId,
       // Razorpay requires a horizon; 120 monthly cycles = ten years, i.e.
       // "until cancelled" for any horizon this product plans on.
-      total_count: 120,
+      total_count: extra.totalCount ?? 120,
       customer_notify: 1,
       ...(extra.quantity && extra.quantity > 1 ? { quantity: extra.quantity } : {}),
       ...(extra.startAt ? { start_at: extra.startAt } : {}),

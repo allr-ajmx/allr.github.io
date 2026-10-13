@@ -111,6 +111,8 @@ export type DecideOptions = {
   creditUsd?: number;
   /** The bill quoted at checkout (from its notes), kept for display. */
   bill?: LockedBill | null;
+  /** Made with a waive_workspace code (from its notes). */
+  waived?: Billing["waived"];
   intent?: Intent;
   chargeHint?: boolean;
   now?: Date;
@@ -154,6 +156,7 @@ function decideCurrent(
   );
   const creditUsd = opts.creditUsd ?? (sameSub ? (prior?.creditUsd ?? 0) : 0);
   const bill = opts.bill ?? (sameSub ? (prior?.bill ?? null) : null);
+  const waived = opts.waived ?? (sameSub ? (prior?.waived ?? null) : null);
 
   const currentPeriodEnd = opts.intent?.endedNow
     ? now.toISOString()
@@ -178,6 +181,7 @@ function decideCurrent(
     upcoming: sameSub ? (prior?.upcoming ?? null) : null,
     creditUsd,
     bill,
+    waived,
   };
 
   const paid = status === "active";
@@ -275,7 +279,8 @@ function changedFrom(prior: Billing | null, b: Omit<Billing, "updatedAt">): bool
     (prior.paidCount ?? null) !== (b.paidCount ?? null) ||
     prior.plan !== b.plan ||
     (prior.creditUsd ?? 0) !== b.creditUsd ||
-    JSON.stringify(prior.bill ?? null) !== JSON.stringify(b.bill)
+    JSON.stringify(prior.bill ?? null) !== JSON.stringify(b.bill) ||
+    JSON.stringify(prior.waived ?? null) !== JSON.stringify(b.waived ?? null)
   );
 }
 

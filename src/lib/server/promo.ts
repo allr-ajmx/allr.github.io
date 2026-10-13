@@ -10,18 +10,27 @@ import { enqueueInTransaction, queueRef, reserveUsername } from "./provisioning"
 import { shipLog } from "./logship";
 import { addPurchased, ledgerFromDoc } from "@/lib/billing/credits";
 import {
+  isPromoKind,
   normalizeCode,
   promoFor,
   redeemVerdict,
+  waiverFor,
   type Promo,
   type PromoCode,
+  type Waiver,
 } from "@/lib/billing/promo";
+
+export type Redeemed =
+  | ({ kind: "free_month" } & Promo)
+  | ({ kind: "waive_workspace" } & Waiver);
 
 /**
  * Redeeming a promotional code: one transaction checks the code (active, not
  * expired, uses left), that this email has never had a promo, and that the
- * account has no workspace or live subscription — then counts the use,
- * records the redemption, starts the free month and queues the build.
+ * account has no workspace or live subscription — then counts the use and
+ * records the redemption. A free_month code starts the free month and queues
+ * the build; a waive_workspace code only records the waiver, and checkout
+ * (priced with it) is what pays for and queues the build.
  */
 
 export const CODES = "promo_codes";
@@ -33,19 +42,22 @@ const emailKey = (email: string) =>
 
 export function codeFromDoc(d: FirebaseFirestore.DocumentData | undefined): PromoCode | null {
   if (!d) return null;
+  const months = Number(d.waiveMonths);
   return {
     code: String(d.code),
+    kind: isPromoKind(d.kind) ? d.kind : "free_month",
     active: Boolean(d.active),
     maxUses: Number(d.maxUses ?? 0),
     uses: Number(d.uses ?? 0),
     expiresAt: typeof d.expiresAt === "string" ? d.expiresAt : null,
     days: Number(d.days ?? 30),
     creditUsd: Number(d.creditUsd ?? 5),
+    waiveMonths: Number.isInteger(months) && months > 0 ? months : null,
     note: typeof d.note === "string" ? d.note : undefined,
   };
 }
 
-export async function redeemPromo(caller: Caller, rawCode: unknown, rawUsername: unknown): Promise<Promo> {
+export async function redeemPromo(caller: Caller, rawCode: unknown, rawUsername: unknown): Promise<Redeemed> {
   const code = normalizeCode(rawCode);
   if (!code) throw badRequest("bad-code", "That code isn’t valid.");
 
@@ -63,7 +75,7 @@ export async function redeemPromo(caller: Caller, rawCode: unknown, rawUsername:
   const userRef = db.collection(USERS).doc(caller.uid);
   const now = new Date();
 
-  const promo = await db.runTransaction(async (tx) => {
+  const redeemed = await db.runTransaction(async (tx): Promise<Redeemed> => {
     const [codeSnap, redeemed, user, queue] = await Promise.all([
       tx.get(codeRef),
       tx.get(redemptionRef),
@@ -90,13 +102,28 @@ export async function redeemPromo(caller: Caller, rawCode: unknown, rawUsername:
     const username = String(d.pending_workspace_username ?? "");
     if (!username) throw badRequest("bad-username", "Pick a name for your workspace first.");
 
+    tx.update(codeRef, { uses: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() });
+
+    if (promoCode!.kind === "waive_workspace") {
+      const w = waiverFor(promoCode!, now);
+      tx.set(redemptionRef, {
+        uid: caller.uid,
+        email: caller.email,
+        code,
+        kind: "waive_workspace",
+        redeemedAt: FieldValue.serverTimestamp(),
+        endsAt: null,
+      });
+      tx.update(userRef, { waiver: w, updatedAt: FieldValue.serverTimestamp() });
+      return { kind: "waive_workspace", ...w };
+    }
+
     const p = promoFor(promoCode!, now);
     // A ledger left from an earlier, removed workspace: the month's credit
     // replaces its (zeroed) monthly part; packs and grants stay.
     const ledger = ledgerFromDoc(d.credits);
     const credits = ledger ? addPurchased(ledger, p.creditUsd) : undefined;
 
-    tx.update(codeRef, { uses: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() });
     tx.set(redemptionRef, {
       uid: caller.uid,
       email: caller.email,
@@ -118,10 +145,16 @@ export async function redeemPromo(caller: Caller, rawCode: unknown, rawUsername:
       updatedAt: FieldValue.serverTimestamp(),
     });
     enqueueInTransaction(tx, queue, { uid: caller.uid, email: caller.email, username });
-    return p;
+    return { kind: "free_month", ...p };
   });
 
-  console.log(`[promo] ${caller.email} redeemed ${code}; free until ${promo.endsAt}`);
-  shipLog("billing", "promo redeemed", { email: caller.email, code, endsAt: promo.endsAt });
-  return promo;
+  if (redeemed.kind === "waive_workspace") {
+    const term = redeemed.months ? `${redeemed.months} months` : "no end";
+    console.log(`[promo] ${caller.email} redeemed ${code}; workspace waived (${term}), $${redeemed.creditUsd}/mo AI`);
+    shipLog("billing", "promo redeemed", { email: caller.email, code, kind: redeemed.kind, months: redeemed.months });
+  } else {
+    console.log(`[promo] ${caller.email} redeemed ${code}; free until ${redeemed.endsAt}`);
+    shipLog("billing", "promo redeemed", { email: caller.email, code, endsAt: redeemed.endsAt });
+  }
+  return redeemed;
 }

@@ -2,10 +2,15 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { normalizeCode, promoActive, promoFor, redeemVerdict } from "../src/lib/billing/promo.ts";
+import {
+  normalizeCode, promoActive, promoFor, redeemVerdict, waiverApplies, waiverEndsAt, waiverFor,
+} from "../src/lib/billing/promo.ts";
 
 const NOW = new Date("2026-10-03T12:00:00Z");
-const code = (x = {}) => ({ code: "LAUNCH", active: true, maxUses: 10, uses: 0, expiresAt: null, days: 30, creditUsd: 5, ...x });
+const code = (x = {}) => ({
+  code: "LAUNCH", kind: "free_month", active: true, maxUses: 10, uses: 0, expiresAt: null, days: 30, creditUsd: 5,
+  waiveMonths: null, ...x,
+});
 const fresh = { code: code(), alreadyRedeemed: false, hasWorkspace: false, billingStatus: null };
 const reason = (x) => redeemVerdict({ ...fresh, ...x }, NOW);
 
@@ -45,5 +50,26 @@ describe("the free month", () => {
     assert.equal(promoActive(p, NOW), true);
     assert.equal(promoActive(p, new Date("2026-11-02T12:00:00Z")), false);
     assert.equal(promoActive(null, NOW), false);
+  });
+});
+
+describe("the workspace waiver", () => {
+  const w = waiverFor(code({ code: "TEAM", kind: "waive_workspace", creditUsd: 20, waiveMonths: 3 }), NOW);
+  it("carries the code's monthly credit and months", () => {
+    assert.deepEqual(w, { code: "TEAM", redeemedAt: NOW.toISOString(), creditUsd: 20, months: 3 });
+  });
+  it("prices checkout until a subscription made with it has been paid", () => {
+    assert.equal(waiverApplies(w, null), true);
+    assert.equal(waiverApplies(w, { waived: { months: 3 }, paidCount: 0 }), true); // abandoned checkout
+    assert.equal(waiverApplies(w, { waived: { months: 3 }, paidCount: 1 }), false);
+    assert.equal(waiverApplies(w, { waived: null, paidCount: 4 }), true); // an older, unwaived subscription
+    assert.equal(waiverApplies(null, null), false);
+  });
+  it("its end is known once the last waived month is paid", () => {
+    const b = (paidCount, months = 3) => ({ waived: { months }, paidCount, currentPeriodEnd: "2027-01-03T00:00:00.000Z" });
+    assert.equal(waiverEndsAt(b(2)), null);
+    assert.equal(waiverEndsAt(b(3)), "2027-01-03T00:00:00.000Z");
+    assert.equal(waiverEndsAt(b(9, null)), null);
+    assert.equal(waiverEndsAt({ waived: null, paidCount: 3, currentPeriodEnd: null }), null);
   });
 });
