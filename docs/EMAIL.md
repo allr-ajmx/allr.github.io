@@ -105,11 +105,20 @@ so nothing fires), and anything for a test-mode leftover subscription.
    | `ALLR_MAIL_SUPPORT` | optional; named in the footer ("Questions? Write to …"); defaults to the reply-to |
    | `ALLR_ADMIN_ALERT_EMAILS` | optional, comma-separated; defaults to `ALLR_ADMIN_UI_EMAILS` |
 
-4. **VPS.** Pull `allr.os` and restart the provisioner; the worker starts
-   calling `/api/admin/mail/drain/` every minute. Nothing else to configure.
-5. **Check.** Sign up a test account: the welcome row appears in
-   `mail_outbox` with `status: sent` and a `messageId`, and the email lands.
-   A row stuck at `queued` with `lastError` set names the SMTP problem.
+4. **VPS.** Pull `allr.os` and restart the provisioner
+   (`sudo systemctl restart allr-provisioner`); the worker starts calling
+   `/api/admin/mail/drain/` every minute. `journalctl -u allr-provisioner -f`
+   shows `mail: sent N` once something goes out. Nothing else to configure.
+5. **Prove the mailbox first.** From your machine, with the mailbox password
+   exported (never on the command line in a shared history):
+   `ALLR_SMTP_USER=no-reply@allr.work ALLR_SMTP_PASS=… node scripts/mail-send-test.mjs you@example.com`
+   sends the real welcome template through the same SMTP settings and prints
+   the server's answer. If Hostinger refuses, fix the mailbox before touching
+   Vercel.
+6. **Check in production.** Sign up a test account: the welcome row appears
+   in `mail_outbox` with `status: sent` and a `messageId`, and the email
+   lands. A row stuck at `queued` with `lastError` set names the SMTP
+   problem.
 
 Hostinger's sending limits are far above transactional volume; if a mailbox
 is ever rate-limited the drain's backoff absorbs it.
