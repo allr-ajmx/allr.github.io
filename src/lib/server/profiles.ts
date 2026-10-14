@@ -18,6 +18,7 @@ import {
 } from "@/lib/account/model";
 import { hasWorkspace } from "@/lib/account/state";
 import { validateDraft, validateEarlyAccess } from "@/lib/account/validate";
+import { enqueueMail, kickMail } from "./mail";
 
 /**
  * Everything that writes a profile.
@@ -244,10 +245,18 @@ export async function createProfile(
       email: caller.email,
       createdAt: FieldValue.serverTimestamp(),
     });
+    enqueueMail(tx, {
+      uid: caller.uid,
+      to: caller.email,
+      name: draft.name,
+      country: draft.country,
+      message: { kind: "welcome" },
+    });
   });
 
   const created = await readProfile(caller.uid);
   if (!created) throw new Error("Profile vanished immediately after creation.");
+  kickMail();
   return created;
 }
 

@@ -71,6 +71,10 @@ existing Razorpay mandate. New checkouts sell only the workspace plan.
 - **Checkout confirm** (`POST /api/account/billing/confirm`): Checkout's
   success handler asks the site to sync that subscription from Razorpay right
   away, so the page never waits on the webhook.
+- **Email**: every state change that matters to the person (paid, built,
+  live, renewed, failed, cancelled, ended, credit added or refunded, paused,
+  removed) queues one email in the same transaction, keyed per event so
+  webhook redelivery and the reconciler never send twice — `docs/EMAIL.md`.
 - **A charge seen before `active`** (Razorpay can report `authenticated`
   with the first charge already counted) is not granted and does not move
   `paidCount`; the first sync that sees `active` grants it, once.

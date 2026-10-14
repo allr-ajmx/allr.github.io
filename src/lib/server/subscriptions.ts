@@ -14,9 +14,20 @@ import {
 } from "./razorpay";
 import { addPurchased, initialLedger, ledgerFromDoc, queueChange } from "@/lib/billing/credits";
 import { LEGACY_PLAN } from "@/lib/billing/plans";
-import { decide, decideCredit, missing, type DecideOptions, type Intent, type SubscriptionState } from "@/lib/billing/core";
-import type { PlanCurrency } from "@/lib/billing/model";
+import {
+  decide,
+  decideCredit,
+  missing,
+  switchingPlans,
+  type DecideOptions,
+  type Effects,
+  type Intent,
+  type SubscriptionState,
+} from "@/lib/billing/core";
+import { GRACE_DAYS, type Billing, type PlanCurrency } from "@/lib/billing/model";
 import { billingFromDoc, creditSubscriptionFromDoc } from "@/lib/billing/records";
+import type { MailMessage } from "@/lib/mail/types";
+import { enqueueMail, kickMail } from "./mail";
 
 /**
  * The ONE writer of an account's subscription state.
@@ -181,6 +192,18 @@ export async function syncSubscription(
     if (effects.resume) {
       enqueueOp(tx, { uid: userRef.id, email: data.email, username: data.workspace_username, op: "resume", valueUsd: 0 });
     }
+    // What the person hears about it, decided from the same transition and
+    // queued in the same transaction (one email per event, see mailKey).
+    queueBillingMail(tx, {
+      uid: userRef.id,
+      data,
+      prior,
+      billing,
+      effects,
+      subscriptionId,
+      intent: opts.intent,
+      missing: state.status === "missing",
+    });
 
     // The audit trail, one row per distinct state. A reconciler that had to
     // move money or status means a webhook was missed: worth a person's look.
@@ -246,8 +269,73 @@ export async function syncSubscription(
       creditUsd: result.effects.addCreditUsd,
       build: result.effects.queueBuild,
     }, result.billing.status === "pastDue" ? "warn" : "info");
+    kickMail();
   }
   return result.outcome;
+}
+
+/**
+ * The emails a change of subscription state owes the person. Every one is
+ * keyed by the occurrence (subscription id, paid_count, status change), so
+ * the webhook, the reconciler and checkout's confirm agreeing on the same
+ * state queue the same row, not three emails.
+ */
+function queueBillingMail(
+  tx: FirebaseFirestore.Transaction,
+  p: {
+    uid: string;
+    data: FirebaseFirestore.DocumentData;
+    prior: Billing | null;
+    billing: Omit<Billing, "updatedAt">;
+    effects: Effects;
+    subscriptionId: string;
+    intent?: Intent;
+    missing: boolean;
+  },
+): void {
+  const { data, prior, billing, effects } = p;
+  const username = String(data.workspace_username ?? "").trim() || null;
+  const pending = String(data.pending_workspace_username ?? "").trim() || null;
+  const address = typeof data.workspace_address === "string" && data.workspace_address ? data.workspace_address : null;
+  const mail = (message: MailMessage, ref: string) =>
+    enqueueMail(tx, { uid: p.uid, to: String(data.email ?? ""), name: data.name, country: data.country, message, ref });
+
+  if (effects.grantMonth) {
+    if (prior?.status === "active") {
+      mail(
+        {
+          kind: "renewal_charged",
+          username,
+          charge: billing.bill ? { amountMinor: billing.bill.totalMinor, currency: billing.bill.currency } : null,
+          creditUsd: effects.addCreditUsd,
+          periodEnd: billing.currentPeriodEnd,
+        },
+        `${p.subscriptionId}:${billing.paidCount ?? "?"}`,
+      );
+    } else if (username) {
+      mail({ kind: "subscription_resumed", username, address }, p.subscriptionId);
+    } else {
+      mail({ kind: "workspace_building", username: pending, creditUsd: effects.addCreditUsd }, p.subscriptionId);
+    }
+  }
+  if (billing.status === "pastDue" && prior?.status !== "pastDue") {
+    mail({ kind: "payment_failed", username: username ?? pending, graceDays: GRACE_DAYS }, `${p.subscriptionId}:${billing.statusSince ?? ""}`);
+  }
+  if (billing.status === "active" && billing.cancelAtPeriodEnd && !prior?.cancelAtPeriodEnd) {
+    mail({ kind: "cancellation_confirmed", username, endsAt: billing.currentPeriodEnd }, p.subscriptionId);
+  }
+  // Ended by Razorpay (cancelled at cycle end, or expired), not by a removal
+  // (that path writes its own email), a test-mode leftover, or a plan change
+  // whose replacement is set to take over.
+  if (
+    billing.status === "ended" &&
+    (prior?.status === "active" || prior?.status === "pastDue") &&
+    !p.intent?.endedNow &&
+    !p.missing &&
+    !switchingPlans(billing)
+  ) {
+    mail({ kind: "subscription_ended", username }, p.subscriptionId);
+  }
 }
 
 /** What a priced-at-checkout subscription's notes say about its credit and bill. */
@@ -343,6 +431,14 @@ async function syncCreditSubscription(
       const ledger = ledgerFromDoc(data.credits) ?? initialLedger();
       const next = addPurchased(ledger, effects.addUsd);
       tx.update(userRef, { credits: next });
+      enqueueMail(tx, {
+        uid: userRef.id,
+        to: String(data.email ?? ""),
+        name: data.name,
+        country: data.country,
+        message: { kind: "monthly_credit_added", creditUsd: effects.addUsd },
+        ref: `${subscriptionId}:${subscription.paidCount ?? "?"}`,
+      });
       if (String(data.workspace_username ?? "").trim()) {
         enqueueOp(tx, {
           uid: userRef.id,
@@ -392,5 +488,6 @@ async function syncCreditSubscription(
       }
     });
   }
+  if (result.outcome === "applied") kickMail();
   return result.outcome;
 }

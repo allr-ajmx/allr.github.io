@@ -3,7 +3,7 @@
  * exact shape production sends.
  */
 
-export type LogService = "billing" | "orchestrator" | "admin" | "account";
+export type LogService = "billing" | "orchestrator" | "admin" | "account" | "mail";
 
 export function buildLokiPayload(
   service: LogService,

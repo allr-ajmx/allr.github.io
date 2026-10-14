@@ -7,6 +7,7 @@ import type { Caller } from "./session";
 import { checkWorkspaceName } from "@/lib/admin/reserved-usernames";
 import { appliedLimit, forNewKey, ledgerFromDoc, settle } from "@/lib/billing/credits";
 import { shipLog } from "./logship";
+import { enqueueMail, enqueueMailNow, kickMail, queueCreditAlert } from "./mail";
 import { isDue, nextAttempt, shouldEnqueue } from "@/lib/admin/retry";
 
 /**
@@ -173,6 +174,22 @@ export async function completeClaim(
     { uid, error: ok ? undefined : error },
     ok ? "info" : retry!.status === "failed" ? "error" : "warn",
   );
+  if (!ok && retry!.status === "failed") {
+    // Out of retries: a person finishes it now. The customer has likely
+    // closed the tab, so say it is in hand (the admin digest says the rest).
+    const d = snap.data() ?? {};
+    const user = (await adminDb().collection(USERS).doc(uid).get()).data();
+    await enqueueMailNow({
+      uid,
+      to: String(user?.email ?? d.email ?? ""),
+      name: user?.name,
+      country: user?.country,
+      message: { kind: "provisioning_delayed", username: String(d.username ?? "") },
+      // One per build: the entry's creation time, not an attempt count an admin's Retry resets.
+      ref: String(d.createdAt?.toMillis?.() ?? ""),
+    }).catch((e) => console.error(`[mail] could not queue the provisioning notice for ${uid}`, e));
+    kickMail();
+  }
 }
 
 /** What the billing page shows while the container ship comes in. */
@@ -314,9 +331,26 @@ export async function completeOp(
   if (data.op === "resume") {
     const ref = await userRefForOp(null, String(data.uid ?? ""), String(data.username ?? ""));
     if (ref) {
-      await ref.update({ enforcement: null, updatedAt: FieldValue.serverTimestamp() });
+      const d = (await ref.get()).data() ?? {};
+      const batch = db.batch();
+      batch.update(ref, { enforcement: null, updatedAt: FieldValue.serverTimestamp() });
+      // Back from a pause the enforcer imposed: say so. An admin's manual
+      // suspend/resume leaves no enforcement mark and sends nothing.
+      const username = String(d.workspace_username ?? "").trim();
+      if (d.enforcement?.status === "suspended" && username) {
+        enqueueMail(batch, {
+          uid: ref.id,
+          to: String(d.email ?? ""),
+          name: d.name,
+          country: d.country,
+          message: { kind: "workspace_resumed", username, address: typeof d.workspace_address === "string" ? d.workspace_address : null },
+          ref: String(d.enforcement.suspendedAt ?? ""),
+        });
+      }
+      await batch.commit();
     }
   }
+  if (data.op === "remove" || data.op === "resume") kickMail();
 }
 
 
@@ -358,11 +392,21 @@ async function afterRemoval(uid: string, username: string): Promise<void> {
       workspace_email: null,
       workspace_address: null,
       ...(ledger ? { credits: forNewKey(ledger) } : {}),
+      // The next workspace starts with a fresh "credit low / used up" slate.
+      creditAlerts: null,
       updatedAt: FieldValue.serverTimestamp(),
     });
     if (queue.exists && queue.data()?.username === username && queue.data()?.status === "provisioned") {
       tx.update(queue.ref, { status: "released", updatedAt: FieldValue.serverTimestamp() });
     }
+    enqueueMail(tx, {
+      uid: ref.id,
+      to: String(d.email ?? ""),
+      name: d.name,
+      country: d.country,
+      message: { kind: "workspace_removed", username },
+      ref: username,
+    });
   });
   shipLog("orchestrator", "workspace removed; account unlinked", { uid: ref.id, username });
 }
@@ -399,7 +443,8 @@ export async function resolveLimit(
   }
   const db = adminDb();
   const opRef = db.collection(OPS).doc(opId);
-  return db.runTransaction(async (tx) => {
+  const now = new Date();
+  const out = await db.runTransaction(async (tx) => {
     const op = await tx.get(opRef);
     if (!op.exists || op.data()?.op !== "sync_limit") {
       throw new ApiError(404, "no-op", `No sync_limit op ${opId}.`);
@@ -409,13 +454,17 @@ export async function resolveLimit(
     const user = await tx.get(userRef);
     const raw = user.data()?.credits;
     if (!raw) throw new ApiError(400, "no-ledger", "No credit ledger for this account.");
-    const ledger = settle(ledgerFromDoc(raw)!, liveUsageUsd, new Date());
+    const ledger = settle(ledgerFromDoc(raw)!, liveUsageUsd, now);
     tx.update(userRef, {
-      credits: { ...ledger, usageSyncedAt: new Date().toISOString() },
+      credits: { ...ledger, usageSyncedAt: now.toISOString() },
       updatedAt: FieldValue.serverTimestamp(),
     });
-    return { limitUsd: appliedLimit(ledger, liveUsageUsd) };
+    // Live usage is also where "credit is low / used up" is decided.
+    const alerted = queueCreditAlert(tx, userRef, user.data()!, ledger, now);
+    return { limitUsd: appliedLimit(ledger, liveUsageUsd), alerted };
   });
+  if (out.alerted) kickMail();
+  return { limitUsd: out.limitUsd };
 }
 
 

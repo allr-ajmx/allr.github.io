@@ -10,6 +10,7 @@ import { promoActive } from "@/lib/billing/promo";
 import { billingFromDoc } from "@/lib/billing/records";
 import { enqueueOp, queueRef } from "./provisioning";
 import { shipLog } from "./logship";
+import { enqueueMail, kickMail } from "./mail";
 
 /**
  * The one door through which workspaces reach profiles.
@@ -68,7 +69,12 @@ export async function stampWorkspace(stamp: WorkspaceStamp): Promise<{
 
   const db2 = adminDb();
   await db2.runTransaction(async (tx) => {
-    const queue = await tx.get(queueRef(uid));
+    const [queue, fresh] = await Promise.all([tx.get(queueRef(uid)), tx.get(user.ref)]);
+    // Everything decided below reads the profile as it is INSIDE the
+    // transaction: a ledger or payment that landed since the lookup above
+    // must not be overwritten by a stale copy.
+    const current = fresh.data() ?? {};
+    const before = String(current.workspace_username ?? "").trim();
     tx.update(user.ref, {
       workspace_username: stamp.username,
       workspace_email: stamp.workspaceEmail,
@@ -89,11 +95,11 @@ export async function stampWorkspace(stamp: WorkspaceStamp): Promise<{
       // Open the credit ledger once; never reset an existing one. Either way
       // make the key match it now rather than trusting the minted default —
       // a rebuilt workspace has a new key and a ledger carried from the old.
-      if (!user.data()?.credits) {
+      if (!current.credits) {
         // A running promotional month (and no subscription) opens with the
         // promo's credit; the first paid charge restores the full amount.
-        const promo = user.data()?.promo;
-        const billing = billingFromDoc(user.data()?.billing);
+        const promo = current.promo;
+        const billing = billingFromDoc(current.billing);
         const paid = billing?.status === "active";
         tx.update(
           user.ref,
@@ -109,6 +115,22 @@ export async function stampWorkspace(stamp: WorkspaceStamp): Promise<{
         op: "sync_limit",
         valueUsd: 0,
       });
+      // A workspace they didn't have a moment ago: tell them it's live.
+      // (Re-stamping the same name — the provisioner is idempotent — is not news.)
+      if (before !== stamp.username) {
+        enqueueMail(tx, {
+          uid,
+          to: String(current.email ?? stamp.email),
+          name: current.name,
+          country: current.country,
+          message: {
+            kind: "workspace_ready",
+            username: stamp.username,
+            address: stamp.address ?? `https://${stamp.username}.allr.work`,
+          },
+          ref: stamp.username,
+        });
+      }
     } else if (queue.data()?.status === "provisioned") {
       // The workspace that entry built is unlinked now: close the entry, so it
       // reads as history, and a future payment queues a fresh build.
@@ -124,5 +146,6 @@ export async function stampWorkspace(stamp: WorkspaceStamp): Promise<{
     email: stamp.email,
     username: stamp.username,
   });
+  if (!cleared) kickMail();
   return { uid, cleared };
 }

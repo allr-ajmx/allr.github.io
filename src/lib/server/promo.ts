@@ -8,6 +8,7 @@ import type { Caller } from "./session";
 import { readOrAdoptProfile } from "./profiles";
 import { enqueueInTransaction, queueRef, reserveUsername } from "./provisioning";
 import { shipLog } from "./logship";
+import { enqueueMail, kickMail } from "./mail";
 import { addPurchased, ledgerFromDoc } from "@/lib/billing/credits";
 import {
   normalizeCode,
@@ -118,10 +119,19 @@ export async function redeemPromo(caller: Caller, rawCode: unknown, rawUsername:
       updatedAt: FieldValue.serverTimestamp(),
     });
     enqueueInTransaction(tx, queue, { uid: caller.uid, email: caller.email, username });
+    enqueueMail(tx, {
+      uid: caller.uid,
+      to: caller.email,
+      name: d.name,
+      country: d.country,
+      message: { kind: "promo_started", username, endsAt: p.endsAt, creditUsd: p.creditUsd },
+      ref: code,
+    });
     return p;
   });
 
   console.log(`[promo] ${caller.email} redeemed ${code}; free until ${promo.endsAt}`);
   shipLog("billing", "promo redeemed", { email: caller.email, code, endsAt: promo.endsAt });
+  kickMail();
   return promo;
 }

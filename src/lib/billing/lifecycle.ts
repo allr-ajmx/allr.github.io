@@ -146,3 +146,44 @@ export type Complimentary = { until: string | null; note: string; by: string; at
 export function complimentaryActive(c: Complimentary, now: Date = new Date()): boolean {
   return !!c && (!c.until || Date.parse(c.until) > now.getTime());
 }
+
+/** Reminders go out this many days before a date the person should act on. */
+export const REMINDER_DAYS = 3;
+
+/** Whole days until `iso`, rounded up; null when unknown. */
+export function daysUntil(iso: string | null | undefined, now: Date): number | null {
+  const t = iso ? Date.parse(iso) : NaN;
+  return Number.isFinite(t) ? Math.ceil((t - now.getTime()) / DAY) : null;
+}
+
+/**
+ * The one removal reminder: suspended for non-payment, removal inside the
+ * window, not yet sent. The caller records `remindedAt` when it sends.
+ */
+export function removalReminderDue(
+  e: Parameters<typeof removalDate>[0],
+  remindedAt: string | null | undefined,
+  now: Date,
+): { removeAfter: string; daysLeft: number } | null {
+  if (remindedAt) return null;
+  const removeAfter = removalDate(e);
+  const daysLeft = daysUntil(removeAfter, now);
+  if (!removeAfter || daysLeft === null || daysLeft <= 0 || daysLeft > REMINDER_DAYS) return null;
+  return { removeAfter, daysLeft };
+}
+
+/**
+ * The one free-period reminder: a promo month or manual-era week ends inside
+ * the window with no subscription behind the workspace. The end date is a
+ * fact, not an enforcement, so this is due whether or not the sweep is armed.
+ */
+export function trialEndingReminderDue(
+  i: { trialEndsAt: string | null; billingStatus: string | null | undefined; remindedAt: string | null | undefined },
+  now: Date,
+): { endsAt: string; daysLeft: number } | null {
+  if (i.remindedAt) return null;
+  if (i.billingStatus === "active" || i.billingStatus === "pastDue") return null;
+  const daysLeft = daysUntil(i.trialEndsAt, now);
+  if (!i.trialEndsAt || daysLeft === null || daysLeft <= 0 || daysLeft > REMINDER_DAYS) return null;
+  return { endsAt: i.trialEndsAt, daysLeft };
+}
