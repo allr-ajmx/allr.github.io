@@ -2,7 +2,7 @@
  * Send one real email through the SMTP settings the site will use, to prove
  * the mailbox and its password work BEFORE they go into Vercel.
  *
- *   ALLR_SMTP_USER=no-reply@allr.work ALLR_SMTP_PASS=… node scripts/mail-send-test.mjs you@example.com
+ *   ALLR_SMTP_USER=support@allr.work ALLR_SMTP_PASS=… node scripts/mail-send-test.mjs you@example.com
  *
  * Optional, same names as production: ALLR_SMTP_HOST (smtp.hostinger.com),
  * ALLR_SMTP_PORT (465; 587 is STARTTLS), ALLR_MAIL_FROM, ALLR_MAIL_REPLY_TO.
@@ -30,14 +30,14 @@ const from = process.env.ALLR_MAIL_FROM?.trim() || `Allr <${user}>`;
 const replyTo = process.env.ALLR_MAIL_REPLY_TO?.trim() || undefined;
 const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.allr.work").replace(/\/$/, "");
 
-const content = render({ kind: "welcome" }, { siteUrl, name: "Test Person", country: "IN", supportEmail: replyTo ?? null });
+const content = render({ kind: "welcome" }, { siteUrl, name: "Test Person", country: "IN", supportEmail: replyTo ?? user });
 const chrome = {
   logoUrl: `${siteUrl}/logo-mark.png`,
   siteUrl,
   to,
   greeting: greetingFor("Test Person"),
   footerLine: "allr — as in all.",
-  supportEmail: replyTo ?? null,
+  supportEmail: replyTo ?? user,
 };
 
 // The same transport settings as src/lib/server/mail.ts (which cannot be

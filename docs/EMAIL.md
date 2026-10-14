@@ -2,7 +2,8 @@
 
 Transactional email only — things that happened to the person's account. No
 marketing, no digests to customers, no unsubscribe needed. Sent through the
-company's Hostinger mailbox over SMTP, from `no-reply@allr.work`.
+company's Hostinger mailbox over SMTP, from `support@allr.work` — a mailbox
+a person reads, so replies work and every footer says where to write.
 
 ## What is sent
 
@@ -86,7 +87,7 @@ so nothing fires), and anything for a test-mode leftover subscription.
 
 ## Setup
 
-1. **Mailbox.** In Hostinger → Emails, make sure `no-reply@allr.work` exists
+1. **Mailbox.** In Hostinger → Emails, make sure `support@allr.work` exists
    and note its password (never in chat, never in the repo).
 2. **DNS.** Already right for allr.work: MX → Hostinger, SPF
    `include:_spf.mail.hostinger.com`, DKIM selectors `hostingermail-a/b/c`,
@@ -96,13 +97,13 @@ so nothing fires), and anything for a test-mode leftover subscription.
 
    | Variable | Value |
    |---|---|
-   | `ALLR_SMTP_USER` | `no-reply@allr.work` |
+   | `ALLR_SMTP_USER` | `support@allr.work` |
    | `ALLR_SMTP_PASS` | the mailbox password |
    | `ALLR_SMTP_HOST` | optional; default `smtp.hostinger.com` |
    | `ALLR_SMTP_PORT` | optional; default `465` (SSL). `587` also works (STARTTLS) |
-   | `ALLR_MAIL_FROM` | optional; default `Allr <no-reply@allr.work>` |
-   | `ALLR_MAIL_REPLY_TO` | optional; a monitored address, e.g. `hello@allr.work` |
-   | `ALLR_MAIL_SUPPORT` | optional; named in the footer ("Questions? Write to …"); defaults to the reply-to |
+   | `ALLR_MAIL_FROM` | optional; default `Allr <support@allr.work>` |
+   | `ALLR_MAIL_REPLY_TO` | optional; only if replies should go somewhere other than the sender |
+   | `ALLR_MAIL_SUPPORT` | optional; named in the footer ("Questions? Write to …") and in "if this wasn't you" lines; defaults to the reply-to, else the sender mailbox |
    | `ALLR_ADMIN_ALERT_EMAILS` | optional, comma-separated; defaults to `ALLR_ADMIN_UI_EMAILS` |
 
 4. **VPS.** Pull `allr.os` and restart the provisioner
@@ -111,7 +112,7 @@ so nothing fires), and anything for a test-mode leftover subscription.
    shows `mail: sent N` once something goes out. Nothing else to configure.
 5. **Prove the mailbox first.** From your machine, with the mailbox password
    exported (never on the command line in a shared history):
-   `ALLR_SMTP_USER=no-reply@allr.work ALLR_SMTP_PASS=… node scripts/mail-send-test.mjs you@example.com`
+   `ALLR_SMTP_USER=support@allr.work ALLR_SMTP_PASS=… node scripts/mail-send-test.mjs you@example.com`
    sends the real welcome template through the same SMTP settings and prints
    the server's answer. If Hostinger refuses, fix the mailbox before touching
    Vercel.

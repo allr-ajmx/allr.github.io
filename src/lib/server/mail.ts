@@ -18,6 +18,8 @@ import type { MailMessage, OutboxEntry } from "@/lib/mail/types";
 /**
  * Email, the server half: an outbox in Firestore and a drain that sends it.
  *
+ * Sent as Allr <support@allr.work>, a mailbox a person reads, so replies work.
+ *
  * Nothing sends inline. Code that decides an email is due writes a row to
  * `mail_outbox` in the SAME transaction as the state change it describes, so
  * "payment recorded" and "payment email queued" cannot come apart, and a
@@ -57,7 +59,9 @@ export function mailConfig(): MailConfig | null {
     pass,
     from: process.env.ALLR_MAIL_FROM?.trim() || `Allr <${user}>`,
     replyTo,
-    supportEmail: process.env.ALLR_MAIL_SUPPORT?.trim() || replyTo,
+    // The sender is a monitored mailbox (support@allr.work), so by default it
+    // is also the address the footer tells people to write to.
+    supportEmail: process.env.ALLR_MAIL_SUPPORT?.trim() || replyTo || user,
   };
 }
 
@@ -272,7 +276,7 @@ export async function drainOutbox(
         const rendered = renderEntry(entry, cfg);
         const { messageId } = await send({
           to: entry.to,
-          from: cfg?.from ?? "Allr <no-reply@allr.work>",
+          from: cfg?.from ?? "Allr <support@allr.work>",
           ...(cfg?.replyTo ? { replyTo: cfg.replyTo } : {}),
           subject: rendered.subject,
           text: rendered.text,
