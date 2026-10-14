@@ -12,6 +12,7 @@ import { refundPayment } from "./razorpay";
 import { initialLedgerFields } from "./credits";
 import { applyRefund } from "./payments";
 import { shipLog } from "./logship";
+import { enqueueMail, enqueueMailNow, kickMail } from "./mail";
 import { ledgerFromDoc, queueChange, type PendingChange } from "@/lib/billing/credits";
 import {
   ActionRefused,
@@ -203,6 +204,19 @@ export async function applyAdminAction(admin: Caller, action: AdminAction): Prom
         if (username) {
           enqueueOp(tx, { uid: a.uid, email: a.email, username, op: "set_email", valueUsd: 0 });
         }
+        // Both addresses hear it: the one losing the account and the one
+        // gaining it — the standard courtesy, and the one way a transfer
+        // nobody asked for gets noticed.
+        enqueueMail(tx, {
+          uid: a.uid, to: oldEmail, name: d.name, country: d.country,
+          message: { kind: "email_transferred_out", newEmail: a.email },
+          ref: `${oldEmail}>${a.email}`,
+        });
+        enqueueMail(tx, {
+          uid: a.uid, to: a.email, name: d.name, country: d.country,
+          message: { kind: "email_transferred_in", oldEmail, username: username || null },
+          ref: `${oldEmail}>${a.email}`,
+        });
         audit(tx, admin, a, `${oldEmail} → ${a.email}`);
         oldEmailForAuth = oldEmail;
         break;
@@ -330,6 +344,7 @@ export async function applyAdminAction(admin: Caller, action: AdminAction): Prom
   console.log(`[admin] ${admin.email}: ${a.action} for ${a.uid}`);
   shipLog("admin", a.action, { by: admin.email, target: a.uid },
     a.action === "remove" || a.action === "transfer_email" ? "warn" : "info");
+  if (a.action === "transfer_email") kickMail();
 }
 
 /**
@@ -399,6 +414,12 @@ async function deleteAccount(admin: Caller, a: Extract<AdminAction, { action: "d
       console.error(`[admin] account ${a.uid} deleted but Firebase login removal failed`, e);
     }
   }
+  // The confirmation goes to the address that was deleted; the outbox row
+  // is the only trace of it left, and it says so.
+  await enqueueMailNow({
+    uid: a.uid, to: email, name: pre.name, country: pre.country, message: { kind: "account_deleted" },
+  }).catch((e) => console.error(`[mail] could not queue the deletion notice for ${email}`, e));
+  kickMail();
   console.warn(`[admin] ${admin.email}: delete_account ${email} (${a.uid}) · ${billingDetail}`);
   shipLog("admin", "delete_account", { by: admin.email, target: email, billing: billingDetail }, "warn");
 }

@@ -32,6 +32,8 @@ export type RenderContext = {
   name: string;
   /** Two-letter country; India reads dates in IST. */
   country: string | null;
+  /** An address a person reads, for "if this wasn't you" lines. */
+  supportEmail?: string | null;
 };
 
 /** "14 October 2026", in the person's day. */
@@ -275,6 +277,91 @@ export function render(m: MailMessage, ctx: RenderContext): Content {
         heading: "Your workspace is back.",
         paragraphs: [`${m.username}.allr.work is running again. Open it and carry on where you left off.`],
         cta: m.address ? { label: "Open workspace", href: m.address } : { label: "Your account", href: billing },
+      };
+
+    case "email_transferred_out":
+      return {
+        subject: `Your Allr account has moved to ${m.newEmail}`,
+        preview: "This address no longer signs in.",
+        heading: "Your account has moved.",
+        paragraphs: [
+          `An Allr admin transferred your account — your workspace, plan and AI credit — to ${m.newEmail}. This address no longer signs in to it.`,
+          `If you didn't ask for this, ${ctx.supportEmail ? `write to ${ctx.supportEmail}` : "contact Allr"} straight away.`,
+        ],
+        cta: { label: "allr.work", href: `${ctx.siteUrl}/` },
+      };
+
+    case "email_transferred_in":
+      return {
+        subject: "This address now owns your Allr account",
+        preview: `Sign in with Google as this address.${m.username ? ` ${m.username}.allr.work follows.` : ""}`,
+        heading: "This address now owns your account.",
+        paragraphs: [
+          `Your Allr account${m.username ? `, including ${m.username}.allr.work,` : ""} was moved here from ${m.oldEmail} by an Allr admin. Sign in with Google using this address.`,
+          ...(m.username ? ["The workspace's own sign-in follows within a few minutes."] : []),
+        ],
+        cta: { label: "Sign in", href: `${ctx.siteUrl}/login/` },
+      };
+
+    case "credit_low":
+      return {
+        subject: `AI credit is running low: ${usd(m.availableUsd)} left`,
+        preview: "When it runs out, AI in the workspace pauses until you top up.",
+        heading: "Your AI credit is running low.",
+        paragraphs: [
+          `${site(m.username).replace(/^your/, "Your")} has ${usd(m.availableUsd)} of AI credit left. When it runs out, AI there pauses until you top up — or use your own key.`,
+        ],
+        cta: { label: "Top up", href: credits },
+      };
+
+    case "credit_out":
+      return {
+        subject: "Your AI credit is used up",
+        preview: "AI in the workspace is paused until you top up.",
+        heading: "Your AI credit is used up.",
+        paragraphs: [
+          `${site(m.username).replace(/^your/, "Your")} has no AI credit left, so AI there is paused. Top up and it carries on within a minute. Your workspace and everything in it are untouched.`,
+        ],
+        cta: { label: "Top up", href: credits },
+      };
+
+    case "trial_ending": {
+      const until = day(m.endsAt) ?? "soon";
+      const period = m.promo ? "free month" : "free week";
+      return {
+        subject: `Your ${period} ends on ${until}`,
+        preview: `${m.username}.allr.work pauses after that unless you subscribe.`,
+        heading: `${m.daysLeft} day${m.daysLeft === 1 ? "" : "s"} of your ${period} left.`,
+        paragraphs: [
+          `${m.username}.allr.work is free until ${until}. Subscribe before then and it keeps running without a break.`,
+          "Otherwise it pauses — nothing is deleted, and subscribing later brings it straight back.",
+        ],
+        cta: { label: "Subscribe", href: billing },
+      };
+    }
+
+    case "provisioning_delayed":
+      return {
+        subject: "Your workspace is taking longer than expected",
+        preview: "Your payment is safe and your name is held. No action needed.",
+        heading: "Setup hit a snag.",
+        paragraphs: [
+          `Setting up ${m.username}.allr.work is taking longer than it should. Your payment is safe and your name is held.`,
+          "We've been alerted and will finish it — no action needed from you. We'll email you the moment it's live.",
+        ],
+        cta: { label: "See progress", href: billing },
+      };
+
+    case "account_deleted":
+      return {
+        subject: "Your Allr account has been deleted",
+        preview: "Profile, reserved names and sign-in are gone; payment records are kept.",
+        heading: "Your account has been deleted.",
+        paragraphs: [
+          "Your profile, reserved workspace names and sign-in have been removed, and any subscription was cancelled.",
+          "Payment records are kept for accounting, as the law requires. You're welcome back any time — sign up again and start fresh.",
+        ],
+        cta: { label: "allr.work", href: `${ctx.siteUrl}/` },
       };
 
     case "admin_digest":

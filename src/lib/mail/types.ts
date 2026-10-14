@@ -45,6 +45,20 @@ export type MailMessage =
   | { kind: "workspace_removed"; username: string }
   /** A paused workspace is running again. */
   | { kind: "workspace_resumed"; username: string; address: string | null }
+  /** An admin moved the account to another address — to the OLD address. */
+  | { kind: "email_transferred_out"; newEmail: string }
+  /** — and to the NEW address. */
+  | { kind: "email_transferred_in"; oldEmail: string; username: string | null }
+  /** AI credit nearly spent (once per balance). */
+  | { kind: "credit_low"; username: string | null; availableUsd: number }
+  /** AI credit spent: AI in the workspace has stopped (once per balance). */
+  | { kind: "credit_out"; username: string | null }
+  /** The free month (promo) or free week (manual era) ends in a few days, unpaid. */
+  | { kind: "trial_ending"; username: string; endsAt: string; promo: boolean; daysLeft: number }
+  /** The build failed its last retry; a person will finish it. */
+  | { kind: "provisioning_delayed"; username: string }
+  /** An admin deleted the account. */
+  | { kind: "account_deleted" }
   /** For admins: what needs a person's look since the last digest. */
   | { kind: "admin_digest"; items: DigestItem[] };
 

@@ -24,10 +24,24 @@ company's Hostinger mailbox over SMTP, from `no-reply@allr.work`.
 | 3 days before removal, still unpaid | **{name}.allr.work is removed in 3 days** — once | lifecycle, armed only (`enforcement.removalReminderAt`) |
 | VPS removed it | **Your workspace has been removed** | `afterRemoval` (`src/lib/server/provisioning.ts`) |
 | Enforcer's pause lifted | **Your workspace is back** | `completeOp` (resume) |
+| Admin transfers the account to another address | **Your Allr account has moved to …** (to the old address) and **This address now owns your Allr account** (to the new) | `applyAdminAction` (`src/lib/server/admin-actions.ts`) |
+| AI credit down to 15% (never under $1), something spent | **AI credit is running low: $1.80 left** — once per balance | `ingestUsage` / `resolveLimit`, via `queueCreditAlert` (`users.creditAlerts`) |
+| AI credit at zero | **Your AI credit is used up** — once per balance; a top-up or monthly charge re-arms both | same |
+| Free month / free week ends in ≤ 3 days, nothing paid | **Your free month ends on …** — once, armed or not | lifecycle sweep (`trial.endingReminderAt`) |
+| Build failed its last retry | **Your workspace is taking longer than expected** — once per build | `completeClaim` (`src/lib/server/provisioning.ts`) |
+| Admin deletes the account | **Your Allr account has been deleted** (to the deleted address) | `deleteAccount` |
 | New flags / failed builds / failed ops | **Needs attention: N items** → admins | `alertAdmins` (`src/lib/server/mail.ts`) |
 
 A dry-run lifecycle sweep (the default until `ALLR_LIFECYCLE_ENFORCE=1` on
-the VPS) sends nothing: a rehearsal must not announce a pause it did not do.
+the VPS) sends nothing about pauses or removals: a rehearsal must not
+announce a pause it did not do. The free-period reminder is the exception —
+the end date is a fact, not an enforcement — so it goes out either way.
+
+Credit alerts are decided from live usage, inside the same transaction that
+records it (`ingestUsage` now writes only the two usage fields, under a
+transaction, so it can never overwrite a top-up or charge that landed
+meanwhile). `users.creditAlerts` remembers the purchased total each alert
+fired at; credit added since re-arms both. A removal clears it.
 
 Not sent, on purpose: "name reserved" (it arrives seconds before the payment
 email), anything for an admin's manual suspend/resume (no `enforcement` mark,

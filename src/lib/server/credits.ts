@@ -26,7 +26,7 @@ import {
 import { hasWorkspace } from "@/lib/account/state";
 import { shipLog } from "./logship";
 import { recordIgnoredWebhook } from "./billing";
-import { enqueueMail, enqueueMailNow, kickMail } from "./mail";
+import { enqueueMail, enqueueMailNow, kickMail, queueCreditAlert } from "./mail";
 import { triageTopup } from "@/lib/billing/triage";
 
 /**
@@ -331,11 +331,19 @@ export function applyMonthlyGrantInTransaction(
   });
 }
 
-/** The worker's usage push: [{email, usageUsd}], matched by email claim. */
+/**
+ * The worker's usage push: [{email, usageUsd, username}], matched by email.
+ *
+ * Each ledger is read and written inside a transaction, and only its two
+ * usage fields are written: a top-up, a monthly charge or a removal that
+ * commits meanwhile must never be overwritten by a stale copy of the whole
+ * ledger. Live usage is also where "credit is low / used up" is decided.
+ */
 export async function ingestUsage(items: { email: string; usageUsd: number; username?: string }[]) {
   const db = adminDb();
-  const now = new Date().toISOString();
+  const now = new Date();
   let applied = 0;
+  let alerted = false;
   for (const item of items.slice(0, 200)) {
     if (typeof item?.email !== "string" || !Number.isFinite(item?.usageUsd)) continue;
     const users = await db
@@ -345,15 +353,23 @@ export async function ingestUsage(items: { email: string; usageUsd: number; user
       .get();
     const doc = users.docs[0];
     if (!doc) continue;
-    // Usage belongs to one key, i.e. one workspace: never let another
-    // workspace with the same email — or a removed one's last report —
-    // land on this ledger (usage only ever goes up, so it would stick).
-    if (item.username && doc.data().workspace_username !== item.username) continue;
-    const ledger = asLedger(doc.data());
-    if (!ledger) continue;
-    await doc.ref.update({ credits: applyUsage(ledger, item.usageUsd, now) });
-    applied++;
+    const did = await db.runTransaction(async (tx) => {
+      const d = (await tx.get(doc.ref)).data();
+      if (!d) return false;
+      // Usage belongs to one key, i.e. one workspace: never let another
+      // workspace with the same email — or a removed one's last report —
+      // land on this ledger (usage only ever goes up, so it would stick).
+      if (item.username && d.workspace_username !== item.username) return false;
+      const ledger = asLedger(d);
+      if (!ledger) return false;
+      const next = applyUsage(ledger, item.usageUsd, now.toISOString());
+      tx.update(doc.ref, { "credits.usageUsd": next.usageUsd, "credits.usageSyncedAt": next.usageSyncedAt });
+      if (queueCreditAlert(tx, doc.ref, d, next, now)) alerted = true;
+      return true;
+    });
+    if (did) applied++;
   }
+  if (alerted) kickMail();
   return applied;
 }
 

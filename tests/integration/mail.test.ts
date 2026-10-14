@@ -7,7 +7,7 @@
  */
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
-import { caller, freshRazorpay, list, read, resetDb, seedUser, webhook, worker } from "./harness.ts";
+import { admin, caller, freshRazorpay, list, read, resetDb, seedUser, webhook, worker } from "./harness.ts";
 import type { FakeRazorpay } from "./fake-razorpay.ts";
 import type { Outgoing } from "@/lib/server/mail";
 
@@ -301,5 +301,100 @@ describe("the admin digest", () => {
     const { alertAdmins } = await import("@/lib/server/mail");
     assert.deepEqual(await alertAdmins(), { items: 0, recipients: 0, enqueued: false });
     assert.equal((await read("billing_events/x"))?.alertedAt, undefined);
+  });
+});
+
+describe("the five added emails", () => {
+  it("an email transfer tells the old address and the new one", async () => {
+    await seedUser(U.uid, U.email, { ws: "kamal", country: "US" });
+    await admin({ action: "transfer_email", uid: U.uid, email: "new@example.com" });
+    const rows = (await outbox()).filter((r) => r.id.startsWith("email_transferred"));
+    assert.equal(rows.length, 2);
+    const out = rows.find((r) => r.id.startsWith("email_transferred_out:"))!;
+    const into = rows.find((r) => r.id.startsWith("email_transferred_in:"))!;
+    assert.equal(out.to, U.email);
+    assert.deepEqual(out.message, { kind: "email_transferred_out", newEmail: "new@example.com" });
+    assert.equal(into.to, "new@example.com");
+    assert.deepEqual(into.message, { kind: "email_transferred_in", oldEmail: U.email, username: "kamal" });
+  });
+
+  it("deleting an account tells the address that was deleted", async () => {
+    await seedUser(U.uid, U.email, { country: "US" });
+    await admin({ action: "delete_account", uid: U.uid, confirm: U.email });
+    assert.equal(await read("users/u1"), undefined);
+    const row = (await outbox()).find((r) => r.id === "account_deleted:u1");
+    assert.ok(row);
+    assert.equal(row.to, U.email);
+  });
+
+  it("a build that gives up tells the person it's in hand — once per build", async () => {
+    await paidSignup(0);
+    for (let i = 0; i < 3; i++) {
+      assert.equal((await worker("provision-queue/complete", { uid: U.uid, ok: false, error: "docker pull failed" })).status, 200);
+    }
+    assert.equal((await read("provision_queue/u1"))?.status, "failed");
+    const rows = (await outbox()).filter((r) => r.id.startsWith("provisioning_delayed:"));
+    assert.equal(rows.length, 1);
+    assert.deepEqual(rows[0].message, { kind: "provisioning_delayed", username: "kamal" });
+    // A fourth verdict (the VPS retrying its report) adds nothing.
+    await worker("provision-queue/complete", { uid: U.uid, ok: false, error: "docker pull failed" });
+    assert.equal((await outbox()).filter((r) => r.id.startsWith("provisioning_delayed:")).length, 1);
+  });
+
+  it("live usage says 'low' once, then 'used up' once, re-armed by a top-up — and never clobbers the ledger", async () => {
+    await seedUser(U.uid, U.email, { ws: "kamal", country: "US" });
+    const { addPurchased, initialLedger } = await import("@/lib/billing/credits");
+    const { adminDb } = await import("@/lib/server/admin");
+    await adminDb().doc("users/u1").update({ credits: addPurchased(initialLedger(), 10) });
+    const { ingestUsage } = await import("@/lib/server/credits");
+    const push = (usageUsd: number) => ingestUsage([{ email: U.email, usageUsd, username: "kamal" }]);
+
+    assert.equal(await push(5), 1);
+    assert.equal((await outbox()).length, 0);
+    await push(9.2);
+    let rows = await outbox();
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].id, "credit_low:u1:1000");
+    assert.deepEqual(rows[0].message, { kind: "credit_low", username: "kamal", availableUsd: 0.8 });
+    await push(9.3);
+    assert.equal((await outbox()).length, 1, "low is said once");
+    await push(10);
+    rows = await outbox();
+    assert.equal(rows.length, 2);
+    assert.ok(rows.some((r) => r.id === "credit_out:u1:1000"));
+    const u = await read("users/u1");
+    assert.equal(u?.credits.purchasedUsd, 10, "usage ingest writes only the usage fields");
+    assert.equal(u?.credits.usageUsd, 10);
+    assert.equal(u?.credits.targetLimitUsd, 10);
+    assert.equal(u?.creditAlerts.basisUsd, 10);
+
+    // Credit added: the next low is a new email, keyed by the new balance.
+    await adminDb().doc("users/u1").update({ "credits.purchasedUsd": 20 });
+    await push(10.5);
+    assert.equal((await outbox()).length, 2);
+    await push(19.5);
+    assert.ok((await outbox()).some((r) => r.id === "credit_low:u1:2000"));
+
+    // A report for a workspace this account no longer has is ignored.
+    assert.equal(await ingestUsage([{ email: U.email, usageUsd: 50, username: "oldname" }]), 0);
+    assert.equal((await read("users/u1"))?.credits.usageUsd, 19.5);
+  });
+
+  it("the free month ending in two days is announced once, armed or not — and never to a subscriber", async () => {
+    const { Timestamp } = await import("firebase-admin/firestore");
+    const endsAt = new Date(Date.now() + 2 * 86_400_000);
+    const trial = { startedAt: Timestamp.fromDate(new Date(Date.now() - 28 * 86_400_000)), endsAt: Timestamp.fromDate(endsAt), creditUsd: 5, creditUsedUsd: 0 };
+    await seedUser(U.uid, U.email, { ws: "kamal", country: "US", fields: { trial, promo: { code: "LAUNCH", redeemedAt: "x", endsAt: endsAt.toISOString(), creditUsd: 5 } } });
+    await seedUser("u2", "paid@example.com", { ws: "paid", country: "US", fields: { trial, billing: { subscriptionId: "sub_x", status: "active", planCurrency: "USD", plan: "workspace" } } });
+    assert.equal((await worker("lifecycle", { dryRun: true })).status, 200);
+    await worker("lifecycle", { dryRun: true });
+    const rows = (await outbox()).filter((r) => r.id.startsWith("trial_ending:"));
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].to, U.email);
+    const m = rows[0].message as { promo: boolean; daysLeft: number; endsAt: string };
+    assert.equal(m.promo, true);
+    assert.equal(m.daysLeft, 2);
+    assert.equal(m.endsAt, endsAt.toISOString());
+    assert.ok((await read("users/u1"))?.trial.endingReminderAt);
   });
 });

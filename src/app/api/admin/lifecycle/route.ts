@@ -1,6 +1,6 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { billingFromDoc, compFromDoc } from "@/lib/billing/records";
-import { complimentaryActive, removalDate } from "@/lib/billing/lifecycle";
+import { complimentaryActive, removalReminderDue, trialEndingReminderDue } from "@/lib/billing/lifecycle";
 import { switchingPlans } from "@/lib/billing/core";
 import { adminDb } from "@/lib/server/admin";
 import { toResponse } from "@/lib/server/errors";
@@ -15,9 +15,6 @@ import {
   enforcementAfterSuspend,
   type Enforcement,
 } from "@/lib/billing/lifecycle";
-
-/** A paused, unpaid workspace is warned this many days before removal — once. */
-const REMINDER_DAYS = 3;
 
 /**
  * The hourly sweep: billing truth → platform intent, for every workspace.
@@ -47,6 +44,7 @@ export async function POST(request: Request) {
       resumed: [] as string[],
       removed: [] as string[],
       reminded: [] as string[],
+      trialReminded: [] as string[],
     };
     const now = new Date();
 
@@ -68,36 +66,52 @@ export async function POST(request: Request) {
       }
 
       const enforcement = (d.enforcement ?? null) as Enforcement;
+      const trialEndsAt: string | null = d.trial?.endsAt?.toDate?.()?.toISOString?.() ?? d.trial?.endsAt ?? null;
+      const complimentary = complimentaryActive(compFromDoc(d.comp), now);
       const decision = decide(
         {
           hasWorkspace: true,
           billing: billingFromDoc(d.billing),
-          trialEndsAt: d.trial?.endsAt?.toDate?.()?.toISOString?.() ?? d.trial?.endsAt ?? null,
+          trialEndsAt,
           enforcement,
-          complimentary: complimentaryActive(compFromDoc(d.comp), now),
+          complimentary,
           switching: switchingPlans(billingFromDoc(d.billing)),
         },
         now,
       );
+
+      const mailTo = { uid: doc.id, to: String(d.email ?? ""), name: d.name, country: d.country };
       // Days from removal and still unpaid: one reminder, only when the
       // sweep is armed (a rehearsal must not threaten a removal it won't do).
-      const removeAt = removalDate(d.enforcement);
-      if (!dryRun && decision.action === "none" && removeAt && !d.enforcement?.removalReminderAt) {
-        const daysLeft = Math.ceil((Date.parse(removeAt) - now.getTime()) / 86_400_000);
-        if (daysLeft > 0 && daysLeft <= REMINDER_DAYS) {
-          await db.runTransaction(async (tx) => {
-            tx.update(doc.ref, { "enforcement.removalReminderAt": now.toISOString(), updatedAt: FieldValue.serverTimestamp() });
-            enqueueMail(tx, {
-              uid: doc.id,
-              to: String(d.email ?? ""),
-              name: d.name,
-              country: d.country,
-              message: { kind: "removal_reminder", username, removeAfter: removeAt, daysLeft },
-              ref: removeAt,
-            });
+      const removal = !dryRun && decision.action === "none"
+        ? removalReminderDue(d.enforcement, d.enforcement?.removalReminderAt, now)
+        : null;
+      if (removal) {
+        await db.runTransaction(async (tx) => {
+          tx.update(doc.ref, { "enforcement.removalReminderAt": now.toISOString(), updatedAt: FieldValue.serverTimestamp() });
+          enqueueMail(tx, {
+            ...mailTo,
+            message: { kind: "removal_reminder", username, removeAfter: removal.removeAfter, daysLeft: removal.daysLeft },
+            ref: removal.removeAfter,
           });
-          summary.reminded.push(username);
-        }
+        });
+        summary.reminded.push(username);
+      }
+      // The free period ending in a few days with nothing paid behind it:
+      // one reminder, armed or not — the date is a fact, not an enforcement.
+      const ending = !enforcement && !complimentary
+        ? trialEndingReminderDue({ trialEndsAt, billingStatus: d.billing?.status, remindedAt: d.trial?.endingReminderAt }, now)
+        : null;
+      if (ending) {
+        await db.runTransaction(async (tx) => {
+          tx.update(doc.ref, { "trial.endingReminderAt": now.toISOString(), updatedAt: FieldValue.serverTimestamp() });
+          enqueueMail(tx, {
+            ...mailTo,
+            message: { kind: "trial_ending", username, endsAt: ending.endsAt, promo: Boolean(d.promo), daysLeft: ending.daysLeft },
+            ref: ending.endsAt,
+          });
+        });
+        summary.trialReminded.push(username);
       }
 
       if (decision.action === "none") continue;
@@ -135,10 +149,7 @@ export async function POST(request: Request) {
           tx.update(doc.ref, { enforcement, updatedAt: FieldValue.serverTimestamp() });
           enqueueOp(tx, { ...op, op: "suspend" });
           enqueueMail(tx, {
-            uid: doc.id,
-            to: String(d.email ?? ""),
-            name: d.name,
-            country: d.country,
+            ...mailTo,
             message: { kind: "workspace_paused", username, cause: reason, promo: Boolean(d.promo), removeAfter: enforcement.removeAfter },
             ref: enforcement.suspendedAt,
           });
@@ -172,9 +183,10 @@ export async function POST(request: Request) {
         resumed: summary.resumed.join("; "),
         removed: summary.removed.join("; "),
         reminded: summary.reminded.join("; "),
+        trialReminded: summary.trialReminded.join("; "),
       }, dryRun ? "info" : "warn");
     }
-    if (!dryRun && (summary.suspended.length || summary.reminded.length)) kickMail();
+    if ((!dryRun && (summary.suspended.length || summary.reminded.length)) || summary.trialReminded.length) kickMail();
     return Response.json(summary);
   } catch (error) {
     return toResponse(error);

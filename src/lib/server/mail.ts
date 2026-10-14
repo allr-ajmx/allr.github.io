@@ -11,6 +11,7 @@ import { getSiteUrl } from "@/lib/site";
 import { digestItems, type FailedOp, type FailedQueueEntry, type FlaggedEvent } from "@/lib/mail/alerts";
 import { render } from "@/lib/mail/content";
 import { greetingFor, toHtml, toText, type Chrome } from "@/lib/mail/html";
+import { availableOf, creditAlert, creditAlertsFromDoc } from "@/lib/mail/credit-alerts";
 import { claimDecision, mailKey, nextMailAttempt } from "@/lib/mail/outbox";
 import type { MailMessage, OutboxEntry } from "@/lib/mail/types";
 
@@ -178,9 +179,48 @@ function chromeFor(cfg: MailConfig | null, entry: Pick<OutboxEntry, "to" | "name
   };
 }
 
+/**
+ * AI credit low or gone, decided from live usage inside the caller's
+ * transaction: queues the email and records, on `users.creditAlerts`, that
+ * this balance has been told — so each alert goes once until credit is
+ * added. Returns whether an email was queued.
+ */
+export function queueCreditAlert(
+  tx: FirebaseFirestore.Transaction,
+  ref: FirebaseFirestore.DocumentReference,
+  data: FirebaseFirestore.DocumentData,
+  ledger: { purchasedUsd: number; usageUsd: number },
+  now = new Date(),
+): boolean {
+  const prior = creditAlertsFromDoc(data.creditAlerts);
+  const { send, next } = creditAlert(ledger, prior, now);
+  if (JSON.stringify(next) !== JSON.stringify(prior)) tx.update(ref, { creditAlerts: next });
+  if (!send || !next) return false;
+  const username = String(data.workspace_username ?? "").trim() || null;
+  enqueueMail(
+    tx,
+    {
+      uid: ref.id,
+      to: String(data.email ?? ""),
+      name: data.name,
+      country: data.country,
+      message: send === "out" ? { kind: "credit_out", username } : { kind: "credit_low", username, availableUsd: availableOf(ledger) },
+      // Once per balance: the key carries the purchased total it fired at.
+      ref: String(Math.round(next.basisUsd * 100)),
+    },
+    now,
+  );
+  return true;
+}
+
 /** Render a queued row exactly as the drain would send it. */
 export function renderEntry(entry: Pick<OutboxEntry, "to" | "name" | "country" | "message">, cfg = mailConfig()) {
-  const content = render(entry.message, { siteUrl: getSiteUrl(), name: entry.name, country: entry.country });
+  const content = render(entry.message, {
+    siteUrl: getSiteUrl(),
+    name: entry.name,
+    country: entry.country,
+    supportEmail: cfg?.supportEmail ?? null,
+  });
   const chrome = chromeFor(cfg, entry);
   return { subject: content.subject, html: toHtml(content, chrome), text: toText(content, chrome) };
 }

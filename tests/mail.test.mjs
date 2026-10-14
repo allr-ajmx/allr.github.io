@@ -229,3 +229,139 @@ describe("the admin digest", () => {
     assert.equal(items[1].at, "2026-10-14T10:00:00.000Z");
   });
 });
+
+import { LOW_FRACTION, LOW_MIN_USD, OUT_USD, availableOf, creditAlert, creditAlertsFromDoc } from "../src/lib/mail/credit-alerts.ts";
+import { REMINDER_DAYS, daysUntil, removalReminderDue, trialEndingReminderDue } from "../src/lib/billing/lifecycle.ts";
+
+const MORE = [
+  { kind: "email_transferred_out", newEmail: "new@example.com" },
+  { kind: "email_transferred_in", oldEmail: "old@example.com", username: "kamal" },
+  { kind: "email_transferred_in", oldEmail: "old@example.com", username: null },
+  { kind: "credit_low", username: "kamal", availableUsd: 1.8 },
+  { kind: "credit_out", username: null },
+  { kind: "trial_ending", username: "kamal", endsAt: "2026-10-17T10:00:00Z", promo: true, daysLeft: 3 },
+  { kind: "trial_ending", username: "kamal", endsAt: "2026-10-15T10:00:00Z", promo: false, daysLeft: 1 },
+  { kind: "provisioning_delayed", username: "kamal" },
+  { kind: "account_deleted" },
+];
+
+describe("the five added emails render", () => {
+  for (const m of MORE) {
+    it(`${m.kind}${"promo" in m ? ` (${m.promo ? "month" : "week"})` : ""}`, () => {
+      const c = render(m, ctx);
+      assert.ok(c.subject.length > 4 && c.subject.length < 90, `subject: ${c.subject}`);
+      assert.ok(c.cta?.href.startsWith("https://"));
+      const html = toHtml(c, chrome);
+      const text = toText(c, chrome);
+      for (const out of [html, text]) {
+        for (const bad of ["undefined", "null", "NaN", "[object"]) assert.ok(!out.includes(bad), `${m.kind} leaks "${bad}"`);
+      }
+    });
+  }
+
+  it("a transfer names the other address on both sides, and where to shout if it wasn't them", () => {
+    const out = render(MORE[0], { ...ctx, supportEmail: "hello@allr.work" });
+    assert.equal(out.subject, "Your Allr account has moved to new@example.com");
+    assert.ok(out.paragraphs[1].includes("write to hello@allr.work"));
+    assert.ok(render(MORE[0], ctx).paragraphs[1].includes("contact Allr"));
+    const into = render(MORE[1], ctx);
+    assert.ok(into.paragraphs[0].includes("kamal.allr.work") && into.paragraphs[0].includes("old@example.com"));
+    assert.equal(into.cta.href, "https://www.allr.work/login/");
+  });
+
+  it("low says what is left; out says AI is paused and nothing else is touched", () => {
+    assert.equal(render(MORE[3], ctx).subject, "AI credit is running low: $1.80 left");
+    const out = render(MORE[4], ctx);
+    assert.ok(out.paragraphs[0].startsWith("Your workspace has no AI credit left"));
+    assert.equal(out.cta.href, "https://www.allr.work/account/credits/");
+  });
+
+  it("the free-period reminder knows month from week and counts days", () => {
+    assert.equal(render(MORE[5], ctx).subject, "Your free month ends on 17 October 2026");
+    assert.equal(render(MORE[5], ctx).heading, "3 days of your free month left.");
+    assert.equal(render(MORE[6], ctx).heading, "1 day of your free week left.");
+  });
+});
+
+describe("credit alerts", () => {
+  const now = new Date("2026-10-14T10:00:00Z");
+  const L = (purchasedUsd, usageUsd) => ({ purchasedUsd, usageUsd });
+
+  it("nothing bought: nothing to run out of", () => {
+    assert.deepEqual(creditAlert(L(0, 5), null, now), { send: null, next: null });
+  });
+
+  it("low fires once at 15% (never under $1), out fires once at the bottom, then silence", () => {
+    assert.equal(LOW_FRACTION, 0.15); assert.equal(LOW_MIN_USD, 1); assert.equal(OUT_USD, 0.05);
+    let s = creditAlert(L(20, 10), null, now);
+    assert.deepEqual(s, { send: null, next: null });
+    s = creditAlert(L(20, 17.5), null, now);
+    assert.equal(s.send, "low");
+    assert.deepEqual(s.next, { lowAt: now.toISOString(), outAt: null, basisUsd: 20 });
+    s = creditAlert(L(20, 18), s.next, now);
+    assert.equal(s.send, null);
+    s = creditAlert(L(20, 19.97), s.next, now);
+    assert.equal(s.send, "out");
+    assert.equal(s.next.outAt, now.toISOString());
+    s = creditAlert(L(20, 25), s.next, now);
+    assert.equal(s.send, null);
+    assert.equal(availableOf(L(20, 25)), 0);
+  });
+
+  it("a $1 balance nobody has touched is not 'low'; the floor is a dollar on small balances", () => {
+    assert.equal(creditAlert(L(1, 0), null, now).send, null);
+    assert.equal(creditAlert(L(5, 4.1), null, now).send, "low");
+    assert.equal(creditAlert(L(5, 3.9), null, now).send, null);
+  });
+
+  it("adding credit re-arms both alerts; a smaller balance after a refund does not", () => {
+    const out = creditAlert(L(20, 20), null, now).next;
+    assert.equal(creditAlert(L(20, 20), out, now).send, null);
+    const after = creditAlert(L(30, 20), out, now);
+    assert.deepEqual(after, { send: null, next: null });
+    assert.equal(creditAlert(L(30, 29.9), null, now).send, "low");
+    assert.equal(creditAlert(L(15, 20), out, now).send, null, "still told for this balance");
+  });
+
+  it("reads what was stored, and ignores garbage", () => {
+    assert.deepEqual(creditAlertsFromDoc({ lowAt: "x", outAt: null, basisUsd: 20 }), { lowAt: "x", outAt: null, basisUsd: 20 });
+    assert.equal(creditAlertsFromDoc({ lowAt: "x" }), null);
+    assert.equal(creditAlertsFromDoc(null), null);
+  });
+});
+
+describe("reminders", () => {
+  const now = new Date("2026-10-14T10:00:00Z");
+  const days = (n) => new Date(now.getTime() + n * 86_400_000).toISOString();
+
+  it("counts whole days, rounding up", () => {
+    assert.equal(daysUntil(days(2.1), now), 3);
+    assert.equal(daysUntil(days(0.5), now), 1);
+    assert.equal(daysUntil(days(-1), now), -1);
+    assert.equal(daysUntil(null, now), null);
+    assert.equal(REMINDER_DAYS, 3);
+  });
+
+  it("the removal reminder: payment-suspended, inside the window, not yet sent", () => {
+    const e = (agoDays) => ({ status: "suspended", reason: "payment", suspendedAt: days(-agoDays), removeAfter: null });
+    assert.equal(removalReminderDue(e(5), null, now), null, "9 days out: too early");
+    const due = removalReminderDue(e(12), null, now);
+    assert.equal(due.daysLeft, 2);
+    assert.equal(due.removeAfter, days(2));
+    assert.equal(removalReminderDue(e(12), days(-0.1), now), null, "already sent");
+    assert.equal(removalReminderDue(e(15), null, now), null, "removal is due, not ahead");
+    assert.equal(removalReminderDue({ ...e(12), reason: "trial" }, null, now), null, "trials are never removed");
+    assert.equal(removalReminderDue(null, null, now), null);
+  });
+
+  it("the free-period reminder: inside the window, unpaid, once", () => {
+    assert.deepEqual(trialEndingReminderDue({ trialEndsAt: days(2), billingStatus: null, remindedAt: null }, now), { endsAt: days(2), daysLeft: 2 });
+    assert.equal(trialEndingReminderDue({ trialEndsAt: days(2), billingStatus: "active", remindedAt: null }, now), null, "subscribed");
+    assert.equal(trialEndingReminderDue({ trialEndsAt: days(2), billingStatus: "pastDue", remindedAt: null }, now), null);
+    assert.deepEqual(trialEndingReminderDue({ trialEndsAt: days(2), billingStatus: "pending", remindedAt: null }, now)?.daysLeft, 2, "an opened checkout is not a payment");
+    assert.equal(trialEndingReminderDue({ trialEndsAt: days(4), billingStatus: null, remindedAt: null }, now), null, "too early");
+    assert.equal(trialEndingReminderDue({ trialEndsAt: days(-1), billingStatus: null, remindedAt: null }, now), null, "already over");
+    assert.equal(trialEndingReminderDue({ trialEndsAt: days(2), billingStatus: null, remindedAt: days(-1) }, now), null, "sent");
+    assert.equal(trialEndingReminderDue({ trialEndsAt: null, billingStatus: null, remindedAt: null }, now), null);
+  });
+});
