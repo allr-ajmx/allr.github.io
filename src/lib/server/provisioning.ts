@@ -7,6 +7,7 @@ import type { Caller } from "./session";
 import { checkWorkspaceName } from "@/lib/admin/reserved-usernames";
 import { appliedLimit, forNewKey, ledgerFromDoc, settle } from "@/lib/billing/credits";
 import { shipLog } from "./logship";
+import { enqueueMail, kickMail } from "./mail";
 import { isDue, nextAttempt, shouldEnqueue } from "@/lib/admin/retry";
 
 /**
@@ -314,9 +315,26 @@ export async function completeOp(
   if (data.op === "resume") {
     const ref = await userRefForOp(null, String(data.uid ?? ""), String(data.username ?? ""));
     if (ref) {
-      await ref.update({ enforcement: null, updatedAt: FieldValue.serverTimestamp() });
+      const d = (await ref.get()).data() ?? {};
+      const batch = db.batch();
+      batch.update(ref, { enforcement: null, updatedAt: FieldValue.serverTimestamp() });
+      // Back from a pause the enforcer imposed: say so. An admin's manual
+      // suspend/resume leaves no enforcement mark and sends nothing.
+      const username = String(d.workspace_username ?? "").trim();
+      if (d.enforcement?.status === "suspended" && username) {
+        enqueueMail(batch, {
+          uid: ref.id,
+          to: String(d.email ?? ""),
+          name: d.name,
+          country: d.country,
+          message: { kind: "workspace_resumed", username, address: typeof d.workspace_address === "string" ? d.workspace_address : null },
+          ref: String(d.enforcement.suspendedAt ?? ""),
+        });
+      }
+      await batch.commit();
     }
   }
+  if (data.op === "remove" || data.op === "resume") kickMail();
 }
 
 
@@ -363,6 +381,14 @@ async function afterRemoval(uid: string, username: string): Promise<void> {
     if (queue.exists && queue.data()?.username === username && queue.data()?.status === "provisioned") {
       tx.update(queue.ref, { status: "released", updatedAt: FieldValue.serverTimestamp() });
     }
+    enqueueMail(tx, {
+      uid: ref.id,
+      to: String(d.email ?? ""),
+      name: d.name,
+      country: d.country,
+      message: { kind: "workspace_removed", username },
+      ref: username,
+    });
   });
   shipLog("orchestrator", "workspace removed; account unlinked", { uid: ref.id, username });
 }

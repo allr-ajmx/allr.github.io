@@ -1,12 +1,13 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { billingFromDoc, compFromDoc } from "@/lib/billing/records";
-import { complimentaryActive } from "@/lib/billing/lifecycle";
+import { complimentaryActive, removalDate } from "@/lib/billing/lifecycle";
 import { switchingPlans } from "@/lib/billing/core";
 import { adminDb } from "@/lib/server/admin";
 import { toResponse } from "@/lib/server/errors";
 import { requireAdminToken } from "@/lib/server/workspace-admin";
 import { enqueueOp } from "@/lib/server/provisioning";
 import { PaidAgain, stopBillingForRemoval } from "@/lib/server/billing";
+import { enqueueMail, kickMail } from "@/lib/server/mail";
 import { shipLog } from "@/lib/server/logship";
 import { hasExpiredGrant, ledgerFromDoc } from "@/lib/billing/credits";
 import {
@@ -14,6 +15,9 @@ import {
   enforcementAfterSuspend,
   type Enforcement,
 } from "@/lib/billing/lifecycle";
+
+/** A paused, unpaid workspace is warned this many days before removal — once. */
+const REMINDER_DAYS = 3;
 
 /**
  * The hourly sweep: billing truth → platform intent, for every workspace.
@@ -42,6 +46,7 @@ export async function POST(request: Request) {
       suspended: [] as string[],
       resumed: [] as string[],
       removed: [] as string[],
+      reminded: [] as string[],
     };
     const now = new Date();
 
@@ -74,6 +79,27 @@ export async function POST(request: Request) {
         },
         now,
       );
+      // Days from removal and still unpaid: one reminder, only when the
+      // sweep is armed (a rehearsal must not threaten a removal it won't do).
+      const removeAt = removalDate(d.enforcement);
+      if (!dryRun && decision.action === "none" && removeAt && !d.enforcement?.removalReminderAt) {
+        const daysLeft = Math.ceil((Date.parse(removeAt) - now.getTime()) / 86_400_000);
+        if (daysLeft > 0 && daysLeft <= REMINDER_DAYS) {
+          await db.runTransaction(async (tx) => {
+            tx.update(doc.ref, { "enforcement.removalReminderAt": now.toISOString(), updatedAt: FieldValue.serverTimestamp() });
+            enqueueMail(tx, {
+              uid: doc.id,
+              to: String(d.email ?? ""),
+              name: d.name,
+              country: d.country,
+              message: { kind: "removal_reminder", username, removeAfter: removeAt, daysLeft },
+              ref: removeAt,
+            });
+          });
+          summary.reminded.push(username);
+        }
+      }
+
       if (decision.action === "none") continue;
       if (decision.action === "remove" && d.enforcement?.removalQueuedAt) continue;
 
@@ -105,11 +131,17 @@ export async function POST(request: Request) {
         if (decision.action === "suspend") {
           const reason =
             d.billing?.status === "pastDue" || d.billing?.status === "ended" ? "payment" : "trial";
-          tx.update(doc.ref, {
-            enforcement: enforcementAfterSuspend(reason, now),
-            updatedAt: FieldValue.serverTimestamp(),
-          });
+          const enforcement = enforcementAfterSuspend(reason, now);
+          tx.update(doc.ref, { enforcement, updatedAt: FieldValue.serverTimestamp() });
           enqueueOp(tx, { ...op, op: "suspend" });
+          enqueueMail(tx, {
+            uid: doc.id,
+            to: String(d.email ?? ""),
+            name: d.name,
+            country: d.country,
+            message: { kind: "workspace_paused", username, cause: reason, promo: Boolean(d.promo), removeAfter: enforcement.removeAfter },
+            ref: enforcement.suspendedAt,
+          });
         } else if (decision.action === "resume") {
           enqueueOp(tx, { ...op, op: "resume" });
         } else {
@@ -139,8 +171,10 @@ export async function POST(request: Request) {
         suspended: summary.suspended.join("; "),
         resumed: summary.resumed.join("; "),
         removed: summary.removed.join("; "),
+        reminded: summary.reminded.join("; "),
       }, dryRun ? "info" : "warn");
     }
+    if (!dryRun && (summary.suspended.length || summary.reminded.length)) kickMail();
     return Response.json(summary);
   } catch (error) {
     return toResponse(error);

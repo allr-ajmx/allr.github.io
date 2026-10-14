@@ -7,6 +7,7 @@ import { shipLog } from "./logship";
 import type { RzpRefund } from "./razorpay";
 import { ledgerFromDoc, queueChange } from "@/lib/billing/credits";
 import { creditToRevoke } from "@/lib/billing/reconcile";
+import { enqueueMail, kickMail } from "./mail";
 
 /**
  * Money moving back: refunds (made by us, from the Razorpay dashboard, or by
@@ -76,6 +77,21 @@ export async function applyRefund(
         refundIds: FieldValue.arrayUnion(refund.id),
         refundedMinor: FieldValue.increment(refund.amount),
       });
+      if (d) {
+        enqueueMail(tx, {
+          uid: userRef.id,
+          to: String(d.email ?? ""),
+          name: d.name,
+          country: d.country,
+          message: {
+            kind: "credit_pack_refunded",
+            creditUsd: Number(p.creditUsd ?? 0),
+            refunded: { amountMinor: refund.amount, currency: refund.currency },
+            why: "refund",
+          },
+          ref: refund.id,
+        });
+      }
       record({
         uid: p.uid ?? null,
         outcome: "applied",
@@ -100,6 +116,7 @@ export async function applyRefund(
   }).then((r) => {
     shipLog("billing", `refund ${r}`, { refund: refund.id, payment: refund.payment_id, source },
       r === "recorded" && !ours(refund.notes) ? "warn" : "info");
+    if (r === "applied") kickMail();
     return r;
   });
 }

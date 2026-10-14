@@ -26,6 +26,7 @@ import {
 import { hasWorkspace } from "@/lib/account/state";
 import { shipLog } from "./logship";
 import { recordIgnoredWebhook } from "./billing";
+import { enqueueMail, enqueueMailNow, kickMail } from "./mail";
 import { triageTopup } from "@/lib/billing/triage";
 
 /**
@@ -207,15 +208,24 @@ export async function applyTopupPayment(
       createdAt: FieldValue.serverTimestamp(),
     };
     if (!user?.exists || !workspaceLive(user.data())) {
-      const reason = !user?.exists ? "no account for this order" : "no live workspace to top up";
+      const why = !user?.exists ? ("no-account" as const) : ("no-workspace" as const);
+      const reason = why === "no-account" ? "no account for this order" : "no live workspace to top up";
       // Claimed before refunding, so a redelivery can never refund twice.
       tx.set(purchaseRef, { ...base, status: "refunding", reason });
-      return { kind: "refund" as const, reason };
+      return { kind: "refund" as const, reason, why, email: user?.exists ? String(user.data()?.email ?? "") : (notesEmail ?? "") };
     }
     const d = user.data()!;
     const next = applyTopup(asLedger(d) ?? initialLedger(), creditUsd);
     tx.update(userRef!, { credits: next, updatedAt: FieldValue.serverTimestamp() });
     tx.set(purchaseRef, { ...base, status: "applied" });
+    enqueueMail(tx, {
+      uid: userRef!.id,
+      to: String(d.email ?? ""),
+      name: d.name,
+      country: d.country,
+      message: { kind: "credit_pack_added", creditUsd, paid: { amountMinor: payment.amount, currency: payment.currency } },
+      ref: payment.id,
+    });
     enqueueOp(tx, {
       uid: userRef!.id,
       email: d.email,
@@ -243,6 +253,7 @@ export async function applyTopupPayment(
   if (outcome.kind === "applied") {
     console.log(`[credits] topup +$${creditUsd} for ${outcome.uid} (${source})`);
     shipLog("billing", "top-up applied", { uid: outcome.uid, usd: creditUsd, payment: payment.id, source });
+    kickMail();
     return "applied";
   }
 
@@ -261,6 +272,20 @@ export async function applyTopupPayment(
       receivedAt: FieldValue.serverTimestamp(),
     });
     shipLog("billing", "top-up refunded automatically", { payment: payment.id, reason: outcome.reason }, "warn");
+    // The money is on its way back; say so, to whoever paid (the order's
+    // email when there is no account to look up).
+    await enqueueMailNow({
+      uid: userRef?.id ?? null,
+      to: outcome.email,
+      message: {
+        kind: "credit_pack_refunded",
+        creditUsd,
+        refunded: { amountMinor: refund.amount, currency: payment.currency },
+        why: outcome.why,
+      },
+      ref: payment.id,
+    }).catch((e) => console.error(`[mail] could not queue refund notice for ${payment.id}`, e));
+    kickMail();
     return "refunded";
   } catch (e) {
     console.error(`[credits] auto-refund of ${payment.id} failed`, e);
