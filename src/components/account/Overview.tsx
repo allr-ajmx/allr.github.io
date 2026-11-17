@@ -54,7 +54,7 @@ export function Overview() {
   const refreshLedger = useCallback(() => {
     fetchLedger().then((l) => setLedger(l.ledger ?? null)).catch(() => {});
   }, []);
-  useWhileVisible(refreshLedger, 60_000);
+  useWhileVisible(refreshLedger, 150_000);
 
   // While it builds, look every few seconds; the moment the workspace exists,
   // reload the profile so every page flips to live together.

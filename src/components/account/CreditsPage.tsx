@@ -96,7 +96,7 @@ export function CreditsPage() {
   const quietRefresh = useCallback(() => {
     fetchLedger().then(setData).catch(() => {});
   }, []);
-  useWhileVisible(quietRefresh, 60_000);
+  useWhileVisible(quietRefresh, 150_000);
 
   const buyMonthly = useCallback(async () => {
     const amount = Math.round(Number(monthly));
