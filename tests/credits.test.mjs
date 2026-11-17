@@ -10,6 +10,7 @@ import {
   appliedLimit,
   applyTopup,
   applyUsage,
+  usageChanged,
   availableUsd,
   forNewKey,
   initialLedger,
@@ -100,5 +101,21 @@ describe("packs", () => {
       ["l", 50, 50],
       ["xl", 100, 100],
     ]);
+  });
+});
+
+describe("usage writes", () => {
+  const now = new Date("2026-11-17T12:00:00Z");
+  const at = (minAgo) => new Date(now.getTime() - minAgo * 60_000).toISOString();
+  it("moved usage is a write; the same usage reported recently is not", () => {
+    const l = applyUsage(addPurchased(initialLedger(), 20), 4, at(1));
+    assert.equal(usageChanged(l, 4, now), false);
+    assert.equal(usageChanged(l, 3, now), false, "usage never goes down, so a lower report changes nothing");
+    assert.equal(usageChanged(l, 4.01, now), true);
+  });
+  it("a stale or missing 'last reported' is refreshed even when usage is flat", () => {
+    const l = applyUsage(addPurchased(initialLedger(), 20), 4, at(16));
+    assert.equal(usageChanged(l, 4, now), true);
+    assert.equal(usageChanged({ ...l, usageSyncedAt: null }, 4, now), true);
   });
 });

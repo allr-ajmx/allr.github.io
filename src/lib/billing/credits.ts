@@ -255,6 +255,19 @@ export function applyUsage(l: CreditLedger, usageUsd: number, at: string): Credi
   return { ...l, usageUsd: round2(Math.max(l.usageUsd, usageUsd)), usageSyncedAt: at };
 }
 
+/**
+ * Whether a usage report is worth a write: it moves usage, or the last
+ * report is old enough that "usage last reported" would start to mislead.
+ * The worker reports every few minutes and spend is mostly flat — writing
+ * every identical report is what ran the Firestore quota dry.
+ */
+export const USAGE_HEARTBEAT_MS = 15 * 60_000;
+export function usageChanged(l: CreditLedger, usageUsd: number, now: Date, heartbeatMs = USAGE_HEARTBEAT_MS): boolean {
+  if (applyUsage(l, usageUsd, "").usageUsd !== l.usageUsd) return true;
+  const last = l.usageSyncedAt ? Date.parse(l.usageSyncedAt) : NaN;
+  return !Number.isFinite(last) || now.getTime() - last >= heartbeatMs;
+}
+
 /** What the key limit is actually set to: never below what is already spent. */
 export function appliedLimit(l: CreditLedger, liveUsageUsd: number): number {
   return round2(Math.max(targetOf(l), liveUsageUsd));

@@ -20,6 +20,7 @@ import {
   packById,
   remaining,
   spentThisCycle,
+  usageChanged,
   type CreditLedger,
   type TopupPackId,
 } from "@/lib/billing/credits";
@@ -353,6 +354,16 @@ export async function ingestUsage(items: { email: string; usageUsd: number; user
       .get();
     const doc = users.docs[0];
     if (!doc) continue;
+    // The query already read the doc: an identical, recent report is answered
+    // without a transaction (and its write). Counted as applied — the meter
+    // already shows exactly this number.
+    const snap = doc.data();
+    if (item.username && snap.workspace_username !== item.username) continue;
+    const seenLedger = asLedger(snap);
+    if (seenLedger && !usageChanged(seenLedger, item.usageUsd, now)) {
+      applied++;
+      continue;
+    }
     const did = await db.runTransaction(async (tx) => {
       const d = (await tx.get(doc.ref)).data();
       if (!d) return false;

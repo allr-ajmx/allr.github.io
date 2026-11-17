@@ -329,12 +329,15 @@ export async function alertAdmins(now = new Date()): Promise<AlertSummary> {
   if (!recipients.length) return { items: 0, recipients: 0, enqueued: false };
   const db = adminDb();
   const [flags, builds, ops] = await Promise.all([
-    db.collection("billing_events").where("resolved", "==", false).limit(200).get(),
+    // Flagged only: every webhook writes an unresolved row, so reading all of
+    // them on each minute's tick was most of the daily read quota. Same two
+    // equality filters the admin customers view uses — no composite index.
+    db.collection("billing_events").where("flag", "==", true).where("resolved", "==", false).limit(200).get(),
     db.collection("provision_queue").where("status", "==", "failed").limit(50).get(),
     db.collection("workspace_ops").where("status", "==", "failed").limit(50).get(),
   ]);
   const fresh = (docs: FirebaseFirestore.QueryDocumentSnapshot[]) => docs.filter((d) => !d.data().alertedAt);
-  const f = fresh(flags.docs).filter((d) => d.data().flag === true);
+  const f = fresh(flags.docs);
   const b = fresh(builds.docs);
   const o = fresh(ops.docs);
   if (!f.length && !b.length && !o.length) return { items: 0, recipients: recipients.length, enqueued: false };
