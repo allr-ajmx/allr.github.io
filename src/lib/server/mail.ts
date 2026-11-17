@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import nodemailer from "nodemailer";
 import { after } from "next/server";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminDb } from "./admin";
 import { adminEmails } from "./admin-gate";
 import { shipLog } from "./logship";
@@ -110,9 +111,19 @@ export function enqueueMail(w: Writer, input: EnqueueInput, now = new Date()): s
     queuedAt: at,
     updatedAt: at,
   };
-  w.set(adminDb().collection(OUTBOX).doc(key), row, { merge: true });
+  // A row queued again is live again: never let the TTL policy take it.
+  w.set(adminDb().collection(OUTBOX).doc(key), { ...row, expireAt: FieldValue.delete() }, { merge: true });
   return key;
 }
+
+/**
+ * When a finished row (sent, expired, given up) may be deleted by the
+ * Firestore TTL policy on `mail_outbox.expireAt`. Long enough that the row
+ * still de-duplicates any late repeat of the event that queued it.
+ */
+export const OUTBOX_RETENTION_DAYS = 180;
+export const outboxExpiry = (now: Date) =>
+  Timestamp.fromMillis(now.getTime() + OUTBOX_RETENTION_DAYS * 86_400_000);
 
 /** Queue outside any transaction: a batch of one. */
 export async function enqueueMailNow(input: EnqueueInput): Promise<string | null> {
@@ -260,8 +271,8 @@ export async function drainOutbox(
         const d = (await tx.get(doc.ref)).data();
         if (!d) return { verdict: "skip" as const, entry: null };
         const verdict = claimDecision(d, now.getTime());
-        if (verdict === "already-sent") tx.update(doc.ref, { status: "sent", updatedAt: at });
-        else if (verdict === "expired") tx.update(doc.ref, { status: "expired", updatedAt: at });
+        if (verdict === "already-sent") tx.update(doc.ref, { status: "sent", updatedAt: at, expireAt: outboxExpiry(now) });
+        else if (verdict === "expired") tx.update(doc.ref, { status: "expired", updatedAt: at, expireAt: outboxExpiry(now) });
         else if (verdict === "send") tx.update(doc.ref, { status: "sending", claimedAt: at, updatedAt: at });
         return { verdict, entry: verdict === "send" ? (d as OutboxEntry) : null };
       });
@@ -283,12 +294,17 @@ export async function drainOutbox(
           html: rendered.html,
           headers: { "X-Allr-Mail": doc.id },
         });
-        await doc.ref.update({ status: "sent", sentAt: at, messageId, lastError: null, updatedAt: at });
+        await doc.ref.update({ status: "sent", sentAt: at, messageId, lastError: null, updatedAt: at, expireAt: outboxExpiry(now) });
         summary.sent++;
       } catch (e) {
         const retry = nextMailAttempt(Number(entry.attempts ?? 0), now.getTime());
         const lastError = String((e as Error)?.message ?? e).slice(0, 500);
-        await doc.ref.update({ ...retry, lastError, updatedAt: at });
+        await doc.ref.update({
+          ...retry,
+          lastError,
+          updatedAt: at,
+          ...(retry.status === "failed" ? { expireAt: outboxExpiry(now) } : {}),
+        });
         if (retry.status === "failed") summary.failed++;
         else summary.retried++;
         summary.errors.push(`${doc.id}: ${lastError}`);

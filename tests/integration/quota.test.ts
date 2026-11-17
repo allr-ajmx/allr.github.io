@@ -134,3 +134,35 @@ describe("admin digest", () => {
     assert.equal((await read("billing_events/noise0"))?.alertedAt, undefined);
   });
 });
+
+describe("mail outbox retention (Firestore TTL on expireAt)", () => {
+  it("a finished row gets an expiry ~180 days out; a queued one has none, and re-queuing clears it", async () => {
+    const { enqueueMailNow, drainOutbox, OUTBOX_RETENTION_DAYS } = await import("@/lib/server/mail");
+    const key = await enqueueMailNow({ uid: "u1", to: "k@example.com", name: "K", country: "US", message: { kind: "credit_out", username: "kamal" }, ref: "1" });
+    assert.ok(key);
+    assert.equal((await read(`mail_outbox/${key}`))?.expireAt, undefined, "queued: never expires");
+
+    await drainOutbox({ send: async () => ({ messageId: "<1@test>" }) });
+    const sent = await read(`mail_outbox/${key}`);
+    assert.equal(sent?.status, "sent");
+    const days = (sent?.expireAt.toMillis() - Date.now()) / 86_400_000;
+    assert.ok(Math.abs(days - OUTBOX_RETENTION_DAYS) < 1, `expires in ~${OUTBOX_RETENTION_DAYS} days, got ${days}`);
+
+    await enqueueMailNow({ uid: "u1", to: "k@example.com", name: "K", country: "US", message: { kind: "credit_out", username: "kamal" }, ref: "1" });
+    assert.equal((await read(`mail_outbox/${key}`))?.expireAt, undefined, "live again: the TTL must not take it");
+  });
+
+  it("a row given up on also expires", async () => {
+    const { enqueueMailNow, drainOutbox } = await import("@/lib/server/mail");
+    const key = await enqueueMailNow({ uid: "u1", to: "k@example.com", name: "K", country: "US", message: { kind: "credit_out", username: "kamal" }, ref: "2" });
+    const { adminDb } = await import("@/lib/server/admin");
+    for (let i = 0; i < 12; i++) {
+      await adminDb().doc(`mail_outbox/${key}`).update({ nextAttemptAt: null, retryAt: null });
+      await drainOutbox({ send: async () => { throw new Error("SMTP 550 no such user"); }, now: new Date(Date.now() + i * 3_600_000) });
+      if ((await read(`mail_outbox/${key}`))?.status === "failed") break;
+    }
+    const row = await read(`mail_outbox/${key}`);
+    assert.equal(row?.status, "failed");
+    assert.ok(row?.expireAt, "a given-up row expires too");
+  });
+});
