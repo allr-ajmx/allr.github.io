@@ -43,15 +43,54 @@ export function AdminPage() {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The list is paged (25 at a time) and searched on the server: the whole
+  // users collection is never read for one view.
+  const [query, setQuery] = useState("");
+  const [activeQuery, setActiveQuery] = useState("");
+  const [loadingMore, setLoadingMore] = useState(false);
 
+  /** First page (or the search) again — after an action, or a new query. */
   const refresh = useCallback(async () => {
     setError(null);
     try {
-      setData(await fetchAdminCustomers());
+      setData(await fetchAdminCustomers({ q: activeQuery }));
     } catch (e) {
       setError(e instanceof ApiCallFailed ? e.message : "Could not load.");
     }
-  }, []);
+  }, [activeQuery]);
+
+  const loadMore = async () => {
+    const cursor = data?.nextCursor;
+    if (!cursor) return;
+    setLoadingMore(true);
+    setError(null);
+    try {
+      const next = await fetchAdminCustomers({ after: cursor });
+      setData((prev) =>
+        prev
+          ? {
+              ...next,
+              customers: [
+                ...prev.customers,
+                ...next.customers.filter((c) => !prev.customers.some((p) => p.uid === c.uid)),
+              ],
+              workspaceOnly: prev.workspaceOnly,
+            }
+          : next,
+      );
+    } catch (e) {
+      setError(e instanceof ApiCallFailed ? e.message : "Could not load more.");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  // Search as you type, once the typing pauses.
+  useEffect(() => {
+    const q = query.trim();
+    const t = setTimeout(() => setActiveQuery(q.length >= 2 ? q : ""), 300);
+    return () => clearTimeout(t);
+  }, [query]);
 
   const [editing, setEditing] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -120,14 +159,33 @@ export function AdminPage() {
     acc[c.state] = (acc[c.state] ?? 0) + 1;
     return acc;
   }, {});
-  const failedQueues = customers.filter((c) => c.queue?.status === "failed");
+  const attentionQueues = data?.attentionQueues ?? [];
+  const failedQueues = attentionQueues.filter((q) => q.status === "failed");
 
   return (
     <>
       <PageHeader eyebrow="Admin" title="Customers">
-        Every account, its journey, billing and credit — read-only, fresh on
-        load.
+        Every account, its journey, billing and credit — newest first, 25 at a
+        time. Search by the start of an email, workspace or name, or an exact
+        account ID.
       </PageHeader>
+
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search email, workspace, name or account ID…"
+          aria-label="Search customers"
+          className="w-full max-w-md rounded-control border border-line bg-card px-3 py-2 text-[.9rem] outline-none focus:border-honey-line"
+        />
+        {data?.query ? (
+          <span className="text-[.82rem] text-ink-soft">
+            {data.customers.length} match{data.customers.length === 1 ? "" : "es"} for “{data.query}”
+            {data.capped ? " — showing the first ones; type more to narrow it" : ""}
+          </span>
+        ) : null}
+      </div>
 
       {error ? <p className="mb-4 font-semibold text-[#A6543C]">{error}</p> : null}
       {notice ? <p className="mb-4 font-semibold text-green-deep">{notice}</p> : null}
@@ -136,6 +194,12 @@ export function AdminPage() {
       {data ? (
         <div className="flex flex-col gap-5">
           <div className="flex flex-wrap gap-2">
+            <span className="rounded-chip border border-line bg-card px-3 py-1.5 text-[.82rem] font-bold">
+              {data.total} account{data.total === 1 ? "" : "s"}
+            </span>
+            {data.query ? null : (
+              <span className="self-center text-[.78rem] text-ink-soft">showing {data.customers.length}:</span>
+            )}
             {Object.entries(counts).map(([state, n]) => (
               <span key={state} className="rounded-chip border border-line bg-card px-3 py-1.5 text-[.82rem] font-bold">
                 {n} {STATE_LABEL[state] ?? state}
@@ -153,7 +217,7 @@ export function AdminPage() {
           {(() => {
             const ops = data.pendingOps ?? [];
             const failedOps = ops.filter((o) => o.status === "failed");
-            const retryingQueues = customers.filter((c) => c.queue?.status === "queued" && (c.queue.attempts ?? 0) > 0);
+            const retryingQueues = attentionQueues.filter((q) => q.status === "queued" && q.attempts > 0);
             const retryingOps = ops.filter((o) => o.status === "queued" && o.attempts > 0);
             const inconsistent = customers.filter((c) => (c.issues ?? []).length > 0);
             const flags = data.flags ?? [];
@@ -167,7 +231,7 @@ export function AdminPage() {
                 <p className="mb-1 font-bold text-[#A6543C]">Needs attention</p>
                 {failedQueues.map((c) => (
                   <p key={c.uid} className="py-0.5">
-                    Provisioning failed for {c.email} after {c.queue?.attempts || 1} attempt(s): {c.queue?.error ?? "unknown"}
+                    Provisioning failed for {c.email} after {c.attempts || 1} attempt(s): {c.error ?? "unknown"}
                     <button type="button" className={retryBtn} disabled={busy}
                       onClick={() => void act({ action: "retry", kind: "provision", id: c.uid }, null)}>
                       Retry
@@ -211,7 +275,7 @@ export function AdminPage() {
                 )))}
                 {retryingQueues.map((c) => (
                   <p key={`r-${c.uid}`} className="py-0.5 text-ink-soft">
-                    Provisioning for {c.email} failed {c.queue?.attempts}×, retrying automatically{when(c.queue?.retryAt)}: {c.queue?.error ?? "unknown"}
+                    Provisioning for {c.email} failed {c.attempts}×, retrying automatically{when(c.retryAt)}: {c.error ?? "unknown"}
                   </p>
                 ))}
                 {retryingOps.map((o) => (
@@ -367,6 +431,17 @@ export function AdminPage() {
               </tbody>
             </table>
           </div>
+
+          {data.nextCursor && !data.query ? (
+            <button
+              type="button"
+              onClick={() => void loadMore()}
+              disabled={loadingMore}
+              className="cursor-pointer self-start rounded-chip border border-line bg-card px-4 py-2 text-[.85rem] font-bold text-honey-deep hover:border-honey-line disabled:opacity-50"
+            >
+              {loadingMore ? "Loading…" : `Load ${Math.min(25, data.total - data.customers.length)} more`}
+            </button>
+          ) : null}
         </div>
       ) : null}
     </>

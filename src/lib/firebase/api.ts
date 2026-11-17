@@ -247,8 +247,23 @@ export type AdminCustomer = {
   } | null;
 };
 
-export const fetchAdminCustomers = () =>
-  call<{
+/** One page of the admin list, or one search. `after` is the previous page's cursor. */
+export const fetchAdminCustomers = (opts: { q?: string; after?: string | null } = {}) => {
+  const qs = new URLSearchParams();
+  if (opts.q && opts.q.trim().length >= 2) qs.set("q", opts.q.trim());
+  if (opts.after) qs.set("after", opts.after);
+  const suffix = qs.size ? `?${qs.toString()}` : "";
+  return call<{
+    /** Every account, counted server-side (cheap aggregate). */
+    total: number;
+    /** Pass as `after` for the next page; null on the last page and for searches. */
+    nextCursor: string | null;
+    /** A search source hit its cap: there may be more — refine the query. */
+    capped: boolean;
+    query: string;
+    attentionQueues: {
+      uid: string; email: string; status: string; error: string | null; attempts: number; retryAt: string | null;
+    }[];
     customers: AdminCustomer[];
     workspaceOnly: {
       username: string;
@@ -270,7 +285,8 @@ export const fetchAdminCustomers = () =>
       id: string; op: string; username: string; status: string; error: string | null;
       attempts: number; retryAt: string | null;
     }[];
-  }>("/admin-ui/customers/");
+  }>(`/admin-ui/customers/${suffix}`);
+};
 
 export type AdminActionBody = {
   action:
