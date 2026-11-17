@@ -125,6 +125,25 @@ describe("separate monthly AI credit (older accounts)", () => {
     assert.equal(u?.credits.purchasedUsd, 20);
   });
 
+  it("a subscription re-read in the last hour is not re-read again (Firestore quota)", async () => {
+    await subscribeWorkspace(LEGACY);
+    const { startCreditSubscription } = await import("@/lib/server/billing");
+    const opened = await startCreditSubscription(caller(U.uid, U.email), 20);
+    rzp.charge(opened.subscriptionId);
+    await webhook("subscription.charged", { subscription: rzp.subscriptions.get(opened.subscriptionId)! });
+
+    const first = await worker("reconcile");
+    assert.ok(first.body.subscriptions.checked > 0);
+    const again = await worker("reconcile");
+    assert.equal(again.body.subscriptions.checked, 0, "checked minutes ago: left alone");
+
+    const { adminDb } = await import("@/lib/server/admin");
+    const hourAgo = new Date(Date.now() - 61 * 60_000).toISOString();
+    await adminDb().doc("users/u1").update({ "billing.reconciledAt": hourAgo, "creditSubscription.reconciledAt": hourAgo });
+    const later = await worker("reconcile");
+    assert.equal(later.body.subscriptions.checked, first.body.subscriptions.checked, "an hour on, each is checked again");
+  });
+
   it("an amount change in flight is followed by the reconciler", async () => {
     await subscribeWorkspace(LEGACY);
     const { startCreditSubscription } = await import("@/lib/server/billing");

@@ -36,6 +36,14 @@ const WINDOW_S = 3 * 86_400;
 const MAX_PAGES = 3;
 const MAX_TOPUPS = 15;
 const MAX_SUBS = 20;
+/**
+ * A subscription re-read from Razorpay less than this long ago is left alone.
+ * Webhooks are the primary path and this is the net under them: re-syncing
+ * every subscription on every run cost reads and a write each, all day, and
+ * helped run the Firestore quota dry. Changes in flight are still followed
+ * on every run.
+ */
+export const SUB_RECHECK_MS = 60 * 60_000;
 
 export type { ReconcileSummary };
 
@@ -151,6 +159,10 @@ export async function reconcile(now = new Date()): Promise<ReconcileSummary> {
       ...credit.docs.map((doc) => ({ doc, field: "creditSubscription" as SubField })),
     ]
       .filter(({ doc, field }) => doc.data()[field]?.subscriptionId)
+      .filter(({ doc, field }) => {
+        const at = Date.parse(checkedAt(doc, field));
+        return !Number.isFinite(at) || now.getTime() - at >= SUB_RECHECK_MS;
+      })
       .sort((a, b) => checkedAt(a.doc, a.field).localeCompare(checkedAt(b.doc, b.field)))
       .slice(0, MAX_SUBS);
     for (const { doc, field } of batch) {
