@@ -76,6 +76,29 @@ describe("roster push", () => {
   });
 });
 
+describe("partial roster push (complete: false)", () => {
+  it("updates only the rows it carries and never marks the others gone", async () => {
+    await worker("roster", { items: [item(), item({ username: "bob", email: "b@example.com" })], complete: true });
+    const res = await worker("roster", { items: [item({ suspended: true })], complete: false });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.written, 1);
+    assert.equal((await read("workspace_roster/kamal"))?.suspended, true);
+    assert.equal((await read("workspace_roster/bob"))?.gone, false, "absent from a partial push ≠ removed");
+  });
+
+  it("a full push still marks what it no longer lists", async () => {
+    await worker("roster", { items: [item(), item({ username: "bob", email: "b@example.com" })], complete: true });
+    await worker("roster", { items: [item()], complete: true });
+    assert.equal((await read("workspace_roster/bob"))?.gone, true);
+  });
+
+  it("a partial push creates a row it has never seen, with its first-seen date", async () => {
+    const res = await worker("roster", { items: [item({ username: "new", email: "n@example.com" })], complete: false });
+    assert.equal(res.body.written, 1);
+    assert.ok((await read("workspace_roster/new"))?.firstSeenAt);
+  });
+});
+
 describe("usage ingest", () => {
   it("moved usage is written; the same usage again is not, until the heartbeat", async () => {
     await seedLedger();

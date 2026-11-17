@@ -61,13 +61,17 @@ export async function POST(request: Request) {
     requireAdminToken(request);
     const body = (await request.json().catch(() => null)) as {
       items?: RosterItem[];
+      complete?: boolean;
     } | null;
     if (!Array.isArray(body?.items)) throw badRequest("invalid", "Send {items: […]}.");
 
     const db = adminDb();
     const items = body.items.slice(0, 200);
-    // Only a complete list can prove absence: past the 200-item cap, skip it.
-    const complete = body.items.length <= 200;
+    // Only a complete list can prove absence. The worker now sends just the
+    // rows that changed between hourly full pushes and says which it is;
+    // a push without the flag (an older worker) is the whole fleet, as before.
+    // Past the 200-item cap no list is complete.
+    const complete = (typeof body.complete === "boolean" ? body.complete : true) && body.items.length <= 200;
     // One read pass. A complete push reads the whole (small) collection once —
     // it needs every row for the absence check anyway; a capped push reads
     // only the rows it names.
